@@ -1,0 +1,9 @@
+[package]
+edition = { workspace = true }
+name    = "oh-my-lint-lib"
+version = { workspace = true }
+
+[dependencies]
+regex      = { workspace = true }
+serde      = { workspace = true }
+similar    = { workspace = true }

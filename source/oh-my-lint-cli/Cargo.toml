@@ -1,0 +1,14 @@
+[package]
+edition = { workspace = true }
+name    = "oh-my-lint-cli"
+version = { workspace = true }
+
+[[bin]]
+name = "oh-my-lint"
+path = "src/main.rs"
+
+[dependencies]
+clap       = { workspace = true }
+oh-my-lint-lib = { path = "../oh-my-lint-lib" }
+serde      = { workspace = true }
+serde_json = { workspace = true }

@@ -89,7 +89,7 @@ pub fn violations(sql: &str) -> Vec<Violation> {
                 .iter()
                 .any(|clause| crate::sql::splitter::SET_OPERATORS.contains(&clause.kind));
             if !crate::sql::decision::is_simple(block) && !has_set_operator {
-                let indent = block_indent(statement_text, statement.start + block_span.start);
+                let indent = block_indent(statement_text, block_span.start);
                 for clause in clauses.iter().skip(1) {
                     let absolute = statement.start + block_span.start + clause.keyword_start;
                     let relative = absolute - statement.start;
@@ -212,5 +212,14 @@ mod tests {
             "select a from t where x in (select y from u group by y having count(*) > 1 and max(z) > 0 and min(z) < 9 and sum(z) > 1)",
         );
         assert!(found.iter().any(|violation| violation.kind == "subquery"));
+    }
+
+    #[test]
+    fn handles_later_statement_after_utf8_comment() {
+        let sql = "-- 用户同步修复\nbegin;\nselect a, b, c, d from t;\ncommit;";
+        let found = crate::sql::checker::violations(sql);
+        assert!(found.iter().any(|violation| {
+            violation.kind == "select" && violation.expected == crate::sql::checker::Mode::Break
+        }));
     }
 }

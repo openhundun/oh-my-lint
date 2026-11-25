@@ -25,7 +25,7 @@ where 1 = 1
             and c.c_customer_sk = ss_customer_sk
             and ss_sold_date_sk = d_date_sk
             and d_year = 2002
-            and d_moy between 1 and 1 + 3
+            and (d_moy between 1 and 1 + 3)
     )
     and (
         1 = 0
@@ -36,7 +36,7 @@ where 1 = 1
                 and c.c_customer_sk = ws_bill_customer_sk
                 and ws_sold_date_sk = d_date_sk
                 and d_year = 2002
-                and d_moy between 1 and 1 + 3
+                and (d_moy between 1 and 1 + 3)
         )
         or exists (
             select *
@@ -45,7 +45,7 @@ where 1 = 1
                 and c.c_customer_sk = cs_ship_customer_sk
                 and cs_sold_date_sk = d_date_sk
                 and d_year = 2002
-                and d_moy between 1 and 1 + 3
+                and (d_moy between 1 and 1 + 3)
         )
     )
 group by

@@ -89,7 +89,7 @@ from (
         and ws_sold_time_sk = t_time_sk
         and ws_ship_mode_sk = sm_ship_mode_sk
         and d_year = 2001
-        and t_time between 30838 and 30838 + 28800
+        and (t_time between 30838 and 30838 + 28800)
         and sm_carrier in ('DHL', 'BARIAN')
     group by
         w_warehouse_name,
@@ -145,7 +145,7 @@ from (
         and cs_sold_time_sk = t_time_sk
         and cs_ship_mode_sk = sm_ship_mode_sk
         and d_year = 2001
-        and t_time between 30838 and 30838 + 28800
+        and (t_time between 30838 and 30838 + 28800)
         and sm_carrier in ('DHL', 'BARIAN')
     group by
         w_warehouse_name,

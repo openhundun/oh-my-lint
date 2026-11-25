@@ -55,7 +55,9 @@ select
 from ss
 left join ws on ws_sold_year = ss_sold_year and ws_item_sk = ss_item_sk and ws_customer_sk = ss_customer_sk
 left join cs on cs_sold_year = ss_sold_year and cs_item_sk = ss_item_sk and cs_customer_sk = ss_customer_sk
-where (coalesce(ws_qty, 0) > 0 or coalesce(cs_qty, 0) > 0) and ss_sold_year = 2000
+where 1 = 1
+    and (coalesce(ws_qty, 0) > 0 or coalesce(cs_qty, 0) > 0)
+    and ss_sold_year = 2000
 order by
     ss_sold_year,
     ss_item_sk,

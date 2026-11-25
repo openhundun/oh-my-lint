@@ -9,12 +9,14 @@ select
     sum(case when (cs_ship_date_sk - cs_sold_date_sk > 120) then 1 else 0 end) as ">120 days"
 from
     catalog_sales,
-    (select substring(w_warehouse_name, 1, 20) as w_substr, * from warehouse) sq1,
+    (
+        select substring(w_warehouse_name, 1, 20) as w_substr, * from warehouse
+    ) sq1,
     ship_mode,
     call_center,
     date_dim
 where 1 = 1
-    and d_month_seq between 1200 and 1200 + 11
+    and (d_month_seq between 1200 and 1200 + 11)
     and cs_ship_date_sk = d_date_sk
     and cs_warehouse_sk = w_warehouse_sk
     and cs_ship_mode_sk = sm_ship_mode_sk

@@ -39,7 +39,7 @@ from
             fri_sales as fri_sales1,
             sat_sales as sat_sales1
         from wss, store, date_dim d
-        where d.d_week_seq = wss.d_week_seq and ss_store_sk = s_store_sk and d_month_seq between 1212 and 1212 + 11
+        where d.d_week_seq = wss.d_week_seq and ss_store_sk = s_store_sk and (d_month_seq between 1212 and 1212 + 11)
     ) y,
     (
         select
@@ -54,7 +54,7 @@ from
             fri_sales as fri_sales2,
             sat_sales as sat_sales2
         from wss, store, date_dim d
-        where d.d_week_seq = wss.d_week_seq and ss_store_sk = s_store_sk and d_month_seq between 1212 + 12 and 1212 + 23
+        where d.d_week_seq = wss.d_week_seq and ss_store_sk = s_store_sk and (d_month_seq between 1212 + 12 and 1212 + 23)
     ) x
 where s_store_id1 = s_store_id2 and d_week_seq1 = d_week_seq2 - 52
 order by s_store_name1 nulls first, s_store_id1 nulls first, d_week_seq1 nulls first

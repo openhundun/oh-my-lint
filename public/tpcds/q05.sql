@@ -28,7 +28,7 @@ ssr as (
         ) salesreturns,
         date_dim,
         store
-    where date_sk = d_date_sk and d_date between cast('2000-08-23' as date) and cast('2000-09-06' as date) and store_sk = s_store_sk
+    where date_sk = d_date_sk and (d_date between cast('2000-08-23' as date) and cast('2000-09-06' as date)) and store_sk = s_store_sk
     group by s_store_id
 ),
 csr as (
@@ -60,7 +60,7 @@ csr as (
         ) salesreturns,
         date_dim,
         catalog_page
-    where date_sk = d_date_sk and d_date between cast('2000-08-23' as date) and cast('2000-09-06' as date) and page_sk = cp_catalog_page_sk
+    where date_sk = d_date_sk and (d_date between cast('2000-08-23' as date) and cast('2000-09-06' as date)) and page_sk = cp_catalog_page_sk
     group by cp_catalog_page_id
 ),
 wsr as (
@@ -93,7 +93,7 @@ wsr as (
         ) salesreturns,
         date_dim,
         web_site
-    where date_sk = d_date_sk and d_date between cast('2000-08-23' as date) and cast('2000-09-06' as date) and wsr_web_site_sk = web_site_sk
+    where date_sk = d_date_sk and (d_date between cast('2000-08-23' as date) and cast('2000-09-06' as date)) and wsr_web_site_sk = web_site_sk
     group by web_site_id
 )
 select

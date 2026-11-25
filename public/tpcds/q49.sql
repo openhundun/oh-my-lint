@@ -24,7 +24,8 @@ from (
                 (cast(sum(coalesce(wr.wr_return_quantity, 0)) as decimal(15, 4)) / cast(sum(coalesce(ws.ws_quantity, 0)) as decimal(15, 4))) as return_ratio,
                 (cast(sum(coalesce(wr.wr_return_amt, 0)) as decimal(15, 4)) / cast(sum(coalesce(ws.ws_net_paid, 0)) as decimal(15, 4))) as currency_ratio
             from web_sales ws
-            left join web_returns wr on ws.ws_order_number = wr.wr_order_number and ws.ws_item_sk = wr.wr_item_sk, date_dim
+            left join web_returns wr on ws.ws_order_number = wr.wr_order_number and ws.ws_item_sk = wr.wr_item_sk
+            cross join date_dim
             where 1 = 1
                 and wr.wr_return_amt > 10000
                 and ws.ws_net_profit > 1
@@ -57,7 +58,8 @@ from (
                 (cast(sum(coalesce(cr.cr_return_quantity, 0)) as decimal(15, 4)) / cast(sum(coalesce(cs.cs_quantity, 0)) as decimal(15, 4))) as return_ratio,
                 (cast(sum(coalesce(cr.cr_return_amount, 0)) as decimal(15, 4)) / cast(sum(coalesce(cs.cs_net_paid, 0)) as decimal(15, 4))) as currency_ratio
             from catalog_sales cs
-            left join catalog_returns cr on cs.cs_order_number = cr.cr_order_number and cs.cs_item_sk = cr.cr_item_sk, date_dim
+            left join catalog_returns cr on cs.cs_order_number = cr.cr_order_number and cs.cs_item_sk = cr.cr_item_sk
+            cross join date_dim
             where 1 = 1
                 and cr.cr_return_amount > 10000
                 and cs.cs_net_profit > 1
@@ -90,7 +92,8 @@ from (
                 (cast(sum(coalesce(sr.sr_return_quantity, 0)) as decimal(15, 4)) / cast(sum(coalesce(sts.ss_quantity, 0)) as decimal(15, 4))) as return_ratio,
                 (cast(sum(coalesce(sr.sr_return_amt, 0)) as decimal(15, 4)) / cast(sum(coalesce(sts.ss_net_paid, 0)) as decimal(15, 4))) as currency_ratio
             from store_sales sts
-            left join store_returns sr on sts.ss_ticket_number = sr.sr_ticket_number and sts.ss_item_sk = sr.sr_item_sk, date_dim
+            left join store_returns sr on sts.ss_ticket_number = sr.sr_ticket_number and sts.ss_item_sk = sr.sr_item_sk
+            cross join date_dim
             where 1 = 1
                 and sr.sr_return_amt > 10000
                 and sts.ss_net_profit > 1

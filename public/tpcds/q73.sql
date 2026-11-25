@@ -17,7 +17,7 @@ from
             and store_sales.ss_sold_date_sk = date_dim.d_date_sk
             and store_sales.ss_store_sk = store.s_store_sk
             and store_sales.ss_hdemo_sk = household_demographics.hd_demo_sk
-            and date_dim.d_dom between 1 and 2
+            and (date_dim.d_dom between 1 and 2)
             and (household_demographics.hd_buy_potential = 'Unknown' or household_demographics.hd_buy_potential = '>10000')
             and household_demographics.hd_vehicle_count > 0
             and (case when household_demographics.hd_vehicle_count > 0 then (household_demographics.hd_dep_count * 1.000) / household_demographics.hd_vehicle_count else null end) > 1
@@ -26,7 +26,7 @@ from
         group by ss_ticket_number, ss_customer_sk
     ) dj,
     customer
-where ss_customer_sk = c_customer_sk and cnt between 1 and 5
+where ss_customer_sk = c_customer_sk and (cnt between 1 and 5)
 order by
     cnt desc,
     c_last_name,

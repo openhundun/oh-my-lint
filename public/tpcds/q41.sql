@@ -1,7 +1,7 @@
 select distinct i_product_name
 from item i1
 where 1 = 1
-    and i_manufact_id between 738 and 738 + 40
+    and (i_manufact_id between 738 and 738 + 40)
     and (
         select count(*) as item_cnt
         from item

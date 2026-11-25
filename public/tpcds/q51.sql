@@ -5,7 +5,7 @@ web_v1 as (
         d_date,
         sum(sum(ws_sales_price)) over(partition by ws_item_sk order by d_date rows between unbounded preceding and current row) as cume_sales
     from web_sales, date_dim
-    where ws_sold_date_sk = d_date_sk and d_month_seq between 1200 and 1200 + 11 and ws_item_sk is not null
+    where ws_sold_date_sk = d_date_sk and (d_month_seq between 1200 and 1200 + 11) and ws_item_sk is not null
     group by ws_item_sk, d_date
 ),
 store_v1 as (
@@ -14,7 +14,7 @@ store_v1 as (
         d_date,
         sum(sum(ss_sales_price)) over(partition by ss_item_sk order by d_date rows between unbounded preceding and current row) as cume_sales
     from store_sales, date_dim
-    where ss_sold_date_sk = d_date_sk and d_month_seq between 1200 and 1200 + 11 and ss_item_sk is not null
+    where ss_sold_date_sk = d_date_sk and (d_month_seq between 1200 and 1200 + 11) and ss_item_sk is not null
     group by ss_item_sk, d_date
 )
 select *

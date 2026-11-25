@@ -25,7 +25,7 @@ from
             and (household_demographics.hd_dep_count = 6 or household_demographics.hd_vehicle_count > 2)
             and date_dim.d_dow = 1
             and date_dim.d_year in (1999, 1999 + 1, 1999 + 2)
-            and store.s_number_employees between 200 and 295
+            and (store.s_number_employees between 200 and 295)
         group by
             ss_ticket_number,
             ss_customer_sk,

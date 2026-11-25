@@ -2,37 +2,37 @@ with
 ss as (
     select s_store_sk, sum(ss_ext_sales_price) as sales, sum(ss_net_profit) as profit
     from store_sales, date_dim, store
-    where ss_sold_date_sk = d_date_sk and d_date between cast('2000-08-23' as date) and cast('2000-09-22' as date) and ss_store_sk = s_store_sk
+    where ss_sold_date_sk = d_date_sk and (d_date between cast('2000-08-23' as date) and cast('2000-09-22' as date)) and ss_store_sk = s_store_sk
     group by s_store_sk
 ),
 sr as (
     select s_store_sk, sum(sr_return_amt) as returns_, sum(sr_net_loss) as profit_loss
     from store_returns, date_dim, store
-    where sr_returned_date_sk = d_date_sk and d_date between cast('2000-08-23' as date) and cast('2000-09-22' as date) and sr_store_sk = s_store_sk
+    where sr_returned_date_sk = d_date_sk and (d_date between cast('2000-08-23' as date) and cast('2000-09-22' as date)) and sr_store_sk = s_store_sk
     group by s_store_sk
 ),
 cs as (
     select cs_call_center_sk, sum(cs_ext_sales_price) as sales, sum(cs_net_profit) as profit
     from catalog_sales, date_dim
-    where cs_sold_date_sk = d_date_sk and d_date between cast('2000-08-23' as date) and cast('2000-09-22' as date)
+    where cs_sold_date_sk = d_date_sk and (d_date between cast('2000-08-23' as date) and cast('2000-09-22' as date))
     group by cs_call_center_sk
 ),
 cr as (
     select cr_call_center_sk, sum(cr_return_amount) as returns_, sum(cr_net_loss) as profit_loss
     from catalog_returns, date_dim
-    where cr_returned_date_sk = d_date_sk and d_date between cast('2000-08-23' as date) and cast('2000-09-22' as date)
+    where cr_returned_date_sk = d_date_sk and (d_date between cast('2000-08-23' as date) and cast('2000-09-22' as date))
     group by cr_call_center_sk
 ),
 ws as (
     select wp_web_page_sk, sum(ws_ext_sales_price) as sales, sum(ws_net_profit) as profit
     from web_sales, date_dim, web_page
-    where ws_sold_date_sk = d_date_sk and d_date between cast('2000-08-23' as date) and cast('2000-09-22' as date) and ws_web_page_sk = wp_web_page_sk
+    where ws_sold_date_sk = d_date_sk and (d_date between cast('2000-08-23' as date) and cast('2000-09-22' as date)) and ws_web_page_sk = wp_web_page_sk
     group by wp_web_page_sk
 ),
 wr as (
     select wp_web_page_sk, sum(wr_return_amt) as returns_, sum(wr_net_loss) as profit_loss
     from web_returns, date_dim, web_page
-    where wr_returned_date_sk = d_date_sk and d_date between cast('2000-08-23' as date) and cast('2000-09-22' as date) and wr_web_page_sk = wp_web_page_sk
+    where wr_returned_date_sk = d_date_sk and (d_date between cast('2000-08-23' as date) and cast('2000-09-22' as date)) and wr_web_page_sk = wp_web_page_sk
     group by wp_web_page_sk
 )
 select

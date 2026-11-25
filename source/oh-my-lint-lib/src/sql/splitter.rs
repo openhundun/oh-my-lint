@@ -53,7 +53,8 @@ pub struct Element {
 
 /// 切出深度 0 的子句；正文包含关键字后的空白，直到下一个子句或文本结束。
 pub fn clause_spans(text: &str) -> Vec<Clause> {
-    let low = text.to_ascii_lowercase();
+    let masked = crate::sql::lexer::mask(text);
+    let low = masked.to_ascii_lowercase();
     let bytes = low.as_bytes();
     let mut marks: Vec<(usize, &'static str)> = Vec::new();
     let mut depth: i32 = 0;
@@ -118,30 +119,120 @@ pub fn split_elements(kind: &str, body: &str) -> Vec<Element> {
 /// 正文在括号外是否换行——即该子句是否已经逐元素展开。
 pub fn has_top_level_newline(body: &str) -> bool {
     let mut depth: i32 = 0;
-    for byte in body.bytes() {
-        match byte {
-            b'(' => depth += 1,
-            b')' => depth -= 1,
-            b'\n' if depth == 0 => return true,
+    for token in crate::sql::lexer::tokens(body) {
+        match token.kind {
+            crate::sql::lexer::Kind::Punct if token.text == "(" => depth += 1,
+            crate::sql::lexer::Kind::Punct if token.text == ")" => depth -= 1,
+            crate::sql::lexer::Kind::Whitespace if depth == 0 && token.text.contains('\n') => {
+                return true;
+            }
             _ => {}
         }
     }
     false
 }
 
-/// 根语句 + 任意深度的括号内子语句；根在前。
+/// 布尔组：括号内正文的字节区间。
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct Group {
+    pub start: usize,
+    pub end: usize,
+}
+
+/// 找出全部布尔组（含嵌套）；跳过子查询、函数、限定名与 `case` 括号。
+pub fn boolean_group_spans(text: &str) -> Vec<Group> {
+    let masked = crate::sql::lexer::mask(text);
+    let bytes = masked.as_bytes();
+    let mut stack: Vec<usize> = Vec::new();
+    let mut pairs: Vec<(usize, usize)> = Vec::new();
+    for (index, byte) in bytes.iter().enumerate() {
+        match *byte {
+            b'(' => stack.push(index),
+            b')' => {
+                if let Some(open) = stack.pop() {
+                    pairs.push((open, index));
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut groups = Vec::new();
+    for (open, close) in pairs {
+        let inner = &masked[open + 1..close];
+        let trimmed = inner.trim_start();
+        if starts_with_word(trimmed, "select")
+            || starts_with_word(trimmed, "with")
+            || starts_with_word(trimmed, "case")
+        {
+            continue;
+        }
+        if !is_group_prefix(&masked, open) {
+            continue;
+        }
+        if split_elements("where", &text[open + 1..close]).len() >= 2 {
+            groups.push(Group {
+                start: open + 1,
+                end: close,
+            });
+        }
+    }
+    groups.sort_by_key(|group| group.start);
+    groups
+}
+
+/// 括号前是否处在“条件组”位置：紧邻控制关键字、逗号、运算符或行首。
+fn is_group_prefix(masked: &str, open: usize) -> bool {
+    let bytes = masked.as_bytes();
+    let mut index = open;
+    while index > 0 && bytes[index - 1].is_ascii_whitespace() {
+        index -= 1;
+    }
+    let Some(last) = index.checked_sub(1) else {
+        return true;
+    };
+    match bytes[last] {
+        byte if byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'$' => {
+            let mut start = last;
+            while start > 0 {
+                let previous = bytes[start - 1];
+                if previous.is_ascii_alphanumeric() || previous == b'_' || previous == b'$' {
+                    start -= 1;
+                } else {
+                    break;
+                }
+            }
+            matches!(
+                masked[start..last + 1].to_ascii_lowercase().as_str(),
+                "and" | "or" | "not" | "where" | "having" | "on" | "when" | "then" | "else"
+            )
+        }
+        b'.' | b']' | b')' => false,
+        _ => true,
+    }
+}
+
+/// 文本去掉前导空白后是否以某个词开头（按词边界判断）。
+fn starts_with_word(text: &str, word: &str) -> bool {
+    let Some(rest) = text.strip_prefix(word) else {
+        return false;
+    };
+    rest.chars().next().is_none_or(|character| {
+        !(character.is_alphanumeric() || character == '_' || character == '$')
+    })
+}
 pub fn all_statements(text: &str) -> Vec<crate::span::Span> {
     let mut blocks = vec![crate::span::Span::new(0, text.len())];
+    let masked = crate::sql::lexer::mask(text);
     let mut starts: Vec<usize> = Vec::new();
-    for (index, byte) in text.bytes().enumerate() {
+    for (index, byte) in masked.bytes().enumerate() {
         if byte == b'(' {
             starts.push(index);
         } else if byte == b')' {
             let Some(start) = starts.pop() else {
                 continue;
             };
-            let inner = &text[start + 1..index];
-            if starts_with_statement(inner) {
+            if starts_with_statement(&masked[start + 1..index]) {
+                let inner = &text[start + 1..index];
                 let leading = inner.len() - inner.trim_start().len();
                 blocks.push(crate::span::Span::new(start + 1 + leading, index));
             }
@@ -152,7 +243,8 @@ pub fn all_statements(text: &str) -> Vec<crate::span::Span> {
 
 /// 按深度 0 的分号或「空行 + select/with」切出多条语句。
 pub fn statements(text: &str) -> Vec<crate::span::Span> {
-    let bytes = text.as_bytes();
+    let masked = crate::sql::lexer::mask(text);
+    let bytes = masked.as_bytes();
     let mut bounds: Vec<(usize, usize)> = Vec::new();
     let mut depth: i32 = 0;
     let mut start = 0;
@@ -166,7 +258,7 @@ pub fn statements(text: &str) -> Vec<crate::span::Span> {
                 bounds.push((start, index));
                 start = index + 1;
             }
-            b'\n' if depth == 0 && STATEMENT_BREAK.is_match(&text[index..]) => {
+            b'\n' if depth == 0 && STATEMENT_BREAK.is_match(&masked[index..]) => {
                 bounds.push((start, index));
                 start = index + 1;
             }
@@ -195,9 +287,10 @@ pub fn statements(text: &str) -> Vec<crate::span::Span> {
 
 fn split_depth(body: &str) -> Vec<Element> {
     let mut elements: Vec<Element> = Vec::new();
+    let masked = crate::sql::lexer::mask(body);
     let mut depth: i32 = 0;
     let mut start = 0;
-    for (index, byte) in body.bytes().enumerate() {
+    for (index, byte) in masked.bytes().enumerate() {
         match byte {
             b'(' => depth += 1,
             b')' => depth -= 1,
@@ -229,8 +322,9 @@ fn push_element(elements: &mut Vec<Element>, piece: &str, connector: Connector) 
 }
 
 fn split_conditions(body: &str) -> Vec<Element> {
-    let low = body.to_ascii_lowercase();
-    let bytes = body.as_bytes();
+    let masked = crate::sql::lexer::mask(body);
+    let low = masked.to_ascii_lowercase();
+    let bytes = masked.as_bytes();
     let mut pieces: Vec<Element> = Vec::new();
     let mut depth: i32 = 0;
     let mut start = 0;
@@ -267,6 +361,75 @@ fn split_conditions(body: &str) -> Vec<Element> {
     merge_between(pieces)
 }
 
+/// 条件列表的区间：深度 0 的 and/or 切分、合并 `between … and`、去掉首锚点。
+pub fn condition_spans(body: &str) -> Vec<crate::span::Span> {
+    let masked = crate::sql::lexer::mask(body);
+    let low = masked.to_ascii_lowercase();
+    let bytes = masked.as_bytes();
+    let mut pieces: Vec<(usize, usize)> = Vec::new();
+    let mut depth = 0;
+    let mut start = 0;
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'(' => depth += 1,
+            b')' => depth -= 1,
+            _ => {}
+        }
+        if depth == 0 {
+            let mut matched = false;
+            for (word, len) in [("and", 3usize), ("or", 2usize)] {
+                let boundary = (index == 0 || !is_word(bytes[index - 1]))
+                    && (index + len >= bytes.len() || !is_word(bytes[index + len]));
+                if boundary && low.get(index..).is_some_and(|rest| rest.starts_with(word)) {
+                    pieces.push((start, index));
+                    index += len;
+                    start = index;
+                    matched = true;
+                    break;
+                }
+            }
+            if matched {
+                continue;
+            }
+        }
+        index += 1;
+    }
+    pieces.push((start, body.len()));
+    let mut merged: Vec<(usize, usize)> = Vec::new();
+    for (piece_start, piece_end) in pieces {
+        if low[piece_start..piece_end].trim().is_empty() {
+            continue;
+        }
+        if let Some(last) = merged.last_mut() {
+            let last_low = &low[last.0..last.1];
+            if last_low.matches("between").count() > last_low.matches(" and ").count() {
+                last.1 = piece_end;
+                continue;
+            }
+        }
+        merged.push((piece_start, piece_end));
+    }
+    if merged
+        .first()
+        .is_some_and(|first| matches!(low[first.0..first.1].trim(), "1 = 1" | "1 = 0"))
+    {
+        merged.remove(0);
+    }
+    merged
+        .into_iter()
+        .filter_map(|(start, end)| {
+            let piece = &body[start..end];
+            let leading = piece.len() - piece.trim_start().len();
+            let trailing = piece.trim_end().len();
+            if trailing <= leading {
+                return None;
+            }
+            Some(crate::span::Span::new(start + leading, start + trailing))
+        })
+        .collect()
+}
+
 fn merge_between(pieces: Vec<Element>) -> Vec<Element> {
     let mut merged: Vec<Element> = Vec::new();
     for element in pieces {
@@ -284,7 +447,7 @@ fn merge_between(pieces: Vec<Element>) -> Vec<Element> {
 
 fn starts_with_statement(text: &str) -> bool {
     let trimmed = text.trim_start().to_ascii_lowercase();
-    trimmed.starts_with("select") || trimmed.starts_with("with")
+    starts_with_word(&trimmed, "select") || starts_with_word(&trimmed, "with")
 }
 
 fn is_word(byte: u8) -> bool {

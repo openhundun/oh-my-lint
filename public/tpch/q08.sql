@@ -21,6 +21,6 @@ where 1 = 1
     and s_nationkey = n2.n_nationkey
     and p_type = 'ECONOMY ANODIZED STEEL'
     and p_size = 15
-    and o_orderdate between date '1995-01-01' and date '1996-12-31'
+    and (o_orderdate between date '1995-01-01' and date '1996-12-31')
 group by extract(year from o_orderdate)
 order by o_year

@@ -30,7 +30,7 @@ where 1 = 1
             and cd1.cd_marital_status = cd2.cd_marital_status
             and cd1.cd_education_status = 'Advanced Degree'
             and cd1.cd_education_status = cd2.cd_education_status
-            and ws_sales_price between 100.00 and 150.00
+            and (ws_sales_price between 100.00 and 150.00)
         )
         or (
             1 = 1
@@ -38,7 +38,7 @@ where 1 = 1
             and cd1.cd_marital_status = cd2.cd_marital_status
             and cd1.cd_education_status = 'College'
             and cd1.cd_education_status = cd2.cd_education_status
-            and ws_sales_price between 50.00 and 100.00
+            and (ws_sales_price between 50.00 and 100.00)
         )
         or (
             1 = 1
@@ -46,29 +46,14 @@ where 1 = 1
             and cd1.cd_marital_status = cd2.cd_marital_status
             and cd1.cd_education_status = '2 yr Degree'
             and cd1.cd_education_status = cd2.cd_education_status
-            and ws_sales_price between 150.00 and 200.00
+            and (ws_sales_price between 150.00 and 200.00)
         )
     )
     and (
         1 = 0
-        or (
-            1 = 1
-            and ca_country = 'United States'
-            and ca_state in ('IN', 'OH', 'NJ')
-            and ws_net_profit between 100 and 200
-        )
-        or (
-            1 = 1
-            and ca_country = 'United States'
-            and ca_state in ('WI', 'CT', 'KY')
-            and ws_net_profit between 150 and 300
-        )
-        or (
-            1 = 1
-            and ca_country = 'United States'
-            and ca_state in ('LA', 'IA', 'AR')
-            and ws_net_profit between 50 and 250
-        )
+        or (ca_country = 'United States' and ca_state in ('IN', 'OH', 'NJ') and (ws_net_profit between 100 and 200))
+        or (ca_country = 'United States' and ca_state in ('WI', 'CT', 'KY') and (ws_net_profit between 150 and 300))
+        or (ca_country = 'United States' and ca_state in ('LA', 'IA', 'AR') and (ws_net_profit between 50 and 250))
     )
 group by r_reason_desc
 order by

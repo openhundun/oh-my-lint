@@ -37,12 +37,13 @@ fn sentinel_shape_matches_corpus() {
 }
 
 #[test]
-fn inline_subquery_is_diagnosed_but_not_reformatted() {
+fn inline_subquery_is_expanded() {
     let sql = "select a from t where x in (select y from u group by y having count(*) > 1 and max(z) > 0 and min(z) < 9 and sum(z) > 1)";
     assert!(
         crate::sql::check(sql)
             .iter()
             .any(|finding| finding.rule == "sql-break")
     );
-    assert!(crate::sql::format(sql).is_err());
+    let fixed = crate::sql::format(sql).expect("format");
+    assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
 }

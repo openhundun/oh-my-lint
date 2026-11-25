@@ -31,6 +31,10 @@ from (
         )
     group by i_manager_id, d_moy
 ) tmp1
-where (case when avg_monthly_sales > 0 then abs(sum_sales - avg_monthly_sales) / avg_monthly_sales else null end) > 0.1
+where (case
+    when avg_monthly_sales > 0
+    then abs(sum_sales - avg_monthly_sales) / avg_monthly_sales
+    else null
+end) > 0.1
 order by i_manager_id, avg_monthly_sales, sum_sales
 limit 100

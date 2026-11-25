@@ -9,11 +9,11 @@ cross join warehouse
 cross join item
 cross join date_dim
 where 1 = 1
-    and i_current_price between 0.99 and 1.49
+    and (i_current_price between 0.99 and 1.49)
     and i_item_sk = cs_item_sk
     and cs_warehouse_sk = w_warehouse_sk
     and cs_sold_date_sk = d_date_sk
-    and d_date between cast('2000-02-10' as date) and cast('2000-04-10' as date)
+    and (d_date between cast('2000-02-10' as date) and cast('2000-04-10' as date))
 group by w_state, i_item_id
 order by w_state, i_item_id
 limit 100

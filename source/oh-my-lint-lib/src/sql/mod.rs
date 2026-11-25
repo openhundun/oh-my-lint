@@ -3,11 +3,16 @@
 mod checker;
 mod decision;
 mod fix;
+mod lexer;
 mod splitter;
+mod token;
 
 /// 检查一段 SQL，返回块内坐标的诊断。
 pub fn check(sql: &str) -> Vec<crate::model::Finding> {
-    crate::sql::checker::violations(sql)
+    if crate::sql::lexer::has_comment(sql) {
+        return Vec::new();
+    }
+    let mut findings: Vec<crate::model::Finding> = crate::sql::checker::violations(sql)
         .into_iter()
         .map(|violation| crate::model::Finding {
             rule: "sql-break".to_owned(),
@@ -16,12 +21,28 @@ pub fn check(sql: &str) -> Vec<crate::model::Finding> {
             span: violation.span,
             fix: None,
         })
-        .collect()
+        .collect();
+    findings.extend(crate::sql::token::issues(sql).into_iter().map(|issue| {
+        crate::model::Finding {
+            rule: "sql-break".to_owned(),
+            severity: crate::model::Severity::Warning,
+            message: issue.message,
+            span: issue.span,
+            fix: None,
+        }
+    }));
+    findings
 }
 
 /// 把一段 SQL 修成房规版式；合规输入原样返回。
 pub fn format(sql: &str) -> crate::error::Result<String> {
-    crate::sql::fix::format(sql)
+    if crate::sql::lexer::has_comment(sql) {
+        return Err(crate::error::Error::Rejected(
+            "comments are not supported in fix mode".to_owned(),
+        ));
+    }
+    let normalized = crate::sql::token::normalize(sql);
+    crate::sql::fix::format(&normalized)
 }
 
 /// 规则入口：`sql-break`。
@@ -56,17 +77,9 @@ impl crate::model::Rule for SqlRule {
     }
 
     fn can_fix(&self, block: &crate::model::Block) -> crate::error::Result<()> {
-        if block.text.contains("--") || block.text.contains("/*") {
+        if crate::sql::lexer::has_comment(&block.text) {
             return Err(crate::error::Error::Rejected(
                 "comments are not supported in fix mode".to_owned(),
-            ));
-        }
-        if crate::sql::checker::violations(&block.text)
-            .iter()
-            .any(|violation| violation.kind == "subquery")
-        {
-            return Err(crate::error::Error::Rejected(
-                "inline subquery expansion is not supported yet".to_owned(),
             ));
         }
         Ok(())

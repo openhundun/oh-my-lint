@@ -19,7 +19,12 @@ v1 as (
         and ss_item_sk = i_item_sk
         and ss_sold_date_sk = d_date_sk
         and ss_store_sk = s_store_sk
-        and (d_year = 1999 or (d_year = 1999 - 1 and d_moy = 12) or (d_year = 1999 + 1 and d_moy = 1))
+        and (
+            1 = 0
+            or d_year = 1999
+            or (d_year = 1999 - 1 and d_moy = 12)
+            or (d_year = 1999 + 1 and d_moy = 1)
+        )
     group by
         i_category,
         i_brand,
@@ -58,7 +63,11 @@ from v2
 where 1 = 1
     and d_year = 1999
     and avg_monthly_sales > 0
-    and (case when avg_monthly_sales > 0 then abs(sum_sales - avg_monthly_sales) / avg_monthly_sales else null end) > 0.1
+    and (case
+        when avg_monthly_sales > 0
+        then abs(sum_sales - avg_monthly_sales) / avg_monthly_sales
+        else null
+    end) > 0.1
 order by
     sum_sales - avg_monthly_sales,
     1,

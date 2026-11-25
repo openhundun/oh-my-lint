@@ -42,7 +42,8 @@ pub fn format(sql: &str) -> crate::error::Result<String> {
         ));
     }
     let normalized = crate::sql::token::normalize(sql);
-    crate::sql::fix::format(&normalized)
+    let formatted = crate::sql::fix::format(&normalized)?;
+    Ok(crate::sql::token::normalize(&formatted))
 }
 
 /// 规则入口：`sql-break`。

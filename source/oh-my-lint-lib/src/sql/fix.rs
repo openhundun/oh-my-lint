@@ -404,7 +404,7 @@ mod tests {
     #[test]
     fn inlines_three_conditions() {
         let sql = "select a from t where\n    1 = 1\n    and a = 1\n    and b = 2\n    and c = 3\n";
-        let fixed = crate::sql::fix::format(sql).expect("format");
+        let fixed = crate::sql::format(sql).expect("format");
         assert_eq!(
             fixed.trim(),
             "select a\nfrom t\nwhere a = 1 and b = 2 and c = 3"

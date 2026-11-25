@@ -704,7 +704,7 @@ fn starts_with_word(text: &str, word: &str) -> bool {
 }
 
 /// 提取 `case … end` 区间（含嵌套）。
-fn case_spans(text: &str) -> Vec<crate::span::Span> {
+pub(crate) fn case_spans(text: &str) -> Vec<crate::span::Span> {
     let tokens = crate::sql::lexer::tokens(text);
     let mut spans = Vec::new();
     for (index, token) in tokens.iter().enumerate() {
@@ -735,7 +735,7 @@ fn case_spans(text: &str) -> Vec<crate::span::Span> {
 }
 
 /// 只保留最外层的区间。
-fn outermost(spans: Vec<crate::span::Span>) -> Vec<crate::span::Span> {
+pub(crate) fn outermost(spans: Vec<crate::span::Span>) -> Vec<crate::span::Span> {
     let mut ordered = spans;
     ordered.sort_by_key(|span| (span.start, std::cmp::Reverse(span.end)));
     let mut result: Vec<crate::span::Span> = Vec::new();
@@ -752,7 +752,7 @@ fn outermost(spans: Vec<crate::span::Span>) -> Vec<crate::span::Span> {
 }
 
 /// 函数调用括号的区间（从函数名到闭括号）。
-fn function_paren_spans(text: &str) -> Vec<crate::span::Span> {
+pub(crate) fn function_paren_spans(text: &str) -> Vec<crate::span::Span> {
     let tokens = crate::sql::lexer::tokens(text);
     let mut spans = Vec::new();
     for (index, token) in tokens.iter().enumerate() {

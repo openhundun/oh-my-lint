@@ -38,7 +38,7 @@ v0.1 只实现 **SQL 断行决策**（规则 `sql-break`）：根据子句复杂
 | Python 模块级 `SQL = """..."""` | 按常量抽取 SQL 块；函数内的同名局部量不算                     |
 | 其它语言                        | 尚未接入                                                      |
 
-规则 `sql-break` 覆盖：子句断行、布尔组断行与锚点、独立 `case` 展开、内联子查询展开、`from` 的 join 版式与隐式 `cross join` 改写。token 层目前只接入 `between` 条件加括号，其余（大小写、空格、`as`、`distinct`、`not` 等）待接入。
+规则 `sql-break` 覆盖：子句断行、布尔组断行与锚点、独立 `case` 展开、内联子查询展开、`from` 的 join 版式与隐式 `cross join` 改写。token 层覆盖大小写、空格、`<>`/`outer`/`asc`、别名 `as`、`distinct`、`case` 括号与 `not` 改写。
 
 完整判据（术语、递归规则与版式）见 [`RULES.md`](RULES.md)。
 
@@ -49,7 +49,7 @@ v0.1 只实现 **SQL 断行决策**（规则 `sql-break`）：根据子句复杂
 - 元素内部文本（字符串字面量、标识符）逐字节保留；修复会改换行、缩进、锚点、连接词、join 关键字，并把隐式 cross join 写成显式 `cross join`。
 - 格式化幂等：`format(format(x)) == format(x)`；合规输入不做任何改动。
 - 对 `fix` 接受的块，修复后重新 `check` 为空；被 `skipped` 的块保持原样，`check` 继续报告。
-- 修复覆盖子句、布尔组、独立 `case`、内联子查询、隐式 cross join、`with` 框架、集合运算与 `rollup` 参数；token 层目前只做 `between` 括号。
+- 修复覆盖子句、布尔组、独立 `case`、内联子查询、隐式 cross join、`with` 框架、集合运算与 `rollup` 参数；token 层覆盖大小写、空格、`as`、`distinct`、`case` 括号、`between` 括号与 `not` 改写。
 
 ## 构建与测试
 

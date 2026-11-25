@@ -22,14 +22,20 @@ const SUPPORTED_FIXES: [&str; 18] = [
     "with-query",
 ];
 
-/// 把一段 SQL 修成房规版式；合规输入原样返回（语料 no-op 由构造保证）。
+/// 把一段 SQL 修成房规版式；测试用 Generic 快捷入口。
+#[cfg(test)]
 pub fn format(sql: &str) -> crate::error::Result<String> {
+    format_with(sql, crate::sql::parse::Dialect::Generic)
+}
+
+/// 按指定方言修复；每轮重算结构。
+pub fn format_with(sql: &str, dialect: crate::sql::parse::Dialect) -> crate::error::Result<String> {
     if crate::sql::lexer::has_comment(sql) {
         return Err(crate::error::Error::Rejected(
             "comments are not supported in fix mode".to_owned(),
         ));
     }
-    let initial = crate::sql::checker::violations(sql);
+    let initial = crate::sql::checker::violations_with(sql, dialect);
     if let Some(violation) = initial
         .iter()
         .find(|violation| !SUPPORTED_FIXES.contains(&violation.kind))
@@ -41,7 +47,7 @@ pub fn format(sql: &str) -> crate::error::Result<String> {
     }
     let mut current = sql.to_owned();
     for _ in 0..256 {
-        let found = crate::sql::checker::violations(&current);
+        let found = crate::sql::checker::violations_with(&current, dialect);
         let Some(violation) = found.iter().min_by_key(|violation| {
             (
                 violation.span.start,

@@ -1,5 +1,6 @@
 //! SQL 断行规则：检查与增量修复。
 
+mod astmap;
 mod checker;
 mod decision;
 mod fix;
@@ -66,8 +67,12 @@ pub fn format_with(sql: &str, dialect: Dialect) -> crate::error::Result<String> 
     crate::sql::parse::validate(sql, dialect)
         .map_err(|error| crate::error::Error::Rejected(format!("sql does not parse: {error}")))?;
     let normalized = crate::sql::token::normalize(sql);
-    let formatted = crate::sql::fix::format(&normalized)?;
-    Ok(crate::sql::token::normalize(&formatted))
+    let formatted = crate::sql::fix::format_with(&normalized, dialect)?;
+    let output = crate::sql::token::normalize(&formatted);
+    crate::sql::parse::validate(&output, dialect).map_err(|error| {
+        crate::error::Error::Rejected(format!("formatted sql does not parse: {error}"))
+    })?;
+    Ok(output)
 }
 
 /// 规则入口：`sql-break`。

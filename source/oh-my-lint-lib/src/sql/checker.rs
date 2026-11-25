@@ -32,13 +32,20 @@ const BREAK_KINDS: [&str; 6] = ["select", "from", "where", "having", "group by",
 
 /// 检查整段 SQL；根语句与任意深度子查询逐子句对照。
 pub fn violations(sql: &str) -> Vec<Violation> {
+    violations_with(sql, crate::sql::parse::Dialect::Generic)
+}
+
+/// 按指定方言检查；结构优先来自 AST，解析失败时回退到文本扫描。
+pub fn violations_with(sql: &str, dialect: crate::sql::parse::Dialect) -> Vec<Violation> {
+    let structure = crate::sql::astmap::structure(sql, dialect);
     let mut found = Vec::new();
     for statement in crate::sql::splitter::statements(sql) {
         let statement_text = &sql[statement.start..statement.end];
-        for (index, block_span) in crate::sql::splitter::all_statements(statement_text)
-            .into_iter()
-            .enumerate()
-        {
+        let blocks = structure
+            .as_ref()
+            .and_then(|structure| structure.blocks(statement, statement_text))
+            .unwrap_or_else(|| crate::sql::splitter::all_statements(statement_text));
+        for (index, block_span) in blocks.into_iter().enumerate() {
             let block = &statement_text[block_span.start..block_span.end];
             let is_root = block_span.start == 0 && block_span.end == statement_text.len();
             if !is_root

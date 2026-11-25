@@ -213,7 +213,7 @@ fn check_groups(
         .into_iter()
         .skip(1)
         .collect();
-    for group in crate::sql::splitter::boolean_group_spans(body) {
+    for group in crate::sql::splitter::condition_group_spans(body) {
         if nested
             .iter()
             .any(|block| block.start <= group.start && group.end <= block.end)

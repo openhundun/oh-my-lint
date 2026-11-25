@@ -41,14 +41,16 @@ my_revenue as (
         and ca_state = s_state
         and ss_sold_date_sk = d_date_sk
         and c_customer_sk = ss_customer_sk
-        and (d_month_seq between (
-            select distinct d_month_seq + 1
-            from date_dim
-            where d_year = 1998 and d_moy = 12
-        )) and (
-            select distinct d_month_seq + 3
-            from date_dim
-            where d_year = 1998 and d_moy = 12
+        and (
+            d_month_seq between (
+                select distinct d_month_seq + 1
+                from date_dim
+                where d_year = 1998 and d_moy = 12
+            ) and (
+                select distinct d_month_seq + 3
+                from date_dim
+                where d_year = 1998 and d_moy = 12
+            )
         )
     group by c_customer_sk
 ),

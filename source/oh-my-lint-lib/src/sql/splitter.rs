@@ -141,6 +141,17 @@ pub struct Group {
 
 /// 找出全部布尔组（含嵌套）；跳过子查询、函数、限定名与 `case` 括号。
 pub fn boolean_group_spans(text: &str) -> Vec<Group> {
+    group_spans(text, false)
+}
+
+/// 布局用的条件组：布尔组再加上“内部含子查询的单条件括号”。
+///
+/// token 层不能用这个集合递归，否则会给已经包好的 between 再补一层括号。
+pub fn condition_group_spans(text: &str) -> Vec<Group> {
+    group_spans(text, true)
+}
+
+fn group_spans(text: &str, include_single: bool) -> Vec<Group> {
     let masked = crate::sql::lexer::mask(text);
     let bytes = masked.as_bytes();
     let mut stack: Vec<usize> = Vec::new();
@@ -169,7 +180,10 @@ pub fn boolean_group_spans(text: &str) -> Vec<Group> {
         if !is_group_prefix(&masked, open) {
             continue;
         }
-        if split_elements("where", &text[open + 1..close]).len() >= 2 {
+        let inner = &text[open + 1..close];
+        if split_elements("where", inner).len() >= 2
+            || (include_single && all_statements(inner).len() > 1)
+        {
             groups.push(Group {
                 start: open + 1,
                 end: close,
@@ -402,8 +416,8 @@ pub fn condition_spans(body: &str) -> Vec<crate::span::Span> {
             continue;
         }
         if let Some(last) = merged.last_mut() {
-            let last_low = &low[last.0..last.1];
-            if last_low.matches("between").count() > last_low.matches(" and ").count() {
+            let last_text = &body[last.0..last.1];
+            if count_top_level_word(last_text, "between") > count_top_level_word(last_text, "and") {
                 last.1 = piece_end;
                 continue;
             }
@@ -433,12 +447,11 @@ pub fn condition_spans(body: &str) -> Vec<crate::span::Span> {
 fn merge_between(pieces: Vec<Element>) -> Vec<Element> {
     let mut merged: Vec<Element> = Vec::new();
     for element in pieces {
-        if let Some(last) = merged.last_mut() {
-            let lower = last.text.to_ascii_lowercase();
-            if lower.matches("between").count() > lower.matches(" and ").count() {
-                last.text = format!("{} and {}", last.text, element.text);
-                continue;
-            }
+        if let Some(last) = merged.last_mut()
+            && count_top_level_word(&last.text, "between") > count_top_level_word(&last.text, "and")
+        {
+            last.text = format!("{} and {}", last.text, element.text);
+            continue;
         }
         merged.push(element);
     }
@@ -448,6 +461,42 @@ fn merge_between(pieces: Vec<Element>) -> Vec<Element> {
 fn starts_with_statement(text: &str) -> bool {
     let trimmed = text.trim_start().to_ascii_lowercase();
     starts_with_word(&trimmed, "select") || starts_with_word(&trimmed, "with")
+}
+
+/// 统计深度 0 的完整词，忽略字符串、注释与引号标识符。
+fn count_top_level_word(text: &str, word: &str) -> usize {
+    let masked = crate::sql::lexer::mask(text);
+    let bytes = masked.as_bytes();
+    let lower = masked.to_ascii_lowercase();
+    let mut depth = 0usize;
+    let mut count = 0usize;
+    let mut index = 0;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'(' => {
+                depth += 1;
+                index += 1;
+                continue;
+            }
+            b')' => {
+                depth = depth.saturating_sub(1);
+                index += 1;
+                continue;
+            }
+            _ => {}
+        }
+        if depth == 0
+            && (index == 0 || !is_word(bytes[index - 1]))
+            && (index + word.len() >= bytes.len() || !is_word(bytes[index + word.len()]))
+            && lower.get(index..index + word.len()) == Some(word)
+        {
+            count += 1;
+            index += word.len();
+            continue;
+        }
+        index += 1;
+    }
+    count
 }
 
 fn is_word(byte: u8) -> bool {
@@ -493,6 +542,33 @@ mod tests {
         let elements = crate::sql::splitter::split_elements("where", "x between 1 and 3 and y = 1");
         assert_eq!(elements.len(), 2);
         assert_eq!(elements[0].text, "x between 1 and 3");
+    }
+
+    #[test]
+    fn merges_between_with_nested_and() {
+        let body =
+            "d_month_seq between (select x from t where a = 1 and b = 2) and (select y from u)";
+        let elements = crate::sql::splitter::split_elements("where", body);
+        assert_eq!(elements.len(), 1);
+        assert_eq!(elements[0].text, body);
+        let spans = crate::sql::splitter::condition_spans(body);
+        assert_eq!(spans.len(), 1);
+        assert_eq!(&body[spans[0].start..spans[0].end], body);
+    }
+
+    #[test]
+    fn layout_group_covers_wrapped_single_subquery_condition() {
+        let body = "(x between (select 1 from u where p = 1 and q = 2) and (select 2 from u))";
+        let groups = crate::sql::splitter::condition_group_spans(body);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(
+            &body[groups[0].start..groups[0].end],
+            "x between (select 1 from u where p = 1 and q = 2) and (select 2 from u)"
+        );
+        assert!(
+            crate::sql::splitter::boolean_group_spans(body).is_empty(),
+            "token layer must not recurse into this group"
+        );
     }
 
     #[test]

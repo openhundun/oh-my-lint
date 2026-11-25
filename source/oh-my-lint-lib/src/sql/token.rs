@@ -960,6 +960,14 @@ mod tests {
     }
 
     #[test]
+    fn wraps_between_with_nested_and_in_subqueries() {
+        assert_fixed(
+            "select a from t where d between (select x from u where p = 1 and q = 2) and (select y from u)",
+            "select a from t where (d between (select x from u where p = 1 and q = 2) and (select y from u))",
+        );
+    }
+
+    #[test]
     fn leaves_wrapped_condition_alone() {
         let sql = "select a from t where (x between 1 and 2)";
         assert_eq!(normalized(sql), sql);

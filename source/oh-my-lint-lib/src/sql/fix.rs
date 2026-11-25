@@ -222,6 +222,28 @@ fn render_group(text: &str, violation: &crate::sql::checker::Violation) -> Optio
     if elements.is_empty() {
         return None;
     }
+    if elements.len() == 1 {
+        let body = elements[0].text.trim();
+        return Some(match violation.expected {
+            crate::sql::checker::Mode::Break => {
+                let padding = " ".repeat(violation.indent + 4);
+                let mut lines = body.lines();
+                let first = lines.next().unwrap_or("").trim_end();
+                let mut rendered = format!("\n{padding}{first}");
+                for line in lines {
+                    rendered.push('\n');
+                    if !line.trim().is_empty() {
+                        rendered.push_str("    ");
+                        rendered.push_str(line.trim_end());
+                    }
+                }
+                rendered.push('\n');
+                rendered.push_str(&" ".repeat(violation.indent));
+                rendered
+            }
+            crate::sql::checker::Mode::Inline => body.to_owned(),
+        });
+    }
     let connective = elements
         .iter()
         .skip(1)
@@ -410,6 +432,17 @@ mod tests {
             "select a\nfrom t\nwhere a = 1 and b = 2 and c = 3"
         );
         assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+    }
+
+    #[test]
+    fn breaks_wrapped_single_condition_with_subqueries() {
+        let sql = "select a from t where a = 1 and (x between (select 1 from u where p = 1 and q = 2) and (select 2 from u))";
+        let fixed = crate::sql::format(sql).expect("format");
+        assert_eq!(
+            fixed,
+            "select a\nfrom t\nwhere 1 = 1\n    and a = 1\n    and (\n        x between (\n            select 1\n            from u\n            where p = 1 and q = 2\n        ) and (select 2 from u)\n    )"
+        );
+        assert_eq!(crate::sql::format(&fixed).expect("second"), fixed);
     }
 
     #[test]

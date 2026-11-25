@@ -7,3 +7,4 @@ version = { workspace = true }
 regex      = { workspace = true }
 serde      = { workspace = true }
 similar    = { workspace = true }
+sqlparser  = { workspace = true }

@@ -19,8 +19,8 @@ v0.1 只实现 **SQL 断行决策**（规则 `sql-break`）：根据子句复杂
 
 | 命令                                                                              | 说明                                                                          |
 | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `oh-my-lint check <paths> [--json] [--statistics] [--max-warnings N]`             | 检查 SQL 块；`--max-warnings` 默认 `0`，findings 数超过它才以 `1` 退出         |
-| `oh-my-lint fix <paths> [--dry-run] [--diff] [--write] [--unsafe]`                | 修复 SQL 块；默认 dry-run，只有 `--write` 才写回文件                          |
+| `oh-my-lint check <paths> [--dialect <name>] [--json] [--statistics] [--max-warnings N]` | 检查 SQL 块；`--max-warnings` 默认 `0`，findings 数超过它才以 `1` 退出 |
+| `oh-my-lint fix <paths> [--dialect <name>] [--dry-run] [--diff] [--write] [--unsafe]` | 修复 SQL 块；默认 dry-run，只有 `--write` 才写回文件 |
 | `oh-my-lint fix --file <path> --range L:C-L:C [--dry-run] [--diff] [--json]`      | 只修复落在指定行列范围内的块                                                  |
 | `oh-my-lint fix --stdin [--stdin-filename <path>] [--lang sql]`                   | 从标准输入读代码，把修复后的块文本写到标准输出                                |
 | `oh-my-lint rules [--json]`                                                       | 列出已注册规则                                                                |
@@ -40,6 +40,8 @@ v0.1 只实现 **SQL 断行决策**（规则 `sql-break`）：根据子句复杂
 
 规则 `sql-break` 覆盖：子句断行、布尔组断行与锚点、含子查询的单条件括号断行、独立 `case` 展开、内联子查询展开、`from` 的 join 版式与隐式 `cross join` 改写。token 层覆盖大小写、空格、`<>`/`outer`/`asc`、别名 `as`、`distinct`、`case` 括号与 `not` 改写。
 
+所有块先按 `--dialect` 解析（`generic`/`postgres`/`mysql`/`sqlite`/`hive`/`snowflake`/`bigquery`，默认 `generic`）；解析失败只报 `sql does not parse`，不跑布局规则、不产出修复。
+
 完整判据（术语、递归规则与版式）见 [`RULES.md`](RULES.md)。
 
 ## 最小 diff 契约
@@ -49,6 +51,7 @@ v0.1 只实现 **SQL 断行决策**（规则 `sql-break`）：根据子句复杂
 - 元素内部文本（字符串字面量、标识符）逐字节保留；修复会改换行、缩进、锚点、连接词、join 关键字，并把隐式 cross join 写成显式 `cross join`。
 - 格式化幂等：`format(format(x)) == format(x)`；合规输入不做任何改动。
 - 对 `fix` 接受的块，修复后重新 `check` 为空；被 `skipped` 的块保持原样，`check` 继续报告。
+- 块无法按选定方言解析时不修复；`check` 只输出解析错误，不猜结构。
 - 修复覆盖子句、布尔组、含子查询的单条件括号、独立 `case`、内联子查询、隐式 cross join、`with` 框架、集合运算与 `rollup` 参数；token 层覆盖大小写、空格、`as`、`distinct`、`case` 括号、`between` 括号与 `not` 改写。
 
 ## 构建与测试

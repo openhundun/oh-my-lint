@@ -47,3 +47,30 @@ fn inline_subquery_is_expanded() {
     let fixed = crate::sql::format(sql).expect("format");
     assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
 }
+
+#[test]
+fn rejects_unparseable_sql() {
+    let broken = "select a from t where (x between (select 1 from u)) and (select 2 from u)";
+    let findings = crate::sql::check(broken);
+    assert_eq!(findings.len(), 1, "{findings:?}");
+    assert!(findings[0].message.contains("sql does not parse"));
+    assert!(crate::sql::format(broken).is_err());
+}
+
+#[test]
+fn dialect_controls_parse_gate() {
+    let sql = "select a from t distribute by a";
+    let hive = crate::sql::check_with(sql, crate::sql::Dialect::Hive);
+    assert!(
+        !hive
+            .iter()
+            .any(|finding| finding.message.contains("does not parse"))
+    );
+    let postgres = crate::sql::check_with(sql, crate::sql::Dialect::Postgres);
+    assert!(
+        postgres
+            .iter()
+            .any(|finding| finding.message.contains("does not parse"))
+    );
+    assert!(crate::sql::format_with(sql, crate::sql::Dialect::Postgres).is_err());
+}

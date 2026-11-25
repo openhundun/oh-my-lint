@@ -35,11 +35,41 @@ enum Command {
     Explain(ExplainArgs),
 }
 
+/// 解析方言。
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+enum DialectArg {
+    Generic,
+    Postgres,
+    Mysql,
+    Sqlite,
+    Hive,
+    Snowflake,
+    #[value(name = "bigquery")]
+    BigQuery,
+}
+
+impl From<DialectArg> for oh_my_lint_lib::sql::Dialect {
+    fn from(value: DialectArg) -> Self {
+        match value {
+            DialectArg::Generic => Self::Generic,
+            DialectArg::Postgres => Self::Postgres,
+            DialectArg::Mysql => Self::Mysql,
+            DialectArg::Sqlite => Self::Sqlite,
+            DialectArg::Hive => Self::Hive,
+            DialectArg::Snowflake => Self::Snowflake,
+            DialectArg::BigQuery => Self::BigQuery,
+        }
+    }
+}
+
 #[derive(clap::Args)]
 struct CheckArgs {
     /// 文件或目录；默认当前目录。
     #[arg(default_value = ".")]
     paths: Vec<std::path::PathBuf>,
+    /// 解析方言。
+    #[arg(long, value_enum, default_value = "generic")]
+    dialect: DialectArg,
     /// 输出 JSON。
     #[arg(long)]
     json: bool,
@@ -56,6 +86,9 @@ struct FixArgs {
     /// 文件或目录；默认当前目录。
     #[arg(default_value = ".")]
     paths: Vec<std::path::PathBuf>,
+    /// 解析方言。
+    #[arg(long, value_enum, default_value = "generic")]
+    dialect: DialectArg,
     /// 指定单个文件，配合 --range。
     #[arg(long, conflicts_with = "stdin")]
     file: Option<std::path::PathBuf>,
@@ -160,13 +193,22 @@ fn main() -> std::process::ExitCode {
 }
 
 fn run(cli: Cli) -> oh_my_lint_lib::error::Result<u8> {
-    let engine = oh_my_lint_lib::engine::Engine::with_defaults();
     match cli.command {
-        Command::Check(args) => check(&engine, args),
-        Command::Fix(args) => fix(&engine, args),
-        Command::Rules(args) => rules(&engine, args),
-        Command::Explain(args) => explain(&engine, args),
+        Command::Check(args) => {
+            let engine = engine_for(args.dialect.into());
+            check(&engine, args)
+        }
+        Command::Fix(args) => {
+            let engine = engine_for(args.dialect.into());
+            fix(&engine, args)
+        }
+        Command::Rules(args) => rules(&oh_my_lint_lib::engine::Engine::with_defaults(), args),
+        Command::Explain(args) => explain(&oh_my_lint_lib::engine::Engine::with_defaults(), args),
     }
+}
+
+fn engine_for(dialect: oh_my_lint_lib::sql::Dialect) -> oh_my_lint_lib::engine::Engine {
+    oh_my_lint_lib::engine::Engine::new(vec![Box::new(oh_my_lint_lib::sql::SqlRule::new(dialect))])
 }
 
 fn check(

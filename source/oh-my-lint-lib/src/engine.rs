@@ -46,7 +46,7 @@ impl Engine {
 
     /// 默认规则集：目前只有 SQL 断行。
     pub fn with_defaults() -> Self {
-        Self::new(vec![Box::new(crate::sql::SqlRule)])
+        Self::new(vec![Box::new(crate::sql::SqlRule::default())])
     }
 
     /// 遍历已注册规则，供 `rules` / `explain` 命令使用。

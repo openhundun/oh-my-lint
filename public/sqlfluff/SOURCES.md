@@ -38,5 +38,35 @@ Skipped because of comments: `cast_with_whitespaces.sql`, `hash_operators.sql`,
 `pattern_match_expressions.sql`, `pg_trgm.sql`,
 `select_order_by_using_operator.sql`, `within_group.sql`.
 
+## Parser coverage gaps
+
+Planned formatter policy: a statement that cannot be parsed is skipped and kept
+byte-for-byte; it is not rewritten and not reported as a corpus error. This also
+lets handlebars-like syntax pass through untouched for now.
+
+Observed `sqlparser 0.64.0` gaps, to report upstream:
+
+| Construct | Example | Parser error |
+| --- | --- | --- |
+| `ALTER TABLE ... SET TABLESPACE` | `alter table distributors set tablespace fasttablespace;` | `Expected: (, found: tablespace` |
+| index tablespace | `create index code_idx on films (code) tablespace indexspace;` | `Expected: end of statement, found: tablespace` |
+| CTAS `USING method` | `create table t1 using method as (select ...);` | `Expected: end of statement, found: using` |
+| column `STORAGE` / `COMPRESSION` | `a text storage plain` | `Expected: ',' or ')' after column definition, found: storage` |
+| `EXPLAIN ANALYZE VERBOSE` | `explain analyze verbose select 1;` | `Expected: end of statement, found: verbose` |
+| `DELETE ... WHERE CURRENT OF` | `delete from tasks where current of c_tasks;` | `Expected: end of statement, found: of` |
+| table constraint `UNIQUE ... WITH (...)` | `unique (name) with (fillfactor=70)` | `Expected: ',' or ')' after column definition, found: with` |
+
+## Phase-3 trial
+
+The following files were manually normalized against the DQL/DML/DDL rules and
+are not auto-formatted yet (most hit the parser gaps above):
+
+`alter_table.sql`, `create_index.sql`, `create_table.sql`,
+`create_table_as.sql`, `create_table_column_storage_compression.sql`,
+`delete.sql`, `explain.sql`.
+
+`datetime_units.sql` also had the R35 typed-literal / interval-unit rewrite
+applied.
+
 This corpus is phase-3 input, not a golden no-op corpus; it is intentionally not
 wired into `job__check` (the smoke uses an inline fixture).

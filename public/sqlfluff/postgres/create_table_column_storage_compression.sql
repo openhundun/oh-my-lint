@@ -1,24 +1,17 @@
--- Column STORAGE (PostgreSQL 16+) and COMPRESSION (PostgreSQL 14+) in a
--- column definition.
--- https://www.postgresql.org/docs/17/sql-createtable.html
-CREATE TABLE storage_test (
-    a text STORAGE PLAIN,
-    b text STORAGE EXTERNAL,
-    c text STORAGE EXTENDED,
-    d text STORAGE MAIN,
-    e text STORAGE DEFAULT
+create table storage_test (
+    a text storage plain,
+    b text storage external,
+    c text storage extended,
+    d text storage main,
+    e text
 );
 
-CREATE TABLE compression_test (
-    a text COMPRESSION pglz,
-    b text COMPRESSION lz4,
-    c text COMPRESSION default
+create table compression_test (
+    a text compression pglz,
+    b text compression lz4,
+    c text
 );
 
-CREATE TABLE combined_test (
-    a text STORAGE MAIN COMPRESSION lz4 COLLATE "C" NOT NULL,
-    b jsonb STORAGE EXTERNAL DEFAULT '{}'
-);
+create table combined_test (a text storage main compression lz4 collate "C" not null, b jsonb storage external default '{}');
 
--- STORAGE and COMPRESSION are non-reserved, so they still work as column names.
-CREATE TABLE kw_names (storage text, compression int);
+create table kw_names (storage text, compression int);

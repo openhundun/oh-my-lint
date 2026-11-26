@@ -42,7 +42,7 @@ v0.1 只实现 **SQL 断行决策**（规则 `sql-break`）：根据子句复杂
 
 所有块先按 `--dialect`（`postgres`/`mysql`/`duckdb`/`hive`，默认 `postgres`）交给 sqlparser 做词法与语法分析；字符串、注释、引号按方言识别（`$$`、`E''`、`#` 注释、反引号）。解析失败只报 `sql does not parse`，不跑布局规则、不产出修复。
 
-完整判据（术语、递归规则与版式）见 [`RULES.md`](RULES.md)。
+完整判据（术语、递归规则与版式）见 [`RULES.md`](RULES.md)。RULES.md 按危险程度组织为 DQL → DML → DDL；v0.1 代码目前只实现 DQL，DML/DDL 以及 R34 的“解析失败跳过并原样保留”是目标契约，待迁移。
 
 ## 最小 diff 契约
 

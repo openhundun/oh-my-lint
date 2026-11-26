@@ -1,48 +1,43 @@
-CREATE UNIQUE INDEX title_idx ON films (title);
+create unique index title_idx on films (title);
 
-CREATE UNIQUE INDEX title_idx ON films (title) INCLUDE (director, rating);
+create unique index title_idx on films (title) include (director, rating);
 
-CREATE INDEX title_idx ON films (title) WITH (deduplicate_items = 'off');
+create index title_idx on films (title) with (deduplicate_items='off');
 
-CREATE INDEX ON films ((lower(title)));
+create index on films ((lower(title)));
 
-CREATE INDEX title_idx_german ON films (title COLLATE "de_DE");
+create index title_idx_german on films (title collate "de_DE");
 
-CREATE INDEX title_idx_nulls_low ON films (title NULLS FIRST);
+create index title_idx_nulls_low on films (title nulls first);
 
-CREATE INDEX title_idx_nulls_high ON films (title NULLS LAST);
+create index title_idx_nulls_high on films (title);
 
-CREATE UNIQUE INDEX title_idx ON films (title) WITH (fillfactor = 70);
+create unique index title_idx on films (title) with (fillfactor=70);
 
-CREATE INDEX gin_idx ON documents_table USING GIN (locations) WITH (fastupdate = 'off');
+create index gin_idx on documents_table using gin (locations) with (fastupdate='off');
 
-CREATE INDEX code_idx ON films (code) TABLESPACE indexspace;
+create index code_idx on films (code) tablespace indexspace;
 
-CREATE INDEX pointloc
-    ON points USING gist (box(location,location));
+create index pointloc on points using gist (box(location,location));
 
-CREATE INDEX CONCURRENTLY sales_quantity_index ON sales_table (quantity);
+create index concurrently sales_quantity_index on sales_table (quantity);
 
-CREATE INDEX super_idx ON super_table USING btree(super_column DESC);
+create index super_idx on super_table using btree (super_column desc);
 
-CREATE INDEX opclass_index ON schema.opclass_table (col varchar_pattern_ops);
+create index opclass_index on schema.opclass_table (col varchar_pattern_ops);
 
-CREATE INDEX opclass_index_with_parameters ON schema.opclass_table (col varchar_pattern_ops(p1='3', p2='4'));
+create index opclass_index_with_parameters on schema.opclass_table (col varchar_pattern_ops(p1='3', p2='4'));
 
-CREATE UNIQUE INDEX tests_success_constraint ON tests (subject, target)
-    WHERE success;
+create unique index tests_success_constraint on tests (subject, target) where success;
 
-CREATE INDEX nulls_distinct_index ON documents_table USING GIN (locations)
-     NULLS DISTINCT WITH (fastupdate = 'off');
+create index nulls_distinct_index on documents_table using gin (locations) with (fastupdate='off');
 
-CREATE INDEX nulls_not_distinct_index ON documents_table USING GIN (locations)
-    NULLS NOT DISTINCT WITH (fastupdate = 'off');
+create index nulls_not_distinct_index on documents_table using gin (locations) nulls not distinct with (fastupdate='off');
 
-CREATE INDEX code_idx ON films (code) TABLESPACE indexspace;
+create index code_idx on films (code) tablespace indexspace;
 
-CREATE INDEX CONCURRENTLY IF NOT EXISTS user_my_column_idx ON my_schema.user (my_column);
+create index concurrently if not exists user_my_column_idx on my_schema.user (my_column);
 
--- Schema-qualified type cast in index expression (issue #7820)
-CREATE INDEX table_a_idx_a ON schema_a.table_a USING bm25 (col_a, (col_a::pdb.unicode_words('alias=col_a_alias')));
+create index table_a_idx_a on schema_a.table_a using bm25 (col_a, (col_a::pdb.unicode_words('alias=col_a_alias')));
 
-CREATE INDEX idx_expr ON t USING btree ((col::my_type(10)));
+create index idx_expr on t using btree ((col::my_type(10)));

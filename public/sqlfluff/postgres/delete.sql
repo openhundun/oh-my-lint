@@ -1,59 +1,69 @@
-DELETE FROM films;
+delete from films;
 
-DELETE FROM ONLY films;
+delete from only films;
 
-DELETE FROM films *;
+delete from films *;
 
-DELETE FROM films AS f;
+delete from films f;
 
-DELETE FROM films f;
+delete from films f;
 
-DELETE FROM films USING producers
-  WHERE producer_id = producers.id AND producers.name = 'foo';
+delete from films
+using producers
+where producer_id = producers.id and producers.name = 'foo';
 
-DELETE FROM films AS f USING producers AS p
-  WHERE f.producer_id = p.id AND p.name = 'foo';
+delete from films f
+using producers p
+where f.producer_id = p.id and p.name = 'foo';
 
-DELETE FROM films AS f USING producers AS p, actors AS a
-  WHERE f.producer_id = p.id AND p.name = 'foo'
-    AND f.actor_id = a.id AND a.name = 'joe cool';
+delete from films f
+using producers p, actors a
+where 1 = 1
+    and f.producer_id = p.id
+    and p.name = 'foo'
+    and f.actor_id = a.id
+    and a.name = 'joe cool';
 
-DELETE FROM films f USING producers p
-  WHERE f.producer_id = p.id AND p.name = 'foo';
+delete from films f
+using producers p
+where f.producer_id = p.id and p.name = 'foo';
 
-DELETE FROM films f USING producers p, actors a
-  WHERE f.producer_id = p.id AND p.name = 'foo'
-    AND f.actor_id = a.id AND a.name = 'joe cool';
+delete from films f
+using producers p, actors a
+where 1 = 1
+    and f.producer_id = p.id
+    and p.name = 'foo'
+    and f.actor_id = a.id
+    and a.name = 'joe cool';
 
-DELETE FROM tasks WHERE CURRENT OF c_tasks;
+delete from tasks where current of c_tasks;
 
-DELETE FROM films WHERE kind <> 'Musical';
+delete from films where kind != 'Musical';
 
-DELETE FROM tasks WHERE status = 'DONE' RETURNING *;
+delete from tasks where status = 'DONE' returning *;
 
-DELETE FROM tasks WHERE status = 'DONE' RETURNING actor_id;
+delete from tasks where status = 'DONE' returning actor_id;
 
-DELETE FROM tasks WHERE status = 'DONE' RETURNING actor_id as a_id;
+delete from tasks where status = 'DONE' returning actor_id as a_id;
 
-DELETE FROM tasks WHERE status = 'DONE' RETURNING actor_id a_id;
+delete from tasks where status = 'DONE' returning actor_id as a_id;
 
-DELETE FROM tasks WHERE status = 'DONE' RETURNING actor_id, producer_id;
+delete from tasks where status = 'DONE' returning actor_id, producer_id;
 
-DELETE FROM tasks WHERE status = 'DONE' RETURNING actor_id as a_id, producer_id as p_id;
+delete from tasks where status = 'DONE' returning actor_id as a_id, producer_id as p_id;
 
-DELETE FROM tasks WHERE status = 'DONE' RETURNING actor_id a_id, producer_id p_id;
+delete from tasks where status = 'DONE' returning actor_id as a_id, producer_id as p_id;
 
-WITH test as (select foo from bar)
-DELETE FROM films;
+with test as (select foo from bar) delete from films;
 
-WITH RECURSIVE t(n) AS (
-    VALUES (1)
-  UNION ALL
-    SELECT n+1 FROM t WHERE n < 100
+with recursive t(n) as (
+    values (1)
+    union all
+    select n + 1 from t where n < 100
 )
-DELETE FROM films;
+delete from films;
 
-DELETE FROM foo USING baz
-  LEFT JOIN bar ON baz.bar_id = bar.id
-  WHERE foo.id = bar.foo_id
-    AND baz.id = 'c';
+delete from foo
+using baz
+left join bar on baz.bar_id = bar.id
+where foo.id = bar.foo_id and baz.id = 'c';

@@ -1,215 +1,168 @@
-ALTER TABLE distributors ADD COLUMN address varchar(30);
+alter table distributors add column address varchar(30);
 
-ALTER TABLE measurements
-  ADD COLUMN mtime timestamp with time zone DEFAULT now();
+alter table measurements add column mtime timestamptz default now();
 
-ALTER TABLE transactions
-  ADD COLUMN status varchar(30) DEFAULT 'old',
-  ALTER COLUMN status SET default 'current';
+alter table transactions add column status varchar(30) default 'old', alter column status set default 'current';
 
-ALTER TABLE distributors DROP COLUMN address RESTRICT;
+alter table distributors drop column address restrict;
 
-ALTER TABLE distributors
-    ALTER COLUMN address TYPE varchar(80),
-    ALTER COLUMN name TYPE varchar(100);
+alter table distributors alter column address type varchar(80), alter column name type varchar(100);
 
-ALTER TABLE foo
-    ALTER COLUMN foo_timestamp SET DATA TYPE timestamp with time zone
-    USING
-        timestamp with time zone 'epoch' + foo_timestamp * interval '1 second';
+alter table foo alter column foo_timestamp set data type timestamptz using 'epoch'::timestamptz + foo_timestamp * '1 second'::interval;
 
-ALTER TABLE foo
-    ALTER COLUMN foo_timestamp DROP DEFAULT,
-    ALTER COLUMN foo_timestamp TYPE timestamp with time zone
-    USING
-        timestamp 'epoch' + foo_timestamp * interval '1 second',
-    ALTER COLUMN foo_timestamp SET DEFAULT now();
+alter table foo
+    alter column foo_timestamp drop default,
+    alter column foo_timestamp type timestamptz using 'epoch'::timestamp + foo_timestamp * '1 second'::interval,
+    alter column foo_timestamp set default now();
 
-ALTER TABLE mytable ALTER date_column SET DEFAULT NOW();
-ALTER TABLE mytable ALTER int_column SET DEFAULT 1;
-ALTER TABLE mytable ALTER text_column SET DEFAULT 'value';
-ALTER TABLE mytable ALTER bool_column SET DEFAULT false;
-ALTER TABLE mytable ALTER other_column SET DEFAULT other_value;
-ALTER TABLE mytable ALTER other_column SET DEFAULT CURRENT_TIMESTAMP;
-ALTER TABLE mytable ALTER other_column SET DEFAULT a_function(a_parameter);
-ALTER TABLE mytable ALTER other_column SET DEFAULT a_function('a_parameter');
-ALTER TABLE mytable ALTER other_column SET DEFAULT 1 + 2 + 3;
-ALTER TABLE mytable ALTER other_column SET DEFAULT (1 + 2 + 3);
-ALTER TABLE mytable ALTER other_column DROP DEFAULT;
-ALTER TABLE IF EXISTS mytable ALTER date_column SET DEFAULT NOW();
-ALTER TABLE IF EXISTS mytable ALTER int_column SET DEFAULT 1;
-ALTER TABLE IF EXISTS mytable ALTER text_column SET DEFAULT 'value';
-ALTER TABLE IF EXISTS mytable ALTER bool_column SET DEFAULT false;
-ALTER TABLE IF EXISTS mytable ALTER other_column SET DEFAULT other_value;
-ALTER TABLE IF EXISTS mytable ALTER other_column SET DEFAULT CURRENT_TIMESTAMP;
-ALTER TABLE IF EXISTS mytable ALTER other_column SET DEFAULT a_function(a_parameter);
-ALTER TABLE IF EXISTS mytable ALTER other_column SET DEFAULT a_function('a_parameter');
-ALTER TABLE IF EXISTS mytable ALTER other_column SET DEFAULT 1 + 2 + 3;
-ALTER TABLE IF EXISTS mytable ALTER other_column SET DEFAULT (1 + 2 + 3);
-ALTER TABLE IF EXISTS mytable ALTER other_column DROP DEFAULT;
+alter table mytable alter date_column set default now();
+alter table mytable alter int_column set default 1;
+alter table mytable alter text_column set default 'value';
+alter table mytable alter bool_column set default false;
+alter table mytable alter other_column set default other_value;
+alter table mytable alter other_column set default current_timestamp;
+alter table mytable alter other_column set default a_function(a_parameter);
+alter table mytable alter other_column set default a_function('a_parameter');
+alter table mytable alter other_column set default 1 + 2 + 3;
+alter table mytable alter other_column set default 1 + 2 + 3;
+alter table mytable alter other_column drop default;
+alter table if exists mytable alter date_column set default now();
+alter table if exists mytable alter int_column set default 1;
+alter table if exists mytable alter text_column set default 'value';
+alter table if exists mytable alter bool_column set default false;
+alter table if exists mytable alter other_column set default other_value;
+alter table if exists mytable alter other_column set default current_timestamp;
+alter table if exists mytable alter other_column set default a_function(a_parameter);
+alter table if exists mytable alter other_column set default a_function('a_parameter');
+alter table if exists mytable alter other_column set default 1 + 2 + 3;
+alter table if exists mytable alter other_column set default 1 + 2 + 3;
+alter table if exists mytable alter other_column drop default;
 
-ALTER TABLE distributors RENAME COLUMN address TO city;
+alter table distributors rename column address to city;
 
-ALTER TABLE distributors RENAME TO suppliers;
+alter table distributors rename to suppliers;
 
-ALTER TABLE distributors RENAME CONSTRAINT zipchk TO zip_check;
+alter table distributors rename constraint zipchk to zip_check;
 
-ALTER TABLE distributors ALTER COLUMN street SET NOT NULL;
+alter table distributors alter column street set not null;
 
-ALTER TABLE distributors ALTER COLUMN street DROP NOT NULL;
+alter table distributors alter column street drop not null;
 
-ALTER TABLE distributors ADD CONSTRAINT zipchk CHECK (char_length(zipcode) = 5);
+alter table distributors add constraint zipchk check (char_length(zipcode) = 5);
 
-ALTER TABLE distributors ADD CONSTRAINT zipchk CHECK (char_length(zipcode) = 5) NO INHERIT;
+alter table distributors add constraint zipchk check (char_length(zipcode) = 5) no inherit;
 
-ALTER TABLE distributors DROP CONSTRAINT zipchk;
+alter table distributors drop constraint zipchk;
 
--- constraints can optionally have their names double-quoted
-ALTER TABLE distributors DROP CONSTRAINT "zipchk";
+alter table distributors drop constraint "zipchk";
 
-ALTER TABLE ONLY distributors DROP CONSTRAINT zipchk;
+alter table only distributors drop constraint zipchk;
 
-ALTER TABLE distributors ADD CONSTRAINT distfk FOREIGN KEY (address) REFERENCES addresses (address);
+alter table distributors add constraint distfk foreign key (address) references addresses (address);
 
-ALTER TABLE distributors ADD CONSTRAINT distfk FOREIGN KEY (address) REFERENCES addresses (address) MATCH FULL;
+alter table distributors add constraint distfk foreign key (address) references addresses (address) match full;
 
-ALTER TABLE distributors ADD CONSTRAINT distfk FOREIGN KEY (address) REFERENCES addresses (address) ON DELETE RESTRICT ON UPDATE CASCADE;
+alter table distributors add constraint distfk foreign key (address) references addresses (address) on delete restrict on update cascade;
 
-ALTER TABLE distributors ADD CONSTRAINT distfk FOREIGN KEY (address) REFERENCES addresses (address) NOT VALID;
+alter table distributors add constraint distfk foreign key (address) references addresses (address) not valid;
 
-ALTER TABLE distributors VALIDATE CONSTRAINT distfk;
+alter table distributors validate constraint distfk;
 
-ALTER TABLE distributors ADD CONSTRAINT dist_id_zipcode_key UNIQUE (dist_id, zipcode);
+alter table distributors add constraint dist_id_zipcode_key unique (dist_id, zipcode);
 
-ALTER TABLE distributors ADD PRIMARY KEY (dist_id);
+alter table distributors add primary key (dist_id);
 
-ALTER TABLE distributors SET TABLESPACE fasttablespace;
+alter table distributors set tablespace fasttablespace;
 
--- Issue:2071
-ALTER TABLE distributors SET (parameter_1 = 'value');
+alter table distributors set (parameter_1='value');
 
-ALTER TABLE distributors SET (parameter_1 = 1);
+alter table distributors set (parameter_1=1);
 
-ALTER TABLE distributors SET (parameter_1 = 1, parameter_2 = 'value');
+alter table distributors set (parameter_1=1, parameter_2='value');
 
-ALTER TABLE myschema.distributors SET SCHEMA yourschema;
+alter table myschema.distributors set schema yourschema;
 
-ALTER TABLE distributors DROP CONSTRAINT distributors_pkey,
-    ADD CONSTRAINT distributors_pkey PRIMARY KEY USING INDEX dist_id_temp_idx;
+alter table distributors drop constraint distributors_pkey, add constraint distributors_pkey primary key using index dist_id_temp_idx;
 
-ALTER TABLE measurement
-    ATTACH PARTITION measurement_y2016m07 FOR VALUES FROM ('2016-07-01') TO ('2016-08-01');
+alter table measurement attach partition measurement_y2016m07 for values from ('2016-07-01') to ('2016-08-01');
 
-ALTER TABLE cities
-    ATTACH PARTITION cities_ab FOR VALUES IN ('a', 'b');
+alter table cities attach partition cities_ab for values in ('a', 'b');
 
-ALTER TABLE orders
-    ATTACH PARTITION orders_p4 FOR VALUES WITH (MODULUS 4, REMAINDER 3);
+alter table orders attach partition orders_p4 for values with (modulus 4, remainder 3);
 
-ALTER TABLE ONLY orders ATTACH PARTITION public.orders_p4 FOR VALUES WITH (MODULUS 4, REMAINDER 3);
+alter table only orders attach partition public.orders_p4 for values with (modulus 4, remainder 3);
 
-ALTER TABLE cities
-    ATTACH PARTITION cities_partdef DEFAULT;
+alter table cities attach partition cities_partdef default;
 
-ALTER TABLE measurement
-    DETACH PARTITION measurement_y2015m12;
+alter table measurement detach partition measurement_y2015m12;
 
-ALTER TABLE measurement
-    DETACH PARTITION measurement_y2021m10 CONCURRENTLY FINALIZE;
+alter table measurement detach partition measurement_y2021m10 concurrently finalize;
 
-ALTER TABLE landing.workorderhistory
-ADD CONSTRAINT workorder_id_foreign_key
-FOREIGN KEY(workorderid) REFERENCES landing.workorder(id);
+alter table landing.workorderhistory add constraint workorder_id_foreign_key foreign key (workorderid) references landing.workorder (id);
 
-ALTER TABLE my_table ADD COLUMN IF NOT EXISTS foo TEXT;
+alter table my_table add column if not exists foo text;
 
-ALTER TABLE public.obm_buildings
-OWNER to postgres;
+alter table public.obm_buildings owner to postgres;
 
-ALTER TABLE distributors ALTER COLUMN street ADD GENERATED ALWAYS AS IDENTITY (INCREMENT 4 NO MAXVALUE);
+alter table distributors alter column street add generated always as identity (increment 4 no maxvalue);
 
-ALTER TABLE distributors ALTER COLUMN street SET RESTART WITH 3;
+alter table distributors alter column street set restart with 3;
 
-ALTER TABLE distributors ADD my_column int GENERATED BY DEFAULT AS IDENTITY (CACHE 3 MAXVALUE 63 OWNED BY NONE);
+alter table distributors add my_column int generated by default as identity (cache 3 maxvalue 63 owned by none);
 
-ALTER TABLE public.test OWNER TO "ID";
+alter table public.test owner to "ID";
 
-ALTER TABLE public.test OWNER TO ID;
+alter table public.test owner to id;
 
-ALTER TABLE IF EXISTS ONLY public.test OWNER TO CURRENT_ROLE;
+alter table if exists only public.test owner to current_role;
 
-ALTER TABLE public.history ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
-    SEQUENCE NAME public.history_id_seq
-);
+alter table public.history alter column id add generated always as identity (sequence name public.history_id_seq);
 
--- Test adding columns with UNIQUE and PRIMARY KEY constraints
+alter table tbl
+    add column nulls_distinct text unique,
+    add column nulls_not_distinct text unique nulls not distinct,
+    add everything text unique with (arg1=3, arg5='str') using index tablespace spc;
 
-ALTER TABLE tbl
-    ADD COLUMN nulls_distinct text UNIQUE NULLS DISTINCT,
-    ADD COLUMN nulls_not_distinct text UNIQUE NULLS NOT DISTINCT,
-    ADD everything text UNIQUE NULLS DISTINCT WITH (arg1=3, arg5='str') USING INDEX TABLESPACE spc;
+alter table tbl add pk text default 'hello' primary key with (arg1=3, arg5='str') using index tablespace tblspace not null;
 
-ALTER TABLE tbl
-    ADD pk text
-        DEFAULT 'hello'
-        PRIMARY KEY WITH (arg1=3, arg5='str') USING INDEX TABLESPACE tblspace NOT NULL;
+alter table tbl
+    add constraint foo1 unique (fld, col),
+    add constraint foo2 unique (fld),
+    add constraint foo3 unique nulls not distinct (fld),
+    add constraint everything unique (fld, col) include (two, three) with (arg1=3, arg5='str') using index tablespace tblspc,
+    add constraint pk primary key (fld, col) include (four) with (ff=auto, gg=stuff) using index tablespace tblspc;
 
-ALTER TABLE tbl
-    ADD CONSTRAINT foo1 UNIQUE (fld, col),
-    ADD CONSTRAINT foo2 UNIQUE NULLS DISTINCT (fld),
-    ADD CONSTRAINT foo3 UNIQUE NULLS NOT DISTINCT (fld),
-    ADD CONSTRAINT everything UNIQUE NULLS DISTINCT (fld, col)
-        INCLUDE (two, three)
-        WITH (arg1=3, arg5='str')
-        USING INDEX TABLESPACE tblspc,
-    ADD CONSTRAINT pk PRIMARY KEY (fld, col)
-        INCLUDE (four)
-        WITH (ff=auto, gg=stuff)
-        USING INDEX TABLESPACE tblspc;
+alter table foo set (opt1, opt2=5, opt3='str', ns.opt4, ns.opt5=6, ns.opt6='str', opt7=asc);
+alter table foo reset (opt1, opt2=5, opt3='str', ns.opt4, ns.opt5=6, ns.opt6='str', opt7=asc);
+alter table foo alter column baz set (opt1, opt2=5, opt3='str', ns.opt4, ns.opt5=6, ns.opt6='str', opt7=asc);
+alter table foo alter column baz reset (opt1, opt2=5, opt3='str', ns.opt4, ns.opt5=6, ns.opt6='str', opt7=asc);
 
--- Test SET/RESET actions on both table and column
+alter table reservation add exclude using gist (during with &&);
+alter table room_reservation add constraint cons exclude using gist (room with =, during with &&);
 
-ALTER TABLE foo SET (opt1, opt2=5, opt3='str', ns.opt4, ns.opt5=6, ns.opt6='str', opt7=ASC);
-ALTER TABLE foo RESET (opt1, opt2=5, opt3='str', ns.opt4, ns.opt5=6, ns.opt6='str', opt7=ASC);
-ALTER TABLE foo ALTER COLUMN baz
-    SET (opt1, opt2=5, opt3='str', ns.opt4, ns.opt5=6, ns.opt6='str', opt7=ASC);
-ALTER TABLE foo ALTER COLUMN baz
-    RESET (opt1, opt2=5, opt3='str', ns.opt4, ns.opt5=6, ns.opt6='str', opt7=ASC);
+alter table no_using add exclude (field with =) no inherit;
+alter table many_options add exclude
+    using gist (
+        one with =,
+        nulls_opclass nulls with =,
+        nulls_last with =,
+        two collate "en-US" opclass (opt1, opt2=5, opt3='str', ns.opt4, ns.opt5=6, ns.opt6='str', opt7=asc) nulls first with =,
+        (two + 5) with =,
+        myfunc(a, b) with =,
+        myfunc_opclass(a, b) fop (opt=1, foo=2) with =,
+        only_opclass opclass with =,
+        desc_order desc with =
+    )
+    include (a, b)
+    with (idx_num=5, idx_str='idx_value', idx_kw=desc)
+    using index tablespace tblspc
+    where (field != 'def') deferrable not valid initially deferred;
 
--- Test out EXCLUDE constraints, as well as other more advanced index parameters on constraints
+alter table mytable alter column mycolumn set compression lz4;
+alter table mytable alter mycolumn set compression lz4;
 
--- from https://www.postgresql.org/docs/15/rangetypes.html: basic usage (adapted for ALTER TABLE)
-ALTER TABLE reservation ADD EXCLUDE USING gist (during WITH &&);
-ALTER TABLE room_reservation ADD CONSTRAINT cons EXCLUDE USING gist (room WITH =, during WITH &&);
-
--- all the gnarly options: not every option is valid, but this will parse successfully on PG 15.
-ALTER TABLE no_using ADD EXCLUDE (field WITH =) NOT DEFERRABLE INITIALLY IMMEDIATE NO INHERIT;
-ALTER TABLE many_options ADD EXCLUDE
-    USING gist (
-        one WITH =,
-        nulls_opclass nulls WITH =,
-        nulls_last NULLS LAST WITH =,
-        two COLLATE "en-US" opclass
-            (opt1, opt2=5, opt3='str', ns.opt4, ns.opt5=6, ns.opt6='str', opt7=ASC)
-            ASC NULLS FIRST WITH =,
-        (two + 5) WITH =,
-        myfunc(a, b) WITH =,
-        myfunc_opclass(a, b) fop (opt=1, foo=2) WITH =,
-        only_opclass opclass WITH =,
-        desc_order DESC WITH =
-    ) INCLUDE (a, b) WITH (idx_num = 5, idx_str = 'idx_value', idx_kw=DESC)
-        USING INDEX TABLESPACE tblspc
-        WHERE (field != 'def')
-        DEFERRABLE NOT VALID INITIALLY DEFERRED;
-
--- Compression settings
-ALTER TABLE mytable ALTER COLUMN mycolumn SET COMPRESSION LZ4;
-ALTER TABLE mytable ALTER mycolumn SET COMPRESSION LZ4;
-
--- Storage settings (DEFAULT is PostgreSQL 16+)
--- https://www.postgresql.org/docs/17/sql-altertable.html
-ALTER TABLE mytable ALTER COLUMN mycolumn SET STORAGE PLAIN;
-ALTER TABLE mytable ALTER COLUMN mycolumn SET STORAGE EXTERNAL;
-ALTER TABLE mytable ALTER COLUMN mycolumn SET STORAGE EXTENDED;
-ALTER TABLE mytable ALTER COLUMN mycolumn SET STORAGE MAIN;
-ALTER TABLE mytable ALTER mycolumn SET STORAGE DEFAULT;
+alter table mytable alter column mycolumn set storage plain;
+alter table mytable alter column mycolumn set storage external;
+alter table mytable alter column mycolumn set storage extended;
+alter table mytable alter column mycolumn set storage main;
+alter table mytable alter mycolumn set storage default;

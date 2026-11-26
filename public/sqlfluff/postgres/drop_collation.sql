@@ -1,7 +1,7 @@
-DROP COLLATION case_insensitive;
+drop collation case_insensitive;
 
-DROP COLLATION IF EXISTS german;
+drop collation if exists german;
 
-DROP COLLATION german CASCADE;
+drop collation german cascade;
 
-DROP COLLATION german RESTRICT;
+drop collation german restrict;

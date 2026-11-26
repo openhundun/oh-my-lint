@@ -1,9 +1,9 @@
-DROP TYPE foo;
+drop type foo;
 
-DROP TYPE IF EXISTS foo;
+drop type if exists foo;
 
-DROP TYPE foo, bar;
+drop type foo, bar;
 
-DROP TYPE foo CASCADE;
+drop type foo cascade;
 
-DROP TYPE foo RESTRICT;
+drop type foo restrict;

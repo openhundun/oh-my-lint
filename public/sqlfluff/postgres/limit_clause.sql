@@ -15,4 +15,4 @@ limit 100;
 
 select col_a
 from test_table
-limit all
+limit all;

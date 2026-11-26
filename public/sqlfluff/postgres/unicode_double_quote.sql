@@ -1,4 +1,4 @@
-SELECT U&"a";
+select u&"a";
 
 SELECT U&"aaaa" UESCAPE '!';
 

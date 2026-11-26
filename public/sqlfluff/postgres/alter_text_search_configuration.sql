@@ -3,6 +3,6 @@ ALTER TEXT SEARCH CONFIGURATION my_config ALTER MAPPING FOR word WITH french_ste
 ALTER TEXT SEARCH CONFIGURATION my_config ALTER MAPPING REPLACE english WITH french;
 ALTER TEXT SEARCH CONFIGURATION my_config ALTER MAPPING FOR asciiword REPLACE english_stem WITH french_stem;
 ALTER TEXT SEARCH CONFIGURATION my_config DROP MAPPING IF EXISTS FOR email;
-ALTER TEXT SEARCH CONFIGURATION my_config RENAME TO new_config;
-ALTER TEXT SEARCH CONFIGURATION my_config OWNER TO new_owner;
-ALTER TEXT SEARCH CONFIGURATION my_config SET SCHEMA new_schema;
+alter text search configuration my_config rename to new_config;
+alter text search configuration my_config owner to new_owner;
+alter text search configuration my_config set schema new_schema;

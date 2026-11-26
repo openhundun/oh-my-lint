@@ -1,9 +1,9 @@
-ALTER TRIGGER foo ON table_name RENAME TO new_name;
+alter trigger foo on table_name rename to new_name;
 
-ALTER TRIGGER foo ON table_name DEPENDS ON EXTENSION extension_name;
+alter trigger foo on table_name depends on extension extension_name;
 
-ALTER TRIGGER foo ON table_name NO DEPENDS ON EXTENSION extension_name;
+alter trigger foo on table_name no depends on extension extension_name;
 
-ALTER TRIGGER emp_stamp ON emp RENAME TO emp_track_chgs;
+alter trigger emp_stamp on emp rename to emp_track_chgs;
 
-ALTER TRIGGER emp_stamp ON emp DEPENDS ON EXTENSION emplib;
+alter trigger emp_stamp on emp depends on extension emplib;

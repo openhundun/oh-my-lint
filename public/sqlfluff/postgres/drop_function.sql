@@ -1,6 +1,6 @@
-DROP FUNCTION sqrt (integer);
-DROP FUNCTION sqrt (integer), sqrt (bigint);
-DROP FUNCTION update_employee_salaries;
-DROP FUNCTION update_employee_salaries ();
-DROP FUNCTION IF EXISTS foo (IN my_var integer, VARIADIC my_var_2 text);
-DROP FUNCTION IF EXISTS f_name CASCADE;
+drop function sqrt(integer);
+drop function sqrt(integer), sqrt(bigint);
+drop function update_employee_salaries;
+drop function update_employee_salaries();
+drop function if exists foo(in my_var integer, variadic my_var_2 text);
+drop function if exists f_name cascade;

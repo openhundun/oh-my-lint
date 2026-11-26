@@ -1,25 +1,25 @@
 -- IS [NOT] DISTINCT FROM in the SELECT clause
-SELECT NULL IS DISTINCT FROM TRUE;
-SELECT NULL IS NOT DISTINCT FROM TRUE;
+select null is distinct from true;
+select null is not distinct from true;
 
 -- IS DISTINCT FROM with column references and FROM clause
-SELECT a IS DISTINCT FROM b FROM t;
-SELECT a IS NOT DISTINCT FROM b FROM t;
+select a is distinct from b from t;
+select a is not distinct from b from t;
 
 -- IS DISTINCT FROM with SELECT DISTINCT modifier
-SELECT DISTINCT a IS DISTINCT FROM b FROM t;
+select distinct a is distinct from b from t;
 
 -- IS DISTINCT FROM with multiple select elements
-SELECT a, b IS DISTINCT FROM c, d FROM t;
+select a, b is distinct from c, d from t;
 
 -- IS DISTINCT FROM followed by INTO
-SELECT a IS DISTINCT FROM b INTO new_t FROM t;
+select a is distinct from b into new_t from t;
 
 -- IS [NOT] DISTINCT FROM with inline and block comments
-SELECT a IS -- inline comment
-DISTINCT FROM b FROM t;
-SELECT a IS /* block comment */ NOT DISTINCT FROM b FROM t;
+select a is -- inline comment
+distinct from b from t;
+select a is /* block comment */ not distinct from b from t;
 
 -- IS DISTINCT FROM in WHERE clause
-SELECT a FROM t WHERE a IS DISTINCT FROM b;
-SELECT a FROM t WHERE a IS NOT DISTINCT FROM b;
+select a from t where a is distinct from b;
+select a from t where a is not distinct from b;

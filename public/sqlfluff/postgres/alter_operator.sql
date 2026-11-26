@@ -2,9 +2,9 @@ ALTER OPERATOR ^^ (text, text) OWNER TO joe;
 
 ALTER OPERATOR public.=== (box, box) OWNER TO CURRENT_USER;
 
-ALTER OPERATOR ~~~ (character varying, text[]) OWNER TO SESSION_USER;
+alter operator ~~~ (character varying, text[]) owner to session_user;
 
-ALTER OPERATOR !! (NONE, integer) OWNER TO CURRENT_ROLE;
+alter operator !! (none, integer) owner to current_role;
 
 ALTER OPERATOR !== (box, box) SET SCHEMA bob;
 

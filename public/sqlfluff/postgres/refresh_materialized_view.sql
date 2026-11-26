@@ -1,4 +1,4 @@
-REFRESH MATERIALIZED VIEW bar;
-REFRESH MATERIALIZED VIEW CONCURRENTLY bar;
-REFRESH MATERIALIZED VIEW bar WITH DATA;
-REFRESH MATERIALIZED VIEW bar WITH NO DATA;
+refresh materialized view bar;
+refresh materialized view concurrently bar;
+refresh materialized view bar with data;
+refresh materialized view bar with no data;

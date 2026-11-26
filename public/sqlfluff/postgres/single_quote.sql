@@ -1,18 +1,18 @@
-SELECT '';
+select '';
 
-SELECT '''';
+select '''';
 
-SELECT '
+select '
 
 ';
 
-SELECT '''aaa''';
+select '''aaa''';
 
-SELECT '
+select '
 ''
 ';
 
-SELECT '\';
+select '\';
 
 SELECT 'foo'
 'bar';

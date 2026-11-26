@@ -2,31 +2,31 @@
 -- https://www.postgresql.org/docs/current/pgtrgm.html
 
 -- text % text → boolean (similarity)
-SELECT 'abc' % 'abd';
+select 'abc' % 'abd';
 
 -- text <% text → boolean (word_similarity)
-SELECT 'word' <% 'some word here';
+select 'word' <% 'some word here';
 
 -- text %> text → boolean (word_similarity reverse)
-SELECT 'some word here' %> 'word';
+select 'some word here' %> 'word';
 
 -- text <<% text → boolean (strict_word_similarity)
-SELECT 'text' <<% 'some text example';
+select 'text' <<% 'some text example';
 
 -- text %>> text → boolean (strict_word_similarity reverse)
-SELECT 'some text example' %>> 'text';
+select 'some text example' %>> 'text';
 
 -- text <-> text → real (similarity distance)
-SELECT 'str1' <-> 'str2';
+select 'str1' <-> 'str2';
 
 -- text <<-> text → real (word_similarity distance)
-SELECT 'item' <<-> 'some item value';
+select 'item' <<-> 'some item value';
 
 -- text <->> text → real (word_similarity distance reverse)
-SELECT 'some item value' <->> 'item';
+select 'some item value' <->> 'item';
 
 -- text <<<-> text → real (strict_word_similarity distance)
-SELECT 'name' <<<-> 'some name field';
+select 'name' <<<-> 'some name field';
 
 -- text <->>> text → real (strict_word_similarity distance reverse)
-SELECT 'some name field' <->>> 'name';
+select 'some name field' <->>> 'name';

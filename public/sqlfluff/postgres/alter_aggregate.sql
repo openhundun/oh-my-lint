@@ -1,11 +1,11 @@
-ALTER AGGREGATE range_agg_preserve_gaps (TSTZRANGE) RENAME TO my_agg;
+alter aggregate range_agg_preserve_gaps(tstzrange) rename to my_agg;
 
-ALTER AGGREGATE my_agg (TSTZRANGE) OWNER TO me;
-ALTER AGGREGATE my_agg (TSTZRANGE) OWNER TO CURRENT_ROLE;
-ALTER AGGREGATE my_agg (TSTZRANGE) OWNER TO CURRENT_USER;
-ALTER AGGREGATE my_agg (TSTZRANGE) OWNER TO SESSION_USER;
+alter aggregate my_agg(tstzrange) owner to me;
+alter aggregate my_agg(tstzrange) owner to current_role;
+alter aggregate my_agg(tstzrange) owner to current_user;
+alter aggregate my_agg(tstzrange) owner to session_user;
 
-ALTER AGGREGATE my_agg (*) SET SCHEMA api;
+alter aggregate my_agg(*) set schema api;
 
-ALTER AGGREGATE complex_agg_function(integer, text, numeric)
-RENAME TO renamed_agg_function;
+alter aggregate complex_agg_function(integer, text, numeric)
+rename to renamed_agg_function;

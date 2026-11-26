@@ -1,9 +1,9 @@
-DROP TRIGGER foo ON bar;
+drop trigger foo on bar;
 
-DROP TRIGGER IF EXISTS foo ON bar;
+drop trigger if exists foo on bar;
 
-DROP TRIGGER foo ON bar CASCADE;
+drop trigger foo on bar cascade;
 
-DROP TRIGGER IF EXISTS foo ON bar RESTRICT;
+drop trigger if exists foo on bar restrict;
 
-DROP TRIGGER if_dist_exists ON films;
+drop trigger if_dist_exists on films;

@@ -1,11 +1,11 @@
-CREATE AGGREGATE agg_twocols(numeric, numeric) (
-   SFUNC = mysfunc_accum,
-   STYPE = numeric,
-   COMBINEFUNC = mycombine_accum,
-   INITCOND = 0
+create aggregate agg_twocols(numeric, numeric) (
+   sfunc = mysfunc_accum,
+   stype = numeric,
+   combinefunc = mycombine_accum,
+   initcond = 0
 );
 
-CREATE AGGREGATE agg_array_stype(numeric[]) (
-   SFUNC = mysfunc_accum,
-   STYPE = numeric[]
+create aggregate agg_array_stype(numeric[]) (
+   sfunc = mysfunc_accum,
+   stype = numeric[]
 );

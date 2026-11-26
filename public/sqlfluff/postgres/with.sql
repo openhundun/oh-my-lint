@@ -1,14 +1,20 @@
-WITH w AS MATERIALIZED (
-    SELECT * FROM other_table
+with
+w as materialized (
+    select * from other_table
 )
-SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
-WHERE w2.key = 123;
+select *
+from w w1
+join w w2 on w1.key = w2.ref
+where w2.key = 123;
 
-WITH w AS NOT MATERIALIZED (
-    SELECT * FROM big_table
+with
+w as not materialized (
+    select * from big_table
 )
-SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
-WHERE w2.key = 123;
+select *
+from w w1
+join w w2 on w1.key = w2.ref
+where w2.key = 123;
 
 WITH RECURSIVE search_tree(id, link, data) AS (
     SELECT t.id, t.link, t.data
@@ -41,17 +47,21 @@ WITH RECURSIVE search_graph(id, link, data, depth) AS (
 SELECT * FROM search_graph;
 
 -- test that DML queries are also selectable
-WITH tbl AS (
-    INSERT INTO a VALUES (5) RETURNING *
+with tbl as (
+    insert into a values (5) returning *
 )
-SELECT * FROM tbl;
+select * from tbl;
 
-WITH tbl AS (
-    UPDATE a SET b = 5 RETURNING *
+with
+tbl as (
+    update a set b = 5 returning *
 )
-SELECT * FROM tbl;
+select *
+from tbl;
 
-WITH tbl AS (
-    DELETE FROM a RETURNING *
+with
+tbl as (
+    delete from a returning *
 )
-SELECT * FROM tbl;
+select *
+from tbl;

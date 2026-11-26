@@ -1,78 +1,76 @@
-SELECT timestamp with time zone '2005-04-02 12:00:00-07' + interval '1 day';
+select '2005-04-02 12:00:00-07'::timestamptz + '1 day'::interval;
 
 -- DATEADD is not a function in postgres so this should parse day as column name
-SELECT DATEADD(day, -2, current_date);
+select dateadd(day, -2, current_date);
 
-SELECT timestamptz '2013-07-01 12:00:00' - timestamptz '2013-03-01 12:00:00';
+select '2013-07-01 12:00:00'::timestamptz - '2013-03-01 12:00:00'::timestamptz;
 
-SELECT 1.0::int;
+select 1.0::int;
 
-SELECT '2015-10-24 16:38:46'::TIMESTAMP;
+select '2015-10-24 16:38:46'::timestamp;
 
-SELECT '2015-10-24 16:38:46'::TIMESTAMP AT TIME ZONE 'UTC';
+select '2015-10-24 16:38:46'::timestamp at time zone 'UTC';
 
-SELECT '2015-10-24 16:38:46'::TIMESTAMP WITH TIME ZONE;
+select '2015-10-24 16:38:46'::timestamptz;
 
-SELECT '2015-10-24 16:38:46'::TIMESTAMP WITH TIME ZONE AT TIME ZONE 'UTC';
+select '2015-10-24 16:38:46'::timestamptz at time zone 'UTC';
 
-SELECT '2015-10-24 16:38:46'::TIMESTAMP WITHOUT TIME ZONE;
+select '2015-10-24 16:38:46'::timestamp;
 
-SELECT '2015-10-24 16:38:46'::TIMESTAMPTZ;
+select '2015-10-24 16:38:46'::timestamptz;
 
-SELECT '2015-10-24 16:38:46'::TIMESTAMPTZ AT TIME ZONE 'UTC';
+select '2015-10-24 16:38:46'::timestamptz at time zone 'UTC';
 
 -- Some more example from https://database.guide/how-at-time-zone-works-in-postgresql/
 
-SELECT timestamp with time zone '2025-11-20 00:00:00+00' AT TIME ZONE 'Africa/Cairo';
+select '2025-11-20 00:00:00+00'::timestamptz at time zone 'Africa/Cairo';
 
-SELECT timestamp with time zone '2025-11-20 00:00:00';
+select '2025-11-20 00:00:00'::timestamptz;
 
-SELECT timestamp without time zone '2025-11-20 00:00:00' AT TIME ZONE 'Africa/Cairo';
+select '2025-11-20 00:00:00'::timestamp at time zone 'Africa/Cairo';
 
-SELECT timestamp without time zone '2025-11-20 00:00:00+12' AT TIME ZONE 'Africa/Cairo';
+select '2025-11-20 00:00:00+12'::timestamp at time zone 'Africa/Cairo';
 
-SELECT timestamp without time zone '2025-11-20 00:00:00+12';
+select '2025-11-20 00:00:00+12'::timestamp;
 
-SELECT time with time zone '00:00:00+00' AT TIME ZONE 'Africa/Cairo';
+select '00:00:00+00'::timetz at time zone 'Africa/Cairo';
 
-SELECT time without time zone '00:00:00' AT TIME ZONE 'Africa/Cairo';
+select '00:00:00'::time at time zone 'Africa/Cairo';
 
-SELECT c_timestamp AT TIME ZONE 'Africa/Cairo' FROM t_table;
+select c_timestamp at time zone 'Africa/Cairo' from t_table;
 
-SELECT (c_timestamp AT TIME ZONE 'Africa/Cairo')::time FROM t_table;
+select (c_timestamp at time zone 'Africa/Cairo')::time from t_table;
 
-SELECT a::double precision FROM my_table;
+select a::float8 from my_table;
 
 
-SELECT
-    schema1.table1.columna,
-    t.col2
-FROM schema1.table1
-CROSS JOIN LATERAL somefunc(tb.columnb) as t(col1 text, col2 bool);
+select schema1.table1.columna, t.col2
+from schema1.table1
+cross join lateral somefunc(tb.columnb) t(col1 text, col2 bool);
 
-SELECT a COLLATE "de_DE" < b FROM test1;
+select a collate "de_DE" < b from test1;
 
-SELECT a < ('foo' COLLATE "fr_FR") FROM test1;
+select a < ('foo' collate "fr_FR") from test1;
 
-SELECT a < b COLLATE "de_DE" FROM test1;
+select a < b collate "de_DE" from test1;
 
-SELECT a COLLATE "de_DE" < b FROM test1;
+select a collate "de_DE" < b from test1;
 
-SELECT * FROM test1 ORDER BY a || b COLLATE "fr_FR";
+select * from test1 order by a || b collate "fr_FR";
 
 -- Select elements are optional in Postgres
-SELECT FROM test1;
+select from test1;
 
 -- keywords can be used as column names without quotes if qualified
 select id, start, periods.end from periods;
 
-SELECT concat_lower_or_upper('Hello', 'World', true);
-SELECT concat_lower_or_upper(a => 'Hello', b => 'World');
-SELECT concat_lower_or_upper('Hello', 'World', uppercase => true);
+select concat_lower_or_upper('Hello', 'World', true);
+select concat_lower_or_upper(a => 'Hello', b => 'World');
+select concat_lower_or_upper('Hello', 'World', uppercase => true);
 
 -- row-level locks can be used in Selects
-SELECT * FROM mytable FOR UPDATE;
-SELECT * FROM (SELECT * FROM mytable FOR UPDATE) ss WHERE col1 = 5;
+select * from mytable for update;
+select * from (select * from mytable for update) ss where col1 = 5;
 
 SELECT col1, col2
 FROM mytable1
@@ -82,33 +80,29 @@ LIMIT 1
 FOR SHARE OF mytable1, mytable2 SKIP LOCKED
 ;
 
-Select * from foo TABLESAMPLE SYSTEM (10);
+select * from foo tablesample system(10);
 
-Select * from foo TABLESAMPLE BERNOULLI (10);
+select * from foo tablesample bernoulli(10);
 
 -- use of dollar quote in query
-SELECT * FROM (SELECT * FROM mytable FOR UPDATE) ss WHERE col1 = $1;
+select * from (select * from mytable for update) ss where col1 = $1;
 
-SELECT i + $1 INTO j from foo;
+select i + $1 into j from foo;
 
-SELECT 1 /* hi hi /* foo */ ho ho */ AS bar;
+select 1 /* hi hi /* foo */ ho ho */ as bar;
 
 -- escape double quotes
-SELECT """t".col1 FROM tbl1 AS """t";
+select """t".col1 from tbl1 """t";
 
-SELECT
-    film_id,
-    title
-FROM
+select film_id, title from
     film
-ORDER BY
-    title
-FETCH FIRST 10 ROW ONLY;
+order by title
+fetch first 10 row only;
 
-SELECT foo FROM bar LIMIT 1 FOR UPDATE;
+select foo from bar limit 1 for update;
 
 -- Verify that single underscores are parsed as numeric literals
-SELECT 1_000;
-SELECT 1_000_000;
-SELECT 1.0_000;
-SELECT 1_000_000.0_000_000;
+select 1_000;
+select 1_000_000;
+select 1.0_000;
+select 1_000_000.0_000_000;

@@ -1,19 +1,19 @@
-SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+set transaction isolation level serializable;
 
-SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+set transaction isolation level repeatable read;
 
-SET TRANSACTION ISOLATION LEVEL READ COMMITTED, READ WRITE;
+set transaction isolation level read committed, read write;
 
 SET TRANSACTION READ ONLY, DEFERRABLE;
 
 -- PostgreSQL also accepts the modes without commas
 SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED READ ONLY NOT DEFERRABLE;
 
-SET TRANSACTION SNAPSHOT '00000003-0000001B-1';
+set transaction snapshot '00000003-0000001B-1';
 
-SET LOCAL TRANSACTION READ ONLY;
+set local transaction read only;
 
-SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+set session characteristics as transaction isolation level serializable;
 
 SET SESSION CHARACTERISTICS AS TRANSACTION READ ONLY, NOT DEFERRABLE;
 

@@ -5,4 +5,4 @@ select * into temp table baz;
 
 select * into temporary baz;
 
-select * into unlogged baz
+select * into unlogged baz;

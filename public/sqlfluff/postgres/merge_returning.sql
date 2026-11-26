@@ -1,34 +1,34 @@
 -- PostgreSQL 17 added a RETURNING clause to MERGE.
 -- https://www.postgresql.org/docs/17/sql-merge.html
 
-MERGE INTO customer_account ca
-USING recent_transactions t
-ON t.customer_id = ca.customer_id
-WHEN MATCHED THEN
-    UPDATE SET balance = balance + transaction_value
-RETURNING ca.customer_id, ca.balance;
+merge into customer_account ca
+using recent_transactions t
+on t.customer_id = ca.customer_id
+when matched then
+    update set balance = balance + transaction_value
+returning ca.customer_id, ca.balance;
 
-MERGE INTO wines w
-USING wine_stock_changes s
-ON s.winename = w.winename
-WHEN NOT MATCHED AND s.stock_delta > 0 THEN
-    INSERT VALUES(s.winename, s.stock_delta)
-WHEN MATCHED AND w.stock + s.stock_delta > 0 THEN
-    UPDATE SET stock = w.stock + s.stock_delta
-WHEN MATCHED THEN
-    DELETE
-RETURNING merge_action(), w.*;
+merge into wines w
+using wine_stock_changes s
+on s.winename = w.winename
+when not matched and s.stock_delta > 0 then
+    insert values (s.winename, s.stock_delta)
+when matched and w.stock + s.stock_delta > 0 then
+    update set stock = w.stock + s.stock_delta
+when matched then
+    delete
+returning merge_action(), w.*;
 
-MERGE INTO t
-USING s
-ON t.id = s.id
-WHEN MATCHED THEN
-    UPDATE SET a = s.a
-RETURNING *;
+merge into t
+using s
+on t.id = s.id
+when matched then
+    update set a = s.a
+returning *;
 
-MERGE INTO t
-USING s
-ON t.id = s.id
-WHEN MATCHED THEN
-    UPDATE SET a = s.a
-RETURNING merge_action() AS action, t.id AS ident, t.a * 2;
+merge into t
+using s
+on t.id = s.id
+when matched then
+    update set a = s.a
+returning merge_action() as action, t.id as ident, t.a * 2;

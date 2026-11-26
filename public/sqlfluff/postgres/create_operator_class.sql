@@ -1,30 +1,30 @@
-CREATE OPERATOR CLASS complex_abs_ops
-    DEFAULT FOR TYPE complex USING btree AS
-        OPERATOR 1 <,
-        OPERATOR 2 <=,
-        OPERATOR 3 =,
-        OPERATOR 4 >=,
-        OPERATOR 5 >,
-        FUNCTION 1 complex_abs_cmp(complex, complex);
+create operator class complex_abs_ops
+    default for type complex using btree as
+        operator 1 <,
+        operator 2 <=,
+        operator 3 =,
+        operator 4 >=,
+        operator 5 >,
+        function 1 complex_abs_cmp(complex, complex);
 
-CREATE OPERATOR CLASS gist__int_ops
-    DEFAULT FOR TYPE _int4 USING gist AS
-        OPERATOR 3 &&,
-        OPERATOR 6 = (anyarray, anyarray),
-        OPERATOR 7 @>,
-        OPERATOR 8 <@,
-        OPERATOR 20 @@ (_int4, query_int),
-        FUNCTION 1 g_int_consistent (internal, _int4, smallint, oid, internal),
-        FUNCTION 2 g_int_union (internal, internal),
-        FUNCTION 7 g_int_same (_int4, _int4, internal),
-        STORAGE internal;
+create operator class gist__int_ops
+    default for type _int4 using gist as
+        operator 3 &&,
+        operator 6 = (anyarray, anyarray),
+        operator 7 @>,
+        operator 8 <@,
+        operator 20 @@ (_int4, query_int),
+        function 1 g_int_consistent(internal, _int4, smallint, oid, internal),
+        function 2 g_int_union(internal, internal),
+        function 7 g_int_same(_int4, _int4, internal),
+        storage internal;
 
-CREATE OPERATOR CLASS myschema.int4_custom_ops
-    FOR TYPE int4 USING btree FAMILY integer_ops AS
-        OPERATOR 1 < (int4, int4) FOR SEARCH,
-        FUNCTION 1 (int4, int4) btint4cmp(int4, int4);
+create operator class myschema.int4_custom_ops
+    for type int4 using btree family integer_ops as
+        operator 1 < (int4, int4) for search,
+        function 1 (int4, int4) btint4cmp(int4, int4);
 
-CREATE OPERATOR CLASS point_knn_ops
-    FOR TYPE point USING gist AS
-        OPERATOR 15 <-> (point, point) FOR ORDER BY float_ops,
-        STORAGE box;
+create operator class point_knn_ops
+    for type point using gist as
+        operator 15 <-> (point, point) for order by float_ops,
+        storage box;

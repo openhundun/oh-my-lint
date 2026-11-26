@@ -1,7 +1,7 @@
-CREATE TYPE my_type AS (
-    int_ INT4,
-    bool_ BOOLEAN,
-    comment_ TEXT
+create type my_type as (
+    int_ int4,
+    bool_ boolean,
+    comment_ text
 );
 
-SELECT ((1, true, null)::my_type).int_;
+select ((1, true, null)::my_type).int_;

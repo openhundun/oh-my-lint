@@ -1,32 +1,32 @@
-SELECT
+select
     region,
     city,
-    grouping(region, city) AS grp_idx,
-    count(DISTINCT id) AS num_total,
-    count(DISTINCT id) FILTER (WHERE is_poi) AS num_poi,
-    count(DISTINCT id) FILTER (WHERE is_gov) AS num_gov
-FROM location_data
-GROUP BY GROUPING SETS ( (region), (city), (region, city), () );
+    grouping(region, city) as grp_idx,
+    count(distinct id) as num_total,
+    count(distinct id) filter(where is_poi) as num_poi,
+    count(distinct id) filter(where is_gov) as num_gov
+from location_data
+group by grouping sets( (region), (city), (region, city), () );
 
-SELECT
+select
     region,
     city,
-    grouping(region, city) AS grp_idx,
-    count(DISTINCT id) AS num_total,
-    count(DISTINCT id) FILTER (WHERE is_poi) AS num_poi,
-    count(DISTINCT id) FILTER (WHERE is_gov) AS num_gov
-FROM location_data
-GROUP BY ROLLUP ( (region), (city) );
+    grouping(region, city) as grp_idx,
+    count(distinct id) as num_total,
+    count(distinct id) filter(where is_poi) as num_poi,
+    count(distinct id) filter(where is_gov) as num_gov
+from location_data
+group by rollup( (region), (city) );
 
-SELECT
+select
     region,
     city,
-    grouping(region, city) AS grp_idx,
-    count(DISTINCT id) AS num_total,
-    count(DISTINCT id) FILTER (WHERE is_poi) AS num_poi,
-    count(DISTINCT id) FILTER (WHERE is_gov) AS num_gov
-FROM location_data
-GROUP BY CUBE ( (region), (city) );
+    grouping(region, city) as grp_idx,
+    count(distinct id) as num_total,
+    count(distinct id) filter(where is_poi) as num_poi,
+    count(distinct id) filter(where is_gov) as num_gov
+from location_data
+group by cube( (region), (city) );
 
 -- GROUP BY DISTINCT / ALL (PostgreSQL 14+)
 SELECT a, b, c, count(*)

@@ -1,9 +1,9 @@
-DROP SEQUENCE foo;
+drop sequence foo;
 
-DROP SEQUENCE foo.foo;
+drop sequence foo.foo;
 
-DROP SEQUENCE IF EXISTS foo;
+drop sequence if exists foo;
 
-DROP SEQUENCE IF EXISTS foo CASCADE;
+drop sequence if exists foo cascade;
 
-DROP SEQUENCE foo RESTRICT;
+drop sequence foo restrict;

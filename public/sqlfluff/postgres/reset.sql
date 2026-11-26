@@ -1,3 +1,3 @@
-RESET timezone;
-RESET ALL;
-RESET ROLE;
+reset timezone;
+reset all;
+reset role;

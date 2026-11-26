@@ -28,4 +28,4 @@ natural full join table2;
 
 select *
 from table1
-natural full join table2
+natural full join table2;

@@ -1,5 +1,5 @@
-CREATE OPERATOR FAMILY alt_fam2 USING btree;
+create operator family alt_fam2 using btree;
 
-CREATE OPERATOR FAMILY custom_fam USING hash;
+create operator family custom_fam using hash;
 
-CREATE OPERATOR FAMILY public.my_op_fam USING gist;
+create operator family public.my_op_fam using gist;

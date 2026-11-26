@@ -1,1 +1,1 @@
-DROP DOMAIN box;
+drop domain box;

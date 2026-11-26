@@ -1,9 +1,9 @@
-CREATE COLLATION numeric (provider = icu, locale = 'en@colNumeric=yes');
+create collation numeric(provider=icu, locale='en@colNumeric=yes');
 
-CREATE COLLATION french (locale = 'fr_FR.utf8');
+create collation french(locale='fr_FR.utf8');
 
-CREATE COLLATION german_phonebook (provider = icu, locale = 'de-u-co-phonebk');
+create collation german_phonebook(provider=icu, locale='de-u-co-phonebk');
 
-CREATE COLLATION german FROM "de_DE";
+create collation german from "de_DE";
 
-CREATE COLLATION c (provider = icu, locale = 'und', deterministic = off);
+create collation c(provider=icu, locale='und', deterministic=off);

@@ -1,30 +1,30 @@
 ALTER DEFAULT PRIVILEGES FOR USER my_user GRANT SELECT ON TABLES TO my_group;
-ALTER DEFAULT PRIVILEGES FOR USER my_user IN SCHEMA my_schema GRANT INSERT ON TABLES TO my_group;
-ALTER DEFAULT PRIVILEGES FOR ROLE my_user GRANT UPDATE ON TABLES TO my_group;
-ALTER DEFAULT PRIVILEGES FOR ROLE my_user IN SCHEMA my_schema, your_schema GRANT DELETE ON TABLES TO my_group WITH GRANT OPTION;
-ALTER DEFAULT PRIVILEGES FOR ROLE my_user, your_user GRANT TRUNCATE ON TABLES TO GROUP my_group;
-ALTER DEFAULT PRIVILEGES FOR ROLE my_user GRANT REFERENCES, TRIGGER ON TABLES TO PUBLIC;
-ALTER DEFAULT PRIVILEGES FOR ROLE my_user GRANT ALL ON SEQUENCES TO GROUP my_group, GROUP your_group;
-ALTER DEFAULT PRIVILEGES FOR ROLE my_user GRANT EXECUTE ON ROUTINES TO my_group;
-ALTER DEFAULT PRIVILEGES GRANT ALL PRIVILEGES ON FUNCTIONS TO my_group;
-ALTER DEFAULT PRIVILEGES IN SCHEMA my_schema, your_schema GRANT USAGE ON TYPES TO my_group, GROUP your_group;
-ALTER DEFAULT PRIVILEGES FOR ROLE my_user GRANT USAGE ON SCHEMAS TO my_group;
-ALTER DEFAULT PRIVILEGES FOR ROLE my_user GRANT CREATE ON SCHEMAS TO my_group;
+alter default privileges for user my_user in schema my_schema grant insert on tables to my_group;
+alter default privileges for role my_user grant update on tables to my_group;
+alter default privileges for role my_user in schema my_schema, your_schema grant delete on tables to my_group with grant option;
+alter default privileges for role my_user, your_user grant truncate on tables to group my_group;
+alter default privileges for role my_user grant references, trigger on tables to public;
+alter default privileges for role my_user grant all on sequences to group my_group, group your_group;
+alter default privileges for role my_user grant execute on routines to my_group;
+alter default privileges grant all privileges on functions to my_group;
+alter default privileges in schema my_schema, your_schema grant usage on types to my_group, group your_group;
+alter default privileges for role my_user grant usage on schemas to my_group;
+alter default privileges for role my_user grant create on schemas to my_group;
 
 ALTER DEFAULT PRIVILEGES FOR USER my_user, your_user IN SCHEMA my_schema, your_schema
 GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
 ON TABLES TO GROUP my_group, PUBLIC
 WITH GRANT OPTION;
 
-ALTER DEFAULT PRIVILEGES FOR USER my_user REVOKE ALL ON TABLES FROM my_group;
+alter default privileges for user my_user revoke all on tables from my_group;
 ALTER DEFAULT PRIVILEGES FOR USER my_user IN SCHEMA my_schema REVOKE SELECT ON TABLES FROM GROUP my_group;
-ALTER DEFAULT PRIVILEGES FOR ROLE my_user IN SCHEMA my_schema, your_schema REVOKE INSERT ON TABLES FROM PUBLIC CASCADE;
-ALTER DEFAULT PRIVILEGES FOR ROLE my_user IN SCHEMA my_schema REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON TABLES FROM PUBLIC RESTRICT;
-ALTER DEFAULT PRIVILEGES FOR ROLE my_user, your_user REVOKE ALL PRIVILEGES ON SEQUENCES FROM my_group;
-ALTER DEFAULT PRIVILEGES FOR ROLE my_user REVOKE EXECUTE ON FUNCTIONS FROM my_group;
-ALTER DEFAULT PRIVILEGES REVOKE EXECUTE ON ROUTINES FROM my_group;
-ALTER DEFAULT PRIVILEGES IN SCHEMA my_schema, your_schema REVOKE USAGE ON TYPES FROM my_group, GROUP your_group;
-ALTER DEFAULT PRIVILEGES FOR ROLE my_user REVOKE USAGE, CREATE ON TYPES FROM my_group;
+alter default privileges for role my_user in schema my_schema, your_schema revoke insert on tables from public cascade;
+alter default privileges for role my_user in schema my_schema revoke update, delete, truncate, references, trigger on tables from public restrict;
+alter default privileges for role my_user, your_user revoke all privileges on sequences from my_group;
+alter default privileges for role my_user revoke execute on functions from my_group;
+alter default privileges revoke execute on routines from my_group;
+alter default privileges in schema my_schema, your_schema revoke usage on types from my_group, group your_group;
+alter default privileges for role my_user revoke usage, create on types from my_group;
 
 ALTER DEFAULT PRIVILEGES FOR ROLE my_user, your_user IN SCHEMA my_schema, your_schema
 REVOKE SELECT, INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER

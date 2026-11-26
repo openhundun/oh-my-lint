@@ -1,5 +1,5 @@
-EXECUTE statement_name;
+execute statement_name;
 
-EXECUTE statement_name (1);
+execute statement_name(1);
 
-EXECUTE statement_name (1, 'foo');
+execute statement_name(1, 'foo');

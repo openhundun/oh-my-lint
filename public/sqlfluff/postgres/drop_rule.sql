@@ -1,7 +1,7 @@
-DROP RULE keep_orders ON orders;
+drop rule keep_orders on orders;
 
-DROP RULE IF EXISTS "Archive Order" ON sales.orders;
+drop rule if exists "Archive Order" on sales.orders;
 
-DROP RULE notify_orders ON orders CASCADE;
+drop rule notify_orders on orders cascade;
 
-DROP RULE IF EXISTS log_order_insert ON orders RESTRICT;
+drop rule if exists log_order_insert on orders restrict;

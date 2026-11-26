@@ -12,4 +12,4 @@
 
 \copy table_name(col1, col2) FROM STDIN CSV;
 
-SELECT 1;
+select 1;

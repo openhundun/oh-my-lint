@@ -1,13 +1,13 @@
-ALTER COLLATION german REFRESH VERSION;
+alter collation german refresh version;
 
-ALTER COLLATION german RENAME TO "de-DE";
+alter collation german rename to "de-DE";
 
-ALTER COLLATION "de-DE" OWNER TO joe;
+alter collation "de-DE" owner to joe;
 
-ALTER COLLATION public."de-DE" OWNER TO CURRENT_USER;
+alter collation public."de-DE" owner to current_user;
 
-ALTER COLLATION "de-DE" SET SCHEMA utils;
+alter collation "de-DE" set schema utils;
 
-ALTER COLLATION utils."de-DE" OWNER TO SESSION_USER;
+alter collation utils."de-DE" owner to session_user;
 
-ALTER COLLATION utils."de-DE" OWNER TO CURRENT_ROLE;
+alter collation utils."de-DE" owner to current_role;

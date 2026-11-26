@@ -1,5 +1,5 @@
-LOCK TABLE films IN SHARE MODE;
-LOCK TABLE films IN SHARE ROW EXCLUSIVE MODE;
-LOCK TABLE team IN ACCESS EXCLUSIVE MODE;
-lock table stud1 IN SHARE UPDATE EXCLUSIVE MODE;
-LOCK TABLE crontable NOWAIT;
+lock table films in share mode;
+lock table films in share row exclusive mode;
+lock table team in access exclusive mode;
+lock table stud1 in share update exclusive mode;
+lock table crontable nowait;

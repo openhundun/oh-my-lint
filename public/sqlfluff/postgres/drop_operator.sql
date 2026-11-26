@@ -2,8 +2,8 @@ DROP OPERATOR ^^ (text, text);
 
 DROP OPERATOR IF EXISTS bob.!== (box, box);
 
-DROP OPERATOR IF EXISTS ~~~ (character varying, text[]), !! (NONE, integer) CASCADE;
+drop operator if exists ~~~ (character varying, text[]), !! (none, integer) cascade;
 
-DROP OPERATOR public.<<-> (double precision, double precision) RESTRICT;
+drop operator public.<<-> (double precision, double precision) restrict;
 
 DROP OPERATOR IF EXISTS === (box, box);

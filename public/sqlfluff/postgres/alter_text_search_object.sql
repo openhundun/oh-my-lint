@@ -1,25 +1,25 @@
-ALTER TEXT SEARCH DICTIONARY my_english (StopWords = english);
+alter text search dictionary my_english(stopwords=english);
 
-ALTER TEXT SEARCH DICTIONARY simple_dict (accept);
+alter text search dictionary simple_dict(accept);
 
-ALTER TEXT SEARCH DICTIONARY simple_dict (accept = true, stopwords = 'english');
+alter text search dictionary simple_dict(accept=true, stopwords='english');
 
-ALTER TEXT SEARCH DICTIONARY my_english OWNER TO joe;
+alter text search dictionary my_english owner to joe;
 
-ALTER TEXT SEARCH DICTIONARY public.my_english OWNER TO CURRENT_USER;
+alter text search dictionary public.my_english owner to current_user;
 
-ALTER TEXT SEARCH DICTIONARY my_english OWNER TO CURRENT_ROLE;
+alter text search dictionary my_english owner to current_role;
 
-ALTER TEXT SEARCH DICTIONARY my_english OWNER TO SESSION_USER;
+alter text search dictionary my_english owner to session_user;
 
-ALTER TEXT SEARCH DICTIONARY my_english RENAME TO my_stem;
+alter text search dictionary my_english rename to my_stem;
 
-ALTER TEXT SEARCH DICTIONARY my_stem SET SCHEMA utils;
+alter text search dictionary my_stem set schema utils;
 
-ALTER TEXT SEARCH PARSER my_parser RENAME TO my_prs;
+alter text search parser my_parser rename to my_prs;
 
-ALTER TEXT SEARCH PARSER my_prs SET SCHEMA utils;
+alter text search parser my_prs set schema utils;
 
-ALTER TEXT SEARCH TEMPLATE my_template RENAME TO my_tmpl;
+alter text search template my_template rename to my_tmpl;
 
-ALTER TEXT SEARCH TEMPLATE my_tmpl SET SCHEMA utils;
+alter text search template my_tmpl set schema utils;

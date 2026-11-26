@@ -1,23 +1,23 @@
-CREATE SEQUENCE foo;
+create sequence foo;
 
-CREATE SEQUENCE foo AS integer;
+create sequence foo as integer;
 
-CREATE SEQUENCE foo INCREMENT BY 3;
+create sequence foo increment by 3;
 
-CREATE SEQUENCE foo MINVALUE 5 NO MAXVALUE;
+create sequence foo minvalue 5 no maxvalue;
 
-CREATE SEQUENCE foo NO MINVALUE MAXVALUE 12;
+create sequence foo no minvalue maxvalue 12;
 
-CREATE SEQUENCE foo INCREMENT 5 START WITH 8 CACHE 4;
+create sequence foo increment 5 start with 8 cache 4;
 
-CREATE SEQUENCE foo NO CYCLE;
+create sequence foo no cycle;
 
-CREATE SEQUENCE foo OWNED BY NONE;
+create sequence foo owned by none;
 
-CREATE SEQUENCE foo OWNED BY my_table.my_column;
+create sequence foo owned by my_table.my_column;
 
-CREATE TEMP SEQUENCE IF NOT EXISTS foo;
+create temp sequence if not exists foo;
 
-CREATE TEMPORARY SEQUENCE foo;
+create temporary sequence foo;
 
-CREATE SEQUENCE derp INCREMENT BY -5 MINVALUE +50 MAXVALUE -5;;
+create sequence derp increment by -5 minvalue + 50 maxvalue - 5;;

@@ -1,19 +1,19 @@
-TRUNCATE bigtable;
-TRUNCATE some_schema.bigtable;
-TRUNCATE TABLE bigtable;
-TRUNCATE ONLY bigtable;
-TRUNCATE TABLE ONLY bigtable;
-TRUNCATE bigtable *;
-TRUNCATE TABLE bigtable *;
-TRUNCATE bigtable, fattable;
-TRUNCATE TABLE bigtable, fattable;
-TRUNCATE ONLY bigtable, fattable *;
-TRUNCATE bigtable RESTART IDENTITY;
-TRUNCATE bigtable CONTINUE IDENTITY;
-TRUNCATE bigtable CASCADE;
-TRUNCATE bigtable RESTRICT;
-TRUNCATE TABLE
-    ONLY bigtable,
+truncate bigtable;
+truncate some_schema.bigtable;
+truncate table bigtable;
+truncate only bigtable;
+truncate table only bigtable;
+truncate bigtable *;
+truncate table bigtable *;
+truncate bigtable, fattable;
+truncate table bigtable, fattable;
+truncate only bigtable, fattable *;
+truncate bigtable restart identity;
+truncate bigtable continue identity;
+truncate bigtable cascade;
+truncate bigtable restrict;
+truncate table
+    only bigtable,
     fattable *,
-    ONLY slimtable
-CONTINUE IDENTITY CASCADE;
+    only slimtable
+continue identity cascade;

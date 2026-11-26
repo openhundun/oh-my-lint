@@ -43,4 +43,4 @@ select t1.field, '1 hour'::interval / 1.5 + t1.data as a from t1;
 select t1.field, '1 hour'::interval * 3.5 + t1.data as a from t1;
 
 
-select t1.field, '2005-04-02 12:00:00-07'::timestamptz + '24 hour'::interval + t1.data as a from t1
+select t1.field, '2005-04-02 12:00:00-07'::timestamptz + '24 hour'::interval + t1.data as a from t1;

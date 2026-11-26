@@ -1,14 +1,14 @@
-CREATE DOMAIN us_postal_code AS TEXT
-CHECK(
-   VALUE ~ '^\d{5}$'
-OR VALUE ~ '^\d{5}-\d{4}$'
+create domain us_postal_code as text
+check (
+   value ~ '^\d{5}$'
+or value ~ '^\d{5}-\d{4}$'
 );
 
 create domain oname as text;
 
-CREATE DOMAIN mystr AS text
-CONSTRAINT not_empty CHECK (LENGTH(value) > 0)
-CONSTRAINT too_big CHECK (LENGTH(value) <= 50000);
+create domain mystr as text
+constraint not_empty check (length(value) > 0)
+constraint too_big check (length(value) <= 50000);
 
 -- COLLATE and DEFAULT can come after the constraints, as pg_dump writes them.
 CREATE DOMAIN public.posint AS integer NOT NULL DEFAULT 1

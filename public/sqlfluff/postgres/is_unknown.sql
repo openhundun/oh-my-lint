@@ -1,3 +1,3 @@
 select true is unknown;
 
-select true is not unknown
+select true is not unknown;

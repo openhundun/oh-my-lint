@@ -1,31 +1,31 @@
-ALTER POLICY account_managers ON accounts
-    RENAME TO account_users;
+alter policy account_managers on accounts
+    rename to account_users;
 
-ALTER POLICY account_managers ON accounts
-    TO current_user;
+alter policy account_managers on accounts
+    to current_user;
 
-ALTER POLICY account_managers ON accounts
-    TO public, session_user;
+alter policy account_managers on accounts
+    to public, session_user;
 
-ALTER POLICY account_managers ON accounts
-    WITH CHECK (
-        NOT accounts_is_excluded_full_name(full_name)
+alter policy account_managers on accounts
+    with check (
+        not accounts_is_excluded_full_name(full_name)
     );
 
-ALTER POLICY account_managers ON accounts
-    WITH CHECK (
+alter policy account_managers on accounts
+    with check (
         col > 10
     );
 
-ALTER POLICY account_managers ON accounts
-    USING (username = current_user);
+alter policy account_managers on accounts
+    using (username = current_user);
 
-ALTER POLICY sales_rep_is_self ON invoices
-  WITH CHECK (sales_rep = CURRENT_USER AND CURRENT_USER IN (
-    SELECT user_id FROM allowed_users
+alter policy sales_rep_is_self on invoices
+  with check (sales_rep = current_user and current_user in (
+    select user_id from allowed_users
   ));
 
-ALTER POLICY test_policy ON test_table
-  TO public, session_user
-  USING (username = current_user)
-  WITH CHECK (col > 10);
+alter policy test_policy on test_table
+  to public, session_user
+  using (username = current_user)
+  with check (col > 10);

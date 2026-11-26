@@ -2,71 +2,71 @@
 -- https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-OPERATORS
 
 -- Basic comparison operators with schema qualification
-SELECT *
-FROM table1
-WHERE col1 OPERATOR (public.=) 'value1';
+select *
+from table1
+where col1 operator(public. = ) 'value1';
 
-SELECT *
-FROM table1
-WHERE col2 OPERATOR (pg_catalog.<>) 'value2';
+select *
+from table1
+where col2 operator(pg_catalog. != ) 'value2';
 
-SELECT *
-FROM table1
-WHERE col3 OPERATOR (myschema.>) 100;
+select *
+from table1
+where col3 operator(myschema. > ) 100;
 
-SELECT *
-FROM table1
-WHERE col4 OPERATOR (myschema.<) 100;
+select *
+from table1
+where col4 operator(myschema. < ) 100;
 
-SELECT *
-FROM table1
-WHERE col5 OPERATOR (public.>=) 50;
+select *
+from table1
+where col5 operator(public. >= ) 50;
 
-SELECT *
-FROM table1
-WHERE col6 OPERATOR (public.<=) 50;
+select *
+from table1
+where col6 operator(public. <= ) 50;
 
 -- Arithmetic operators
-SELECT col1 OPERATOR (public.+) col2 AS sum_result
-FROM table1;
+select col1 operator(public.+) col2 as sum_result
+from table1;
 
-SELECT col1 OPERATOR (public.-) col2 AS diff_result
-FROM table1;
+select col1 operator(public.-) col2 as diff_result
+from table1;
 
-SELECT col1 OPERATOR (public.*) col2 AS mult_result
-FROM table1;
+select col1 operator(public.*) col2 as mult_result
+from table1;
 
-SELECT col1 OPERATOR (public./) col2 AS div_result
-FROM table1;
+select col1 operator(public. / ) col2 as div_result
+from table1;
 
 -- String operators
-SELECT str1 OPERATOR (public.||) str2 AS concatenated
-FROM table1;
+select str1 operator(public.||) str2 as concatenated
+from table1;
 
 -- OPERATOR in HAVING clause
-SELECT category, COUNT(*)
-FROM products
-GROUP BY category
-HAVING COUNT(*) OPERATOR (public.>) 5;
+select category, count(*)
+from products
+group by category
+having count(*) operator(public. > ) 5;
 
 -- OPERATOR in JOIN condition
-SELECT t1.id, t2.name
-FROM table1 AS t1
-INNER JOIN table2 AS t2 ON t1.id OPERATOR (public.=) t2.table1_id;
+select t1.id, t2.name
+from table1 t1
+inner join table2 t2 on t1.id operator(public. = ) t2.table1_id;
 
 -- OPERATOR in CASE expression
-SELECT
-    CASE
-        WHEN value OPERATOR (public.>) 100 THEN 'high'
-        WHEN value OPERATOR (public.<=) 100 THEN 'low'
-    END AS category
-FROM measurements;
+select
+    (case
+        when value operator(public. > ) 100 then 'high'
+        when value operator(public. <= ) 100 then 'low'
+    end) as category
+from measurements;
 
 -- Multiple schema names
-SELECT *
-FROM table1
-WHERE col1 OPERATOR (schema1.=) val1
-  AND col2 OPERATOR (schema2.<>) val2;
+select *
+from table1
+where col1 operator(schema1. = ) val1
+  and col2 operator(schema2. != ) val2;
 
 -- Operators of more than one character, with a schema, a quoted schema or none
 SELECT *

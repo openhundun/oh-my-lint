@@ -1,8 +1,8 @@
-SHOW ALL;
-SHOW IS_SUPERUSER;
-SHOW LC_COLLATE;
-SHOW LC_CTYPE;
-SHOW SERVER_ENCODING;
-SHOW SERVER_VERSION;
-SHOW DateStyle;
-SHOW geqo;
+show all;
+show is_superuser;
+show lc_collate;
+show lc_ctype;
+show server_encoding;
+show server_version;
+show datestyle;
+show geqo;

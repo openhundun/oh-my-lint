@@ -1,12 +1,12 @@
 -- Indented INSERT target with nested VALUES rows.
-INSERT INTO
+insert into
     assets (
         id,
         filename,
         mime_type
     )
-VALUES
+values
     (1, 'file.txt', 'text/plain'),
     (2, 'image.png', 'image/png');
 
-INSERT INTO foo (bar, baz) VALUES (1, 2), (3, 4);
+insert into foo (bar, baz) values (1, 2), (3, 4);

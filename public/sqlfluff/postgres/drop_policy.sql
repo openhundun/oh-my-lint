@@ -1,5 +1,5 @@
-DROP POLICY account_managers ON accounts;
-DROP POLICY IF EXISTS account_managers ON accounts;
-DROP POLICY account_managers ON accounts CASCADE;
-DROP POLICY account_managers ON accounts RESTRICT;
-DROP POLICY IF EXISTS account_managers ON accounts RESTRICT;
+drop policy account_managers on accounts;
+drop policy if exists account_managers on accounts;
+drop policy account_managers on accounts cascade;
+drop policy account_managers on accounts restrict;
+drop policy if exists account_managers on accounts restrict;

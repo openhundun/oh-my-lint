@@ -1,46 +1,46 @@
-ALTER ROLE davide WITH PASSWORD 'hu8jmn3';
-ALTER ROLE davide WITH PASSWORD NULL;
-ALTER ROLE chris VALID UNTIL 'May 4 12:00:00 2015 +1';
-ALTER ROLE fred VALID UNTIL 'infinity';
-ALTER ROLE worker_bee SET maintenance_work_mem = '100000';
-ALTER ROLE fred IN DATABASE devel SET client_min_messages TO DEFAULT;
-ALTER ROLE miriam CREATEROLE CREATEDB;
-ALTER USER davide WITH PASSWORD 'hu8jmn3';
-ALTER USER davide WITH PASSWORD NULL;
-ALTER USER chris VALID UNTIL 'May 4 12:00:00 2015 +1';
-ALTER USER fred VALID UNTIL 'infinity';
-ALTER USER worker_bee SET maintenance_work_mem = '100000';
-ALTER USER fred IN DATABASE devel SET client_min_messages TO DEFAULT;
-ALTER USER miriam CREATEROLE CREATEDB;
+alter role davide with password 'hu8jmn3';
+alter role davide with password null;
+alter role chris valid until 'May 4 12:00:00 2015 +1';
+alter role fred valid until 'infinity';
+alter role worker_bee set maintenance_work_mem = '100000';
+alter role fred in database devel set client_min_messages to default;
+alter role miriam createrole createdb;
+alter user davide with password 'hu8jmn3';
+alter user davide with password null;
+alter user chris valid until 'May 4 12:00:00 2015 +1';
+alter user fred valid until 'infinity';
+alter user worker_bee set maintenance_work_mem = '100000';
+alter user fred in database devel set client_min_messages to default;
+alter user miriam createrole createdb;
 
 -- more SET tests:
-ALTER ROLE fred SET testing FROM CURRENT;
-ALTER ROLE fred IN DATABASE devel SET testing FROM CURRENT;
-ALTER ROLE fred IN DATABASE devel SET testing TO 1234;
-ALTER ROLE fred IN DATABASE devel SET testing = 1234;
-ALTER ROLE fred IN DATABASE devel SET testing TO DEFAULT;
-ALTER ROLE fred IN DATABASE devel SET testing = DEFAULT;
-ALTER ROLE fred IN DATABASE devel SET testing = TRUE;
-ALTER ROLE fred IN DATABASE devel SET testing = FALSE;
-ALTER ROLE fred IN DATABASE devel SET testing = 'string value';
+alter role fred set testing from current;
+alter role fred in database devel set testing from current;
+alter role fred in database devel set testing to 1234;
+alter role fred in database devel set testing = 1234;
+alter role fred in database devel set testing to default;
+alter role fred in database devel set testing = default;
+alter role fred in database devel set testing = true;
+alter role fred in database devel set testing = false;
+alter role fred in database devel set testing = 'string value';
 ALTER ROLE fred IN DATABASE devel SET testing = on, off, auto;
 
-ALTER ROLE fred RESET ALL;
-ALTER ROLE fred RESET testing;
-ALTER ROLE fred IN DATABASE devel RESET ALL;
-ALTER ROLE fred IN DATABASE devel RESET testing;
+alter role fred reset all;
+alter role fred reset testing;
+alter role fred in database devel reset all;
+alter role fred in database devel reset testing;
 
 -- CURRENT_ROLE/CURRENT_USER/SESSION_USER and ALL
-ALTER USER CURRENT_ROLE WITH PASSWORD NULL;
-ALTER USER CURRENT_USER WITH PASSWORD NULL;
-ALTER USER SESSION_USER WITH PASSWORD NULL;
+alter user current_role with password null;
+alter user current_user with password null;
+alter user session_user with password null;
 
-ALTER ROLE CURRENT_ROLE IN DATABASE devel SET testing FROM CURRENT;
-ALTER ROLE CURRENT_ROLE IN DATABASE devel SET testing TO 1234;
-ALTER ROLE CURRENT_ROLE IN DATABASE devel SET testing = 1234;
-ALTER ROLE CURRENT_ROLE IN DATABASE devel SET testing TO DEFAULT;
+alter role current_role in database devel set testing from current;
+alter role current_role in database devel set testing to 1234;
+alter role current_role in database devel set testing = 1234;
+alter role current_role in database devel set testing to default;
 
-ALTER ROLE ALL RESET ALL;
-ALTER ROLE ALL RESET testing;
-ALTER USER ALL IN DATABASE devel RESET ALL;
-ALTER ROLE ALL IN DATABASE devel RESET testing;
+alter role all reset all;
+alter role all reset testing;
+alter user all in database devel reset all;
+alter role all in database devel reset testing;

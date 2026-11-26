@@ -1,11 +1,11 @@
-DROP ROLE alice;
+drop role alice;
 
-DROP ROLE IF EXISTS bob, "Carol";
+drop role if exists bob, "Carol";
 
-DROP USER dave, erin;
+drop user dave, erin;
 
-DROP USER IF EXISTS frank;
+drop user if exists frank;
 
-DROP GROUP crew;
+drop group crew;
 
-DROP GROUP IF EXISTS admins, readers;
+drop group if exists admins, readers;

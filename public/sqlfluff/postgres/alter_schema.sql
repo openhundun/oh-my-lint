@@ -1,2 +1,2 @@
-ALTER SCHEMA schema1 RENAME TO schema2;
-ALTER SCHEMA schema1 OWNER TO new_owner;
+alter schema schema1 rename to schema2;
+alter schema schema1 owner to new_owner;

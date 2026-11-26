@@ -13,8 +13,8 @@ CREATE EXTENSION amazing_extension
     VERSION version_named
     FROM from_named;
 
-CREATE EXTENSION IF NOT EXISTS aws_lambda CASCADE;
+create extension if not exists aws_lambda cascade;
 
-DROP EXTENSION amazing_extension;
+drop extension amazing_extension;
 
-DROP EXTENSION IF EXISTS amazing_extension;
+drop extension if exists amazing_extension;

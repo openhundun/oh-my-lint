@@ -1,3 +1,1 @@
-CREATE TABLE search (
-    embedding VECTOR(1536)
-);
+create table search (embedding vector(1536));

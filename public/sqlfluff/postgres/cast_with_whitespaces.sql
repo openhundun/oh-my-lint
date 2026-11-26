@@ -3,40 +3,40 @@
 cast operator (::) */
 
 -- query from https://github.com/sqlfluff/sqlfluff/issues/2720
-SELECT amount_of_honey :: FLOAT
-FROM bear_inventory;
+select amount_of_honey :: float
+from bear_inventory;
 
 
 -- should be able to support an arbitrary amount of whitespace
-SELECT amount_of_honey        ::        FLOAT
-FROM bear_inventory;
+select amount_of_honey        ::        float
+from bear_inventory;
 
-SELECT amount_of_honey::    FLOAT
-FROM bear_inventory;
+select amount_of_honey::    float
+from bear_inventory;
 
-SELECT amount_of_honey        ::FLOAT
-FROM bear_inventory;
+select amount_of_honey        ::float
+from bear_inventory;
 
 -- should support a wide variety of typecasts
-SELECT amount_of_honey :: time
-FROM bear_inventory;
+select amount_of_honey :: time
+from bear_inventory;
 
-SELECT amount_of_honey :: text
-FROM bear_inventory;
+select amount_of_honey :: text
+from bear_inventory;
 
-SELECT amount_of_honey     :: VARCHAR( 512 )
-FROM bear_inventory;
+select amount_of_honey     :: varchar( 512 )
+from bear_inventory;
 
-SELECT amount_of_honey ::        TIMESTAMPTZ
-FROM bear_inventory;
+select amount_of_honey ::        timestamptz
+from bear_inventory;
 
-SELECT amount_of_honey    ::        TIMESTAMP WITHOUT TIME ZONE
-FROM bear_inventory;
+select amount_of_honey    ::        timestamp
+from bear_inventory;
 
 -- should support casts with arbitrary amount of whitespace in join statements
-SELECT
+select
     bi.amount_of_honey
-FROM bear_inventory bi
-LEFT JOIN favorite_cola fc
-    ON fc.bear_id ::   VARCHAR(512) = bi.bear_id    ::VARCHAR(512)
-WHERE fc.favorite_cola = 'RC Cola';
+from bear_inventory bi
+left join favorite_cola fc
+    on fc.bear_id ::   varchar(512) = bi.bear_id    ::varchar(512)
+where fc.favorite_cola = 'RC Cola';

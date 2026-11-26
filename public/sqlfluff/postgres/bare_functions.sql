@@ -9,5 +9,5 @@ select
   current_user as col8,
   session_user as col9,
   system_user as col10,
-  user as col11
+  user as col11;
 

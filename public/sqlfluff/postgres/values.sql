@@ -14,4 +14,4 @@ values (1, 2), (3, 4) limit 1 offset 1;
 
 values (1, 2), (3, 4) order by 1 desc;
 
-values (1, 2), (3, 4) order by 1 desc limit 1
+values (1, 2), (3, 4) order by 1 desc limit 1;

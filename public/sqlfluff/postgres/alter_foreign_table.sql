@@ -1,19 +1,19 @@
-ALTER FOREIGN TABLE distributors ALTER COLUMN street SET NOT NULL;
+alter foreign table distributors alter column street set not null;
 
-ALTER FOREIGN TABLE t_user ADD COLUMN my_column text;
+alter foreign table t_user add column my_column text;
 
-ALTER TABLE bar_fdw.foo ADD test varchar NULL;
+alter table bar_fdw.foo add test varchar;
 
-ALTER FOREIGN TABLE myschema.distributors OPTIONS (ADD opt1 'value', SET opt2 'value2', DROP opt3);
+alter foreign table myschema.distributors options (add opt1 'value', set opt2 'value2', drop opt3);
 
 ALTER FOREIGN TABLE test OPTIONS (SET table $$(select my_column from my_table)$$);
 
 ALTER FOREIGN TABLE test ADD COLUMN new_column int8, OPTIONS (SET table $$(select my_column from my_table)$$);
 
-ALTER FOREIGN TABLE test RENAME TO test_renamed;
+alter foreign table test rename to test_renamed;
 
-ALTER FOREIGN TABLE distributors ALTER COLUMN street OPTIONS (ADD opt1 'value', SET opt2 'value2', DROP opt3);
+alter foreign table distributors alter column street options (add opt1 'value', set opt2 'value2', drop opt3);
 
-ALTER FOREIGN TABLE distributors ALTER street OPTIONS (ADD opt1 'value');
+alter foreign table distributors alter street options (add opt1 'value');
 
-ALTER FOREIGN TABLE measurements OPTIONS (SET null 'NA', DROP "header");
+alter foreign table measurements options (set null 'NA', drop "header");

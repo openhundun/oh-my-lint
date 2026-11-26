@@ -27,4 +27,4 @@ FROM tbl1 a
 SELECT t.apple
 FROM tbl2 t
 ;
-END;
+end;

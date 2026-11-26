@@ -1,13 +1,13 @@
-SELECT U&'';
+select U&'';
 
-SELECT U&'
+select U&'
 ';
 
-SELECT U&'''';
+select U&'''';
 
-SELECT U&'aaa''';
+select U&'aaa''';
 
-SELECT U&'
+select U&'
 ''
 ';
 

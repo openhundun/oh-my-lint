@@ -1,19 +1,19 @@
 -- Some more complicated Postgres function creations.
 
-CREATE FUNCTION add(integer, integer) RETURNS integer
-    AS 'select $1 + $2;'
-    LANGUAGE SQL;
+create function add(integer, integer) returns integer
+    as 'select $1 + $2;'
+    language sql;
 
 -- Quoted language options are deprecated but still supported
-CREATE FUNCTION add(integer, integer) RETURNS integer
-    AS 'select $1 + $2;'
-    LANGUAGE 'sql';
+create function add(integer, integer) returns integer
+    as 'select $1 + $2;'
+    language 'sql';
 
-CREATE OR REPLACE FUNCTION increment(i integer) RETURNS integer AS '
+create or replace function increment(i integer) returns integer as '
     BEGIN
         RETURN i + 1;
     END;
-' LANGUAGE plpgsql VOLATILE;
+' language plpgsql volatile;
 
 CREATE OR REPLACE FUNCTION increment(i integer) RETURNS integer AS '
     BEGIN
@@ -32,47 +32,47 @@ CREATE OR REPLACE FUNCTION increment(i integer) RETURNS integer PARALLEL UNSAFE 
     END;
 $$ LANGUAGE plpgsql SUPPORT my_function;
 
-CREATE FUNCTION add(integer, integer) RETURNS integer
-    AS 'select $1 + $2;'
-    LANGUAGE SQL
-    IMMUTABLE
-    RETURNS NULL ON NULL INPUT;
+create function add(integer, integer) returns integer
+    as 'select $1 + $2;'
+    language sql
+    immutable
+    returns null on null input;
 
-CREATE OR REPLACE FUNCTION increment(i integer) RETURNS integer AS $$
+create or replace function increment(i integer) returns integer as $$
         BEGIN
                 RETURN i + 1;
         END;
-$$ LANGUAGE plpgsql;
+$$ language plpgsql;
 
 
-CREATE FUNCTION dup(in int, out f1 int, out f2 text)
-    AS $$ SELECT $1, CAST($1 AS text) || ' is text' $$
-    LANGUAGE SQL;
+create function dup(in int, out f1 int, out f2 text)
+    as $$ SELECT $1, CAST($1 AS text) || ' is text' $$
+    language sql;
 
-SELECT * FROM dup(42);
-
-
-CREATE TYPE dup_result AS (f1 int, f2 text);
-
-CREATE FUNCTION dup(int) RETURNS dup_result
-    AS $$ SELECT $1, CAST($1 AS text) || ' is text' $$
-    LANGUAGE SQL;
-
-SELECT * FROM dup(42);
-
-CREATE FUNCTION dup(int) RETURNS TABLE(f1 int, f2 text)
-    AS $$ SELECT $1, CAST($1 AS text) || ' is text' $$
-    LANGUAGE SQL;
-
-CREATE FUNCTION dup(int) RETURNS TABLE("f1" int, "f2" text)
-    AS $$ SELECT $1, CAST($1 AS text) || ' is text' $$
-    LANGUAGE SQL;
+select * from dup(42);
 
 
-SELECT * FROM dup(42);
+create type dup_result as (f1 int, f2 text);
 
-CREATE FUNCTION check_password(uname TEXT, pass TEXT)
-RETURNS BOOLEAN AS $$
+create function dup(int) returns dup_result
+    as $$ SELECT $1, CAST($1 AS text) || ' is text' $$
+    language sql;
+
+select * from dup(42);
+
+create function dup(int) returns table(f1 int, f2 text)
+    as $$ SELECT $1, CAST($1 AS text) || ' is text' $$
+    language sql;
+
+create function dup(int) returns table("f1" int, "f2" text)
+    as $$ SELECT $1, CAST($1 AS text) || ' is text' $$
+    language sql;
+
+
+select * from dup(42);
+
+create function check_password(uname text, pass text)
+returns boolean as $$
 DECLARE passed BOOLEAN;
 BEGIN
         SELECT  (pwd = $2) INTO passed
@@ -81,14 +81,14 @@ BEGIN
 
         RETURN passed;
 END;
-$$  LANGUAGE plpgsql
-    SECURITY DEFINER
-    SET search_path = admin, pg_temp;
+$$  language plpgsql
+    security definer
+    set search_path = admin, pg_temp;
 
 
-BEGIN;
-CREATE FUNCTION check_password(uname TEXT, pass TEXT)
-RETURNS BOOLEAN AS $$
+begin;
+create function check_password(uname text, pass text)
+returns boolean as $$
 DECLARE passed BOOLEAN;
 BEGIN
         SELECT  (pwd = $2) INTO passed
@@ -97,34 +97,34 @@ BEGIN
 
         RETURN passed;
 END;
-$$  LANGUAGE plpgsql
-    SECURITY DEFINER;
-REVOKE ALL ON FUNCTION check_password(uname TEXT, pass TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION check_password(uname TEXT, pass TEXT) TO admins;
-COMMIT;
+$$  language plpgsql
+    security definer;
+revoke all on function check_password(uname text, pass text) from public;
+grant execute on function check_password(uname text, pass text) to admins;
+commit;
 
-CREATE OR REPLACE FUNCTION public.setof_test()
-RETURNS SETOF text
-LANGUAGE sql
-STABLE STRICT
-AS $function$
+create or replace function public.setof_test()
+returns setof text
+language sql
+stable strict
+as $function$
 select unnest(array['hi', 'test'])
 $function$
 ;
 
-CREATE OR REPLACE FUNCTION public.foo(_a TEXT, _$b INT)
-RETURNS FLOAT AS
+create or replace function public.foo(_a text, _$b int)
+returns float as
 $$
   RETURN 0.0
-$$ LANGUAGE plpgsql STABLE PARALLEL SAFE;
+$$ language plpgsql stable parallel safe;
 
-CREATE FUNCTION _add(integer, integer) RETURNS integer
-    AS 'select $1 + $2;'
-    LANGUAGE SQL;
+create function _add(integer, integer) returns integer
+    as 'select $1 + $2;'
+    language sql;
 
-CREATE FUNCTION _$add(integer, integer) RETURNS integer
-    AS 'select $1 + $2;'
-    LANGUAGE SQL;
+create function _$add(integer, integer) returns integer
+    as 'select $1 + $2;'
+    language sql;
 
 create function test2(
   x date = current_date
@@ -152,7 +152,7 @@ STABLE PARALLEL SAFE LEAKPROOF
 BEGIN ATOMIC
   SELECT *
   FROM data;
-END;
+end;
 
 create or replace function union_things()
 returns table (num integer)
@@ -169,7 +169,7 @@ end;
 create or replace function tz_date(timestamp with time zone, text) returns date
     language sql
     immutable strict
-    return ($1 at time zone $2)::date;
+    return($1 at time zone $2)::date;
 
 CREATE FUNCTION storage.insert_dimension
 (in_ordinality int, in_fieldname varchar, in_default_val varchar,
@@ -180,14 +180,14 @@ BEGIN ATOMIC
        SET ordinality = ordinality + 1
      WHERE ordinality >= in_ordinality;
 
-    INSERT INTO storage.dimensions
+    insert into storage.dimensions
                 (ordinality, fieldname, default_val, valid_from, valid_until)
-         VALUES (in_ordinality, in_fieldname,
+         values (in_ordinality, in_fieldname,
                 coalesce(in_default_val, 'notexist'),
                 coalesce(in_valid_from, '-infinity'),
                 coalesce(in_valid_until, 'infinity'))
-    RETURNING *;
-END;
+    returning *;
+end;
 
 CREATE OR REPLACE FUNCTION time_bucket(
     _time timestamp without time zone,
@@ -200,7 +200,7 @@ RETURNS timestamp without time zone
 IMMUTABLE PARALLEL SAFE
 BEGIN ATOMIC
 SELECT date_bin(((_to - _from) / greatest((_buckets - 1), 1)), _time, _from) + ((_to - _from) / greatest((_buckets - 1), 1)) * (_offset + 1);
-END;
+end;
 
 CREATE OR REPLACE FUNCTION time_bucket_limited(_time timestamp, _from timestamp, _to timestamp, _buckets int = 200)
     RETURNS timestamp
@@ -210,7 +210,7 @@ BEGIN ATOMIC
       WHEN _time >= _to THEN _to
       ELSE DATE_BIN((_to - _from) / GREATEST(_buckets - 1, 1), _time, _from) + ((_to - _from) / GREATEST(_buckets - 1, 1))
     end;
-END;
+end;
 
 CREATE OR REPLACE FUNCTION time_series(
     _from timestamp without time zone,
@@ -223,7 +223,7 @@ BEGIN ATOMIC
 -- ATTENTION: use integer to generate series, since with timestamps there are rounding issues
 SELECT time_bucket(_from, _from, _to, _buckets, g.ofs - 1)
 FROM generate_series(0, greatest((_buckets - 1), 1)) AS g (ofs);
-END;
+end;
 
 create or replace function test (
   _pt geography(point)
@@ -245,4 +245,4 @@ BEGIN ATOMIC
 -- ATTENTION: use integer to generate series, since with timestamps there are rounding issues
 SELECT time_bucket(_from, _from, _to, _buckets, g.ofs - 1)
 FROM generate_series(0, greatest((_buckets - 1), 1)) AS g (ofs);
-END;
+end;

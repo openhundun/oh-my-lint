@@ -1,3 +1,3 @@
 -- Postgres style WITHIN GROUP window functions
-SELECT ARRAY_AGG(o_orderkey) WITHIN GROUP (ORDER BY o_orderkey ASC)
-FROM orders
+select array_agg(o_orderkey) within group (order by o_orderkey)
+from orders

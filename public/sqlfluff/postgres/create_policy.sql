@@ -1,26 +1,26 @@
-CREATE POLICY account_managers ON accounts
-    TO current_user;
+create policy account_managers on accounts
+    to current_user;
 
-CREATE POLICY account_managers ON sch.accounts
-    AS permissive
-    FOR ALL
-    TO managers;
+create policy account_managers on sch.accounts
+    as permissive
+    for all
+    to managers;
 
-CREATE POLICY account_managers ON accounts
-    TO public, session_user;
+create policy account_managers on accounts
+    to public, session_user;
 
-CREATE POLICY account_managers ON accounts
-    WITH CHECK (
-        NOT accounts_is_excluded_full_name(full_name)
+create policy account_managers on accounts
+    with check (
+        not accounts_is_excluded_full_name(full_name)
     );
 
-CREATE POLICY emp_rls_policy ON employee FOR all TO public USING (ename=current_setting('rls.ename'));
+create policy emp_rls_policy on employee for all to public using (ename = current_setting('rls.ename'));
 
-CREATE POLICY account_managers ON accounts
-    WITH CHECK (
+create policy account_managers on accounts
+    with check (
         col > 10
     );
 
 
-CREATE POLICY account_managers ON accounts
-    USING (username = current_user);
+create policy account_managers on accounts
+    using (username = current_user);

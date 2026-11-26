@@ -15,4 +15,4 @@ select
         then col2
         else col3
     end as text) as mycol
-from table1
+from table1;

@@ -1,8 +1,8 @@
-CREATE OPERATOR >=(
-    LEFTARG = semantic_version,
-    RIGHTARG = semantic_version,
-    PROCEDURE = semantic_version_ge,
-    COMMUTATOR = <=
+create operator >=(
+    leftarg = semantic_version,
+    rightarg = semantic_version,
+    procedure = semantic_version_ge,
+    commutator = <=
 );
 
 CREATE OPERATOR === (
@@ -25,26 +25,26 @@ CREATE OPERATOR app.=== (
     NEGATOR = OPERATOR(app.!==)
 );
 
-CREATE OPERATOR <<-> (
-    LEFTARG = double precision,
-    RIGHTARG = double precision,
-    FUNCTION = float8_distance,
-    COMMUTATOR = <<->
+create operator <<-> (
+    leftarg = double precision,
+    rightarg = double precision,
+    function = float8_distance,
+    commutator = <<->
 );
 
-CREATE OPERATOR ~~~ (
-    LEFTARG = character varying,
-    RIGHTARG = text[],
-    FUNCTION = varchar_in_array
+create operator ~~~ (
+    leftarg = character varying,
+    rightarg = text[],
+    function = varchar_in_array
 );
 
-CREATE OPERATOR public.@@ (
-    RIGHTARG = timestamp with time zone,
-    FUNCTION = age_of
+create operator public.@@ (
+    rightarg = timestamp with time zone,
+    function = age_of
 );
 
-CREATE OPERATOR public.## (
-    LEFTARG = point,
-    RIGHTARG = lseg,
-    FUNCTION = close_ps
+create operator public.## (
+    leftarg = point,
+    rightarg = lseg,
+    function = close_ps
 );

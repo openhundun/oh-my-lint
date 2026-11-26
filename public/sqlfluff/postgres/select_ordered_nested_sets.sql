@@ -10,4 +10,4 @@ union all
     select * from tbl1
     order by column_1
 )
-order by column_2
+order by column_2;

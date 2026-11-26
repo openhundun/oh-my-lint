@@ -1,6 +1,6 @@
-CALL do_db_maintenance();
+call do_db_maintenance();
 
-CALL my_schema.do_db_maintenance();
+call my_schema.do_db_maintenance();
 
 call procedure_name();
 

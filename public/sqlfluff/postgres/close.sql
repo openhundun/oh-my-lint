@@ -1,3 +1,3 @@
-CLOSE c1;
+close c1;
 
-CLOSE ALL;
+close all;

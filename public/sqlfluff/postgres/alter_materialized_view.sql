@@ -19,31 +19,31 @@ ALTER MATERIALIZED VIEW bar ALTER COLUMN column_name SET STORAGE DEFAULT;
 ALTER MATERIALIZED VIEW bar CLUSTER ON index_name;
 ALTER MATERIALIZED VIEW bar SET WITHOUT CLUSTER;
 
-ALTER MATERIALIZED VIEW bar SET ( storage_parameter);
-ALTER MATERIALIZED VIEW bar SET ( storage_parameter, storage_parameter);
-ALTER MATERIALIZED VIEW bar SET (
-    storage_parameter = 'some_value', storage_parameter
+alter materialized view bar set ( storage_parameter);
+alter materialized view bar set ( storage_parameter, storage_parameter);
+alter materialized view bar set (
+    storage_parameter='some_value', storage_parameter
 );
 ALTER MATERIALIZED VIEW bar SET ( timescaledb.materialized_only = false );
 
-ALTER MATERIALIZED VIEW bar RESET ( storage_parameter);
-ALTER MATERIALIZED VIEW bar RESET ( storage_parameter, storage_parameter);
+alter materialized view bar reset( storage_parameter);
+alter materialized view bar reset( storage_parameter, storage_parameter);
 ALTER MATERIALIZED VIEW bar RESET ( timescaledb.materialized_only );
 
-ALTER MATERIALIZED VIEW bar OWNER TO baz_role;
-ALTER MATERIALIZED VIEW bar OWNER TO "baz-role";
+alter materialized view bar owner to baz_role;
+alter materialized view bar owner to "baz-role";
 
 ALTER MATERIALIZED VIEW bar DEPENDS ON EXTENSION baz;
 ALTER MATERIALIZED VIEW bar NO DEPENDS ON EXTENSION baz;
 
-ALTER MATERIALIZED VIEW bar RENAME column_name TO new_column_name;
-ALTER MATERIALIZED VIEW IF EXISTS bar RENAME COLUMN column_name TO new_column_name;
+alter materialized view bar rename column_name to new_column_name;
+alter materialized view if exists bar rename column column_name to new_column_name;
 
-ALTER MATERIALIZED VIEW bar RENAME TO baz;
-ALTER MATERIALIZED VIEW IF EXISTS bar RENAME TO baz;
+alter materialized view bar rename to baz;
+alter materialized view if exists bar rename to baz;
 
-ALTER MATERIALIZED VIEW bar SET SCHEMA new_schema;
-ALTER MATERIALIZED VIEW IF EXISTS bar SET SCHEMA new_schema;
+alter materialized view bar set schema new_schema;
+alter materialized view if exists bar set schema new_schema;
 
 ALTER MATERIALIZED VIEW ALL IN TABLESPACE old_tablespace SET TABLESPACE new_tablespace;
 ALTER MATERIALIZED VIEW ALL IN TABLESPACE old_tablespace SET TABLESPACE new_tablespace NOWAIT;

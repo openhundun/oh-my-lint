@@ -1,1 +1,1 @@
-RESET SESSION AUTHORIZATION;
+reset session authorization;

@@ -1,4 +1,4 @@
-ALTER INDEX distributors RENAME TO suppliers;
+alter index distributors rename to suppliers;
 
 ALTER INDEX distributors SET TABLESPACE fasttablespace;
 

@@ -1,7 +1,7 @@
 -- https://www.postgresql.org/docs/current/sql-createtype.html
-CREATE TYPE foo;
-CREATE TYPE bar AS ENUM ();
-CREATE TYPE bar AS ENUM ('foo', 'bar');
-CREATE TYPE foobar AS RANGE (SUBTYPE = FLOAT);
+create type foo;
+create type bar as enum();
+create type bar as enum('foo', 'bar');
+create type foobar as range(subtype=float);
 CREATE TYPE barbar AS (INPUT = foo, OUTPUT = bar);
-CREATE TYPE foofoo AS (foo varchar collate utf8);
+create type foofoo as (foo varchar collate utf8);

@@ -1,6 +1,6 @@
 CHECKPOINT;
 checkpoint;
 
-SELECT 1;
+select 1;
 CHECKPOINT;
-SELECT 2;
+select 2;

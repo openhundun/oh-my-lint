@@ -4,69 +4,69 @@
 supported in postgres. */
 
 -- LIKE/ILIKE expressions supported
-SELECT *
-FROM animals
-WHERE family LIKE '%ursidae%';
+select *
+from animals
+where family like '%ursidae%';
 
-SELECT *
-FROM animals
-WHERE family NOT LIKE '%ursidae%';
+select *
+from animals
+where family not like '%ursidae%';
 
-SELECT *
-FROM animals
-WHERE genus ILIKE '%ursus%';
+select *
+from animals
+where genus ilike '%ursus%';
 
-SELECT *
-FROM animals
-WHERE genus NOT ILIKE '%ursus%';
+select *
+from animals
+where genus not ilike '%ursus%';
 
-SELECT *
-FROM animals
-WHERE family LIKE '%ursidae%' ESCAPE '\\';
+select *
+from animals
+where family like '%ursidae%' escape '\\';
 
-SELECT *
-FROM animals
-WHERE genus NOT ILIKE '%ursus%' ESCAPE '\\';
+select *
+from animals
+where genus not ilike '%ursus%' escape '\\';
 
-SELECT COALESCE(family LIKE '%ursidae%' ESCAPE '\\', FALSE) AS is_bear
-FROM animals;
+select coalesce(family like '%ursidae%' escape '\\', false) as is_bear
+from animals;
 
 -- SIMILAR TO expressions supported
-SELECT *
-FROM animals
-WHERE family SIMILAR TO '%ursidae%';
+select *
+from animals
+where family similar to '%ursidae%';
 
-SELECT *
-FROM animals
-WHERE family NOT SIMILAR TO '%ursidae%';
+select *
+from animals
+where family not similar to '%ursidae%';
 
-SELECT *
-FROM animals
-WHERE genus SIMILAR TO '%ursus%';
+select *
+from animals
+where genus similar to '%ursus%';
 
-SELECT *
-FROM animals
-WHERE genus NOT SIMILAR TO '%ursus%';
+select *
+from animals
+where genus not similar to '%ursus%';
 
-SELECT *
-FROM animals
-WHERE family SIMILAR TO '%ursidae%' ESCAPE '\\';
+select *
+from animals
+where family similar to '%ursidae%' escape '\\';
 
-SELECT *
-FROM animals
-WHERE genus NOT SIMILAR TO '%ursus%' ESCAPE '\\';
+select *
+from animals
+where genus not similar to '%ursus%' escape '\\';
 
-SELECT COALESCE(family SIMILAR TO '%ursidae%' ESCAPE '\\', FALSE) AS is_bear
-FROM animals;
+select coalesce(family similar to '%ursidae%' escape '\\', false) as is_bear
+from animals;
 
 -- From https://github.com/sqlfluff/sqlfluff/issues/2722
-WITH cleaned_bear_financial_branch AS (
-    SELECT
+with cleaned_bear_financial_branch as (
+    select
         branch_id,
-        TO_NUMBER(CASE WHEN honey_numerical_code SIMILAR TO '[0-9]{0,7}.?[0-9]{0,2}' THEN honey_numerical_code ELSE NULL END, '24601') AS honey_numerical_code
-    FROM bear_financial_branch
+        to_number(case when honey_numerical_code similar to '[0-9]{0,7}.?[0-9]{0,2}' then honey_numerical_code else null end, '24601') as honey_numerical_code
+    from bear_financial_branch
 )
 
-SELECT branch_id
-FROM cleaned_bear_financial_branch
-LIMIT 10;
+select branch_id
+from cleaned_bear_financial_branch
+limit 10;

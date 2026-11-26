@@ -1,12 +1,14 @@
 -- PostgreSQL allows an explicit sort operator via `USING operator`
 -- instead of ASC/DESC.
 -- https://www.postgresql.org/docs/current/queries-order.html
-SELECT * FROM t ORDER BY a USING <;
+select * from t order by a using <;
 
-SELECT * FROM t ORDER BY a USING >;
+select * from t order by a using >;
 
-SELECT * FROM t ORDER BY a USING < NULLS FIRST, b USING > NULLS LAST;
+select *
+from t
+order by a using < nulls first, b using >;
 
-SELECT * FROM t ORDER BY a USING OPERATOR(pg_catalog.<);
+select * from t order by a using operator (pg_catalog. < );
 
-SELECT * FROM t ORDER BY a USING OPERATOR(myschema.<<<);
+select * from t order by a using operator (myschema.<<<);

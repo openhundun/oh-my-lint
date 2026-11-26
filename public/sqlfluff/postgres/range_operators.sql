@@ -12,4 +12,4 @@ where
   and word.character_range -|- paragraph.character_range
   and word.character_range + paragraph.character_range
   and word.character_range * paragraph.character_range
-  and word.character_range - paragraph.character_range
+  and word.character_range - paragraph.character_range;

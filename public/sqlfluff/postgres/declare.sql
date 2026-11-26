@@ -1,34 +1,34 @@
-DECLARE c1 CURSOR FOR SELECT id, v FROM t;
+declare c1 cursor for select id, v from t;
 
-DECLARE c2 CURSOR WITH HOLD FOR SELECT 1;
+declare c2 cursor with hold for select 1;
 
-DECLARE c3 CURSOR WITHOUT HOLD FOR SELECT id FROM t ORDER BY id;
+declare c3 cursor without hold for select id from t order by id;
 
-DECLARE c4 BINARY INSENSITIVE NO SCROLL CURSOR FOR SELECT id FROM t;
+declare c4 binary insensitive no scroll cursor for select id from t;
 
-DECLARE c5 ASENSITIVE SCROLL CURSOR FOR SELECT id FROM t;
+declare c5 asensitive scroll cursor for select id from t;
 
 -- The options can come in any order
 DECLARE c6 SCROLL BINARY CURSOR FOR SELECT id FROM t;
 
-DECLARE c7 CURSOR FOR VALUES (1, 'a'), (2, 'b');
+declare c7 cursor for values (1, 'a'), (2, 'b');
 
-DECLARE c8 CURSOR FOR
-WITH x AS (SELECT id FROM t)
-SELECT id FROM x;
+declare c8 cursor for
+with x as (select id from t)
+select id from x;
 
-DECLARE c9 CURSOR FOR SELECT id FROM t UNION ALL SELECT 2;
+declare c9 cursor for select id from t union all select 2;
 
-DECLARE c10 CURSOR FOR (SELECT id FROM t);
+declare c10 cursor for(select id from t);
 
 -- The query can be in any number of brackets
-DECLARE c11 CURSOR FOR ((SELECT id FROM t));
+declare c11 cursor for((select id from t));
 
-DECLARE c12 CURSOR FOR (((VALUES (1, 'a'))));
+declare c12 cursor for(((values (1, 'a'))));
 
-DECLARE c13 CURSOR FOR ((
-    WITH x AS (SELECT id FROM t)
-    SELECT id FROM x
+declare c13 cursor for((
+    with x as (select id from t)
+    select id from x
 ));
 
-DECLARE c14 CURSOR FOR (((SELECT id FROM t) UNION (SELECT 2)));
+declare c14 cursor for(((select id from t) union (select 2)));

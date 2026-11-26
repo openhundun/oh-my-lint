@@ -17,10 +17,10 @@ SELECT rank () OVER (ORDER BY my_column RANGE BETWEEN
         INTERVAL '15 DAYS' PRECEDING);
 
 -- Frame clauses without ORDER BY
-SELECT sum(x) OVER (ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t;
+select sum(x) over(rows between unbounded preceding and current row) from t;
 
-SELECT sum(x) OVER (ROWS UNBOUNDED PRECEDING) FROM t;
+select sum(x) over(rows unbounded preceding) from t;
 
-SELECT sum(x) OVER (RANGE BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) FROM t;
+select sum(x) over(range between unbounded preceding and unbounded following) from t;
 
-SELECT sum(x) OVER (PARTITION BY y ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) FROM t;
+select sum(x) over(partition by y rows between 1 preceding and 1 following) from t;

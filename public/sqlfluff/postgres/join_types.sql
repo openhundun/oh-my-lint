@@ -1,81 +1,81 @@
 -- inner join
-SELECT
+select
     employee.id,
     employee.name,
     employee.deptno,
     department.deptname
-FROM employee
-INNER JOIN department
-    ON employee.deptno = department.deptno;
+from employee
+inner join department
+    on employee.deptno = department.deptno;
 
 -- left join
-SELECT
+select
     employee.id,
     employee.name,
     employee.deptno,
     department.deptname
-FROM employee
-LEFT JOIN department
-    ON employee.deptno = department.deptno;
+from employee
+left join department
+    on employee.deptno = department.deptno;
 
-SELECT
+select
     employee.id,
     employee.name,
     employee.deptno,
     department.deptname
-FROM employee
-LEFT OUTER JOIN department
-    ON employee.deptno = department.deptno;
+from employee
+left join department
+    on employee.deptno = department.deptno;
 
 -- right join
-SELECT
+select
     employee.id,
     employee.name,
     employee.deptno,
     department.deptname
-FROM employee
-RIGHT JOIN department
-    ON employee.deptno = department.deptno;
+from employee
+right join department
+    on employee.deptno = department.deptno;
 
-SELECT
+select
     employee.id,
     employee.name,
     employee.deptno,
     department.deptname
-FROM employee
-RIGHT OUTER JOIN department
-    ON employee.deptno = department.deptno;
+from employee
+right join department
+    on employee.deptno = department.deptno;
 
 -- full join
-SELECT
+select
     employee.id,
     employee.name,
     employee.deptno,
     department.deptname
-FROM employee
-FULL JOIN department
-    ON employee.deptno = department.deptno;
+from employee
+full join department
+    on employee.deptno = department.deptno;
 
-SELECT
+select
     employee.id,
     employee.name,
     employee.deptno,
     department.deptname
-FROM employee
-FULL OUTER JOIN department
-    ON employee.deptno = department.deptno;
+from employee
+full join department
+    on employee.deptno = department.deptno;
 
 -- cross join
-SELECT
+select
     employee.id,
     employee.name,
     employee.deptno,
     department.deptname
-FROM employee CROSS JOIN department;
+from employee cross join department;
 
-SELECT
+select
     employee.id,
     employee.name,
     employee.deptno,
     department.deptname
-FROM employee, department;
+from employee, department;

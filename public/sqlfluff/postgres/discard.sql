@@ -1,5 +1,5 @@
-DISCARD ALL;
-DISCARD PLANS;
-DISCARD SEQUENCES;
-DISCARD TEMPORARY;
-DISCARD TEMP;
+discard all;
+discard plans;
+discard sequences;
+discard temporary;
+discard temp;

@@ -1,29 +1,29 @@
-CREATE RULE protect_orders AS ON DELETE TO orders DO INSTEAD NOTHING;
+create rule protect_orders as on delete to orders do instead nothing;
 
-CREATE OR REPLACE RULE notify_orders AS ON UPDATE TO orders DO ALSO NOTIFY orders_changed;
+create or replace rule notify_orders as on update to orders do also notify orders_changed;
 
-CREATE RULE log_order_insert AS ON INSERT TO orders
-    DO INSERT INTO order_log VALUES (NEW.id, 'inserted');
+create rule log_order_insert as on insert to orders
+    do insert into order_log values (new.id, 'inserted');
 
-CREATE RULE archive_order AS ON DELETE TO sales.orders
-    WHERE OLD.status = 'closed'
-    DO ALSO (
-        INSERT INTO order_log VALUES (OLD.id, 'archived');
-        UPDATE order_totals SET n = n - 1 WHERE customer_id = OLD.customer_id
+create rule archive_order as on delete to sales.orders
+    where old.status = 'closed'
+    do also (
+        insert into order_log values (old.id, 'archived');
+        update order_totals set n = n - 1 where customer_id = old.customer_id
     );
 
-CREATE RULE notify_order_insert AS ON INSERT TO sales.orders
-    DO ALSO (; NOTIFY orders_changed;; NOTIFY order_inserted, 'new';);
+create rule notify_order_insert as on insert to sales.orders
+    do also (; notify orders_changed;; notify order_inserted, 'new';);
 
-CREATE RULE ignore_insert AS ON INSERT TO order_totals DO INSTEAD ();
+create rule ignore_insert as on insert to order_totals do instead ();
 
-CREATE RULE select_on_update AS ON UPDATE TO order_totals DO ALSO ((SELECT 1));
+create rule select_on_update as on update to order_totals do also ((select 1));
 
-CREATE RULE log_order_delete AS ON DELETE TO order_totals
-    DO ALSO WITH note AS (SELECT 'deleted' AS txt)
-    INSERT INTO order_log SELECT OLD.customer_id, txt FROM note;
+create rule log_order_delete as on delete to order_totals
+    do also with note as (select 'deleted' as txt)
+    insert into order_log select old.customer_id, txt from note;
 
-CREATE RULE soft_delete AS ON DELETE TO customers
-    DO INSTEAD UPDATE customers SET deleted = TRUE WHERE id = OLD.id RETURNING *;
+create rule soft_delete as on delete to customers
+    do instead update customers set deleted = true where id = old.id returning *;
 
 CREATE OR REPLACE RULE "_RETURN" AS ON SELECT TO order_view DO INSTEAD SELECT 2 AS a;

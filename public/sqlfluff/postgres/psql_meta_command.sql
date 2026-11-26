@@ -6,11 +6,11 @@
 
 \echo "thing"
 
-SELECT 1; SELECT 2;
+SELECT 1; select 2;
 
-SELECT 1 + 3;
+select 1 + 3;
 
-SELECT 1;
+select 1;
 
 \echo "thing" \\ SELECT 1;
 

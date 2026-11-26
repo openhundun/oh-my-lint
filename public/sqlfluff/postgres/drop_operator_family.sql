@@ -1,11 +1,11 @@
-DROP OPERATOR FAMILY alt_fam2 USING btree;
+drop operator family alt_fam2 using btree;
 
-DROP OPERATOR FAMILY IF EXISTS alt_fam2 USING btree;
+drop operator family if exists alt_fam2 using btree;
 
-DROP OPERATOR FAMILY alt_fam2 USING btree CASCADE;
+drop operator family alt_fam2 using btree cascade;
 
-DROP OPERATOR FAMILY alt_fam2 USING btree RESTRICT;
+drop operator family alt_fam2 using btree restrict;
 
-DROP OPERATOR FAMILY fam1, fam2 USING btree;
+drop operator family fam1, fam2 using btree;
 
-DROP OPERATOR FAMILY IF EXISTS public.fam1, public.fam2 USING btree CASCADE;
+drop operator family if exists public.fam1, public.fam2 using btree cascade;

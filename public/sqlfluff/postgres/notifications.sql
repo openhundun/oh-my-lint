@@ -1,13 +1,13 @@
-LISTEN virtual;
-NOTIFY virtual;
-UNLISTEN virtual;
+listen virtual;
+notify virtual;
+unlisten virtual;
 
-LISTEN "virtual listener";
-NOTIFY "virtual listener";
-UNLISTEN "virtual listener";
+listen "virtual listener";
+notify "virtual listener";
+unlisten "virtual listener";
 
-LISTEN listener_a;
-LISTEN listener_b;
-NOTIFY listener_a, 'payload_a';
-NOTIFY listener_b, 'payload_b';
-UNLISTEN *
+listen listener_a;
+listen listener_b;
+notify listener_a, 'payload_a';
+notify listener_b, 'payload_b';
+unlisten *;

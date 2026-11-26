@@ -28,4 +28,4 @@ select 'cat'::tsquery <@ 'cat & rat'::tsquery;
 
 select 'cat'::tsquery <@ '!cat & rat'::tsquery;
 
-select !! 'cat'::tsquery
+select !! 'cat'::tsquery;

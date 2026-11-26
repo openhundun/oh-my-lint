@@ -1,30 +1,30 @@
-DROP VIEW abc;
+drop view abc;
 
-DROP VIEW "abc";
+drop view "abc";
 
-DROP VIEW IF EXISTS abc;
+drop view if exists abc;
 
-DROP VIEW abc, "def", ghi;
+drop view abc, "def", ghi;
 
-DROP VIEW IF EXISTS abc, def, ghi;
+drop view if exists abc, def, ghi;
 
 -- Test CASCADE trailing keyword
 
-DROP VIEW abc CASCADE;
+drop view abc cascade;
 
-DROP VIEW IF EXISTS abc CASCADE;
+drop view if exists abc cascade;
 
-DROP VIEW abc, def, ghi CASCADE;
+drop view abc, def, ghi cascade;
 
-DROP VIEW IF EXISTS abc, def, ghi CASCADE;
+drop view if exists abc, def, ghi cascade;
 
 
 -- Test RESTRICT trailing keyword
 
-DROP VIEW abc RESTRICT;
+drop view abc restrict;
 
-DROP VIEW IF EXISTS abc RESTRICT;
+drop view if exists abc restrict;
 
-DROP VIEW abc, def, ghi RESTRICT;
+drop view abc, def, ghi restrict;
 
-DROP VIEW IF EXISTS abc, def, ghi RESTRICT;
+drop view if exists abc, def, ghi restrict;

@@ -2,21 +2,21 @@
 -- Based on: https://www.postgresql.org/docs/17/functions-json.html#FUNCTIONS-SQLJSON-TABLE
 
 -- FOR ORDINALITY and typed PATH columns, joined to the source table
-SELECT
+select
     o.order_id,
     li.line_no,
     li.sku,
     li.qty
-FROM orders AS o,
-    JSON_TABLE(
+from orders o,
+    json_table(
         o.doc,
         '$.line_items[*]'
-        COLUMNS (
-            line_no FOR ORDINALITY,
-            sku text PATH '$.sku',
-            qty integer PATH '$.qty'
+        columns(
+            line_no for ordinality,
+            sku text path '$.sku',
+            qty integer path '$.qty'
         )
-    ) AS li;
+    ) li;
 
 -- Lowercase function name, literal context item, implicit column path
 SELECT jt.*

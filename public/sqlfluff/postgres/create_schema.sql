@@ -1,11 +1,11 @@
-CREATE SCHEMA asdf;
+create schema asdf;
 
-CREATE SCHEMA IF NOT EXISTS asdf;
+create schema if not exists asdf;
 
-CREATE SCHEMA asdf AUTHORIZATION bob;
+create schema asdf authorization bob;
 
-CREATE SCHEMA AUTHORIZATION bob;
+create schema authorization bob;
 
-CREATE SCHEMA IF NOT EXISTS asdf AUTHORIZATION bob;
+create schema if not exists asdf authorization bob;
 
-CREATE SCHEMA IF NOT EXISTS AUTHORIZATION bob;
+create schema if not exists authorization bob;

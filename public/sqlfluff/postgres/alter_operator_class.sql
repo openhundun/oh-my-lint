@@ -1,13 +1,13 @@
-ALTER OPERATOR CLASS int4_custom_ops USING btree RENAME TO int4_new_ops;
+alter operator class int4_custom_ops using btree rename to int4_new_ops;
 
-ALTER OPERATOR CLASS int4_new_ops USING btree OWNER TO joe;
+alter operator class int4_new_ops using btree owner to joe;
 
-ALTER OPERATOR CLASS int4_new_ops USING btree OWNER TO CURRENT_ROLE;
+alter operator class int4_new_ops using btree owner to current_role;
 
-ALTER OPERATOR CLASS int4_new_ops USING btree OWNER TO CURRENT_USER;
+alter operator class int4_new_ops using btree owner to current_user;
 
-ALTER OPERATOR CLASS int4_new_ops USING btree OWNER TO SESSION_USER;
+alter operator class int4_new_ops using btree owner to session_user;
 
-ALTER OPERATOR CLASS int4_new_ops USING btree SET SCHEMA test_schema;
+alter operator class int4_new_ops using btree set schema test_schema;
 
-ALTER OPERATOR CLASS public.gist__int_ops USING gist OWNER TO joe;
+alter operator class public.gist__int_ops using gist owner to joe;

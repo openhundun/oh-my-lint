@@ -3,34 +3,29 @@
 -- https://www.postgresql.org/docs/18/sql-altertable.html
 
 -- Column constraints
-CREATE TABLE orders (
-    id integer PRIMARY KEY,
-    customer_id integer REFERENCES customers (id) NOT ENFORCED,
-    quantity integer CHECK (quantity > 0) ENFORCED,
-    price numeric CONSTRAINT price_positive CHECK (price > 0) NOT ENFORCED
+create table orders (
+    id int primary key,
+    customer_id int references customers (id) not enforced,
+    quantity int check (quantity > 0) enforced,
+    price decimal constraint price_positive check (price > 0) not enforced
 );
 
-CREATE TABLE line_items (
-    order_id integer REFERENCES orders (id)
-        DEFERRABLE INITIALLY DEFERRED NOT ENFORCED
-);
+create table line_items (order_id int references orders (id)
+        deferrable initially deferred not enforced);
 
 -- Table constraints
-CREATE TABLE shipments (
-    id integer,
-    order_id integer,
-    weight numeric,
-    CONSTRAINT shipments_order_fk FOREIGN KEY (order_id)
-        REFERENCES orders (id) NOT ENFORCED,
-    CONSTRAINT shipments_weight_check CHECK (weight >= 0) ENFORCED
+create table shipments (
+    id int,
+    order_id int,
+    weight decimal,
+    constraint shipments_order_fk foreign key (order_id)
+        references orders (id) not enforced,
+    constraint shipments_weight_check check (weight >= 0) enforced
 );
 
-ALTER TABLE shipments
-    ADD CONSTRAINT shipments_id_check CHECK (id > 0) NOT ENFORCED;
+alter table shipments add constraint shipments_id_check check (id > 0) not enforced;
 
-ALTER TABLE shipments
-    ADD CONSTRAINT shipments_order_fk2 FOREIGN KEY (order_id)
-        REFERENCES orders (id) ON DELETE CASCADE NOT ENFORCED;
+alter table shipments add constraint shipments_order_fk2 foreign key (order_id) references orders (id) on delete cascade not enforced;
 
 -- ALTER CONSTRAINT
 ALTER TABLE shipments ALTER CONSTRAINT shipments_order_fk ENFORCED;

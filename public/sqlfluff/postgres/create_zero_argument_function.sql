@@ -1,6 +1,6 @@
-CREATE OR REPLACE FUNCTION a() RETURNS integer
-AS
+create or replace function a() returns integer
+as
 $$
     SELECT 1;
 $$
-LANGUAGE SQL;
+language sql;

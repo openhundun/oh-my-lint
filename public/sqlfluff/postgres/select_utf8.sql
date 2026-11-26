@@ -1,32 +1,24 @@
 -- Postgres should work with Unicode identifiers in various places
 
-SELECT größe, länge FROM measurements;
+select größe, länge from measurements;
 
-SELECT
-    width AS größe,
-    height AS höhe
-FROM dimensions;
+select width as größe, height as höhe from dimensions;
 
-SELECT 'Não' reativação FROM table1;
+select 'Não' as reativação from table1;
 
-SELECT αλφα, βητα, γαμμα FROM greek_letters;
+select αλφα, βητα, γαμμα from greek_letters;
 
-SELECT москва, санкт_петербург FROM cities;
+select москва, санкт_петербург from cities;
 
-SELECT field1 AS 名前 FROM users;
+select field1 as 名前 from users;
 
-SELECT
-    id,
-    größe,
-    description
-FROM products;
+select id, größe, description from products;
 
-WITH größen AS (
-    SELECT * FROM base_table
+with
+größen as (
+    select * from base_table
 )
-SELECT * FROM größen;
+select *
+from größen;
 
-CREATE TABLE größen (
-    länge INTEGER,
-    breite INTEGER
-);
+create table größen (länge int, breite int);

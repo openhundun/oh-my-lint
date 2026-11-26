@@ -2,17 +2,17 @@ create foreign data wrapper stripe_wrapper
     handler stripe_fdw_handler
     validator stripe_fdw_validator;
 
-CREATE FOREIGN DATA WRAPPER dummy;
+create foreign data wrapper dummy;
 
-CREATE FOREIGN DATA WRAPPER no_functions NO HANDLER NO VALIDATOR;
+create foreign data wrapper no_functions no handler no validator;
 
 -- The clauses can come in any order, and the functions can be schema-qualified
-CREATE FOREIGN DATA WRAPPER qualified
-    VALIDATOR ext.my_validator
-    HANDLER ext.my_handler;
+create foreign data wrapper qualified
+    validator ext.my_validator
+    handler ext.my_handler;
 
-CREATE FOREIGN DATA WRAPPER with_options
-    HANDLER postgres_fdw_handler
-    OPTIONS (debug 'true', retries '3');
+create foreign data wrapper with_options
+    handler postgres_fdw_handler
+    options (debug 'true', retries '3');
 
-CREATE FOREIGN DATA WRAPPER quoted_options OPTIONS ("debug" 'true');
+create foreign data wrapper quoted_options options ("debug" 'true');

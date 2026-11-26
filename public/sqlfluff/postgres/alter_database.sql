@@ -32,7 +32,7 @@ ALTER DATABASE db SET parameter1 FROM CURRENT;
 ALTER DATABASE db SET search_path TO my_schema;
 ALTER DATABASE db SET search_path TO "my_schema";
 
-ALTER USER some_user SET default_transaction_read_only = ON;
+alter user some_user set default_transaction_read_only = on;
 
 ALTER DATABASE db RESET parameter1;
 ALTER DATABASE db RESET ALL;

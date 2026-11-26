@@ -1,4 +1,4 @@
-CREATE DATABASE db;
+create database db;
 CREATE DATABASE db OWNER user_name;
 CREATE DATABASE db OWNER = user_name;
 CREATE DATABASE db WITH OWNER = user_name;

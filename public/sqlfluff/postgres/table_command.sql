@@ -14,13 +14,13 @@ TABLE t FOR UPDATE;
 -- In set expressions, ORDER BY and LIMIT belong to the set expression
 TABLE a UNION TABLE b ORDER BY 1 LIMIT 5;
 
-(TABLE a) UNION ALL (TABLE b);
+(table a) union all (table b);
 
 -- Wherever a SELECT can be used
-WITH x AS (TABLE t) TABLE x;
+with x as (table t) table x;
 
-SELECT * FROM (TABLE t) AS sub;
+select * from (table t) sub;
 
 INSERT INTO t2 TABLE t;
 
-CREATE VIEW v AS TABLE t;
+create view v as table t;

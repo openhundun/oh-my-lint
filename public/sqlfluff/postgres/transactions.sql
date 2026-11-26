@@ -1,26 +1,26 @@
-BEGIN;
-COMMIT;
+begin;
+commit;
 
-BEGIN WORK ISOLATION LEVEL SERIALIZABLE;
-COMMIT WORK;
+begin work isolation level serializable;
+commit work;
 
 BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY, DEFERRABLE;
-COMMIT TRANSACTION;
+commit transaction;
 
 -- PostgreSQL also accepts transaction modes without commas
 BEGIN ISOLATION LEVEL READ COMMITTED READ WRITE NOT DEFERRABLE;
-END;
+end;
 
-START TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
-END TRANSACTION AND NO CHAIN;
+start transaction isolation level read uncommitted;
+end transaction and no chain;
 
-START TRANSACTION READ ONLY;
-COMMIT AND CHAIN;
-ROLLBACK AND NO CHAIN;
+start transaction read only;
+commit and chain;
+rollback and no chain;
 
-BEGIN;
-ABORT;
+begin;
+abort;
 
-BEGIN;
-ABORT WORK AND CHAIN;
-ROLLBACK WORK;
+begin;
+abort work and chain;
+rollback work;

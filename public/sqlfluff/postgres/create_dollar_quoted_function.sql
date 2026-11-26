@@ -1,3 +1,3 @@
-CREATE FUNCTION foo(integer, integer) RETURNS integer
-    AS $$ select $1 + $2; $$
-    LANGUAGE SQL;
+create function foo(integer, integer) returns integer
+    as $$ select $1 + $2; $$
+    language sql;

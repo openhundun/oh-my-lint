@@ -1,4 +1,4 @@
-DROP PROCEDURE do_db_maintenance();
+drop procedure do_db_maintenance();
 
 drop procedure insert_actor;
 
@@ -8,7 +8,7 @@ drop procedure insert_actor(varchar, varchar);
 
 drop procedure delete_actor, update_actor;
 
-drop procedure delete_actor, update_actor CASCADE;
+drop procedure delete_actor, update_actor cascade;
 
 drop procedure delete_actor(in id varchar);
 

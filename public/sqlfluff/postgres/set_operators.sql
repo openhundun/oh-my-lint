@@ -7,21 +7,20 @@ except (
 
 select field_1
 from table_1
-intersect (
+intersect
+select field_1
+    from table_2;
+
+select field_1
+from table_1
+except
+all (
     select field_1
     from table_2
 );
 
 select field_1
 from table_1
-except all (
-    select field_1
-    from table_2
-);
-
+union
 select field_1
-from table_1
-union (
-    select field_1
-    from table_2
-)
+    from table_2;

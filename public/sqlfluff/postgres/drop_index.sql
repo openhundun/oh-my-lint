@@ -1,26 +1,26 @@
-DROP INDEX abc;
+drop index abc;
 
-DROP INDEX "abc";
+drop index "abc";
 
-DROP INDEX IF EXISTS abc;
+drop index if exists abc;
 
-DROP INDEX abc, "def", ghi;
+drop index abc, "def", ghi;
 
-DROP INDEX IF EXISTS abc, def, ghi;
+drop index if exists abc, def, ghi;
 
 -- Test CASCADE trailing keyword
 
-DROP INDEX abc CASCADE;
+drop index abc cascade;
 
-DROP INDEX abc, def, ghi CASCADE;
+drop index abc, def, ghi cascade;
 
-DROP INDEX IF EXISTS abc, def, ghi CASCADE;
+drop index if exists abc, def, ghi cascade;
 
 -- Test RESTRICT trailing keyword
 
-DROP INDEX abc RESTRICT;
+drop index abc restrict;
 
-DROP INDEX abc, def, ghi RESTRICT;
+drop index abc, def, ghi restrict;
 
 -- Test CONCURRENTLY
 

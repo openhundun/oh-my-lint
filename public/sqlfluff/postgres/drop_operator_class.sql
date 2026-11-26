@@ -1,9 +1,9 @@
-DROP OPERATOR CLASS widget_ops USING btree;
+drop operator class widget_ops using btree;
 
-DROP OPERATOR CLASS IF EXISTS widget_ops USING btree;
+drop operator class if exists widget_ops using btree;
 
-DROP OPERATOR CLASS widget_ops USING btree CASCADE;
+drop operator class widget_ops using btree cascade;
 
-DROP OPERATOR CLASS widget_ops USING btree RESTRICT;
+drop operator class widget_ops using btree restrict;
 
-DROP OPERATOR CLASS IF EXISTS public.widget_ops USING gist CASCADE;
+drop operator class if exists public.widget_ops using gist cascade;

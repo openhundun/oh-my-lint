@@ -1,15 +1,15 @@
-CREATE MATERIALIZED VIEW my_mat_view AS
-SELECT a
-FROM my_table;
+create materialized view my_mat_view as
+select a
+from my_table;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS my_mat_view AS
-SELECT a
-FROM my_table;
+create materialized view if not exists my_mat_view as
+select a
+from my_table;
 
-CREATE MATERIALIZED VIEW my_mat_view AS
+create materialized view my_mat_view as
 (
-    SELECT a
-    FROM my_table
+    select a
+    from my_table
 );
 
 CREATE MATERIALIZED VIEW my_mat_view AS
@@ -22,62 +22,62 @@ SELECT a
 FROM my_table
 WITH DATA;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS my_mat_view AS
+create materialized view if not exists my_mat_view as
 (
-    SELECT a
-    FROM my_table
+    select a
+    from my_table
 );
 
-CREATE MATERIALIZED VIEW my_mat_view AS
+create materialized view my_mat_view as
 (
-    SELECT
+    select
         a,
         b
-    FROM
+    from
         my_table
-    WHERE y = 'value'
+    where y = 'value'
 );
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS my_mat_view AS
+create materialized view if not exists my_mat_view as
 (
-    SELECT
+    select
         a,
         b
-    FROM
+    from
         my_table
-    WHERE y = 'value'
+    where y = 'value'
 );
 
 
-CREATE MATERIALIZED VIEW my_mat_view AS
-SELECT
+create materialized view my_mat_view as
+select
     a,
     b
-FROM
+from
     my_table
-WHERE y = 'value';
+where y = 'value';
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS my_mat_view AS
-SELECT
+create materialized view if not exists my_mat_view as
+select
     a,
     b
-FROM
+from
     my_table
-WHERE y = 'value';
+where y = 'value';
 
 
-CREATE MATERIALIZED VIEW my_mat_view AS
-SELECT
+create materialized view my_mat_view as
+select
     a,
     b
-FROM
+from
     my_table;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS my_mat_view AS
-SELECT
+create materialized view if not exists my_mat_view as
+select
     a,
     b
-FROM
+from
     my_table;
 
 -- SQL from issue #2039
@@ -146,18 +146,18 @@ FROM table_2
 ORDER BY field_1, field_2
 WITH DATA;
 
-CREATE MATERIALIZED VIEW my_mat_view
-WITH (left.right)
-AS
-SELECT a
-FROM my_table;
+create materialized view my_mat_view
+with (left.right)
+as
+select a
+from my_table;
 
-CREATE MATERIALIZED VIEW my_mat_view
-WITH (opt1, opt2=5, opt3='str', ns.opt4, ns.opt5=6, ns.opt6='str', opt7=ASC)
-AS
-SELECT a
-FROM my_table;
+create materialized view my_mat_view
+with (opt1, opt2=5, opt3='str', ns.opt4, ns.opt5=6, ns.opt6='str', opt7=asc)
+as
+select a
+from my_table;
 
-CREATE OR REPLACE MATERIALIZED VIEW my_mat_view AS
-SELECT a
-FROM my_table;
+create or replace materialized view my_mat_view as
+select a
+from my_table;

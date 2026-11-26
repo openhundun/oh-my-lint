@@ -1,4 +1,4 @@
-ANALYZE foo;
+analyze foo;
 
 ANALYSE foo;
 

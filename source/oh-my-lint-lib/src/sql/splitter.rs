@@ -23,7 +23,7 @@ pub const SENTINELS: [&str; 2] = ["1 = 1", "1 = 0"];
 
 /// 语句边界：空行后跟 select / with。
 static STATEMENT_BREAK: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-    regex::Regex::new(r"(?m)\n\s*\n\s*(?:select|with)\b").expect("valid statement break")
+    regex::Regex::new(r"(?m)\A\n\s*\n\s*(?:select|with)\b").expect("valid statement break")
 });
 
 /// 一个子句：关键字起点、正文半开区间。
@@ -593,6 +593,15 @@ mod tests {
             &"select a from (select b from t) x"[blocks[1].start..blocks[1].end],
             "select b from t"
         );
+    }
+
+    #[test]
+    fn statement_break_is_anchored() {
+        let sql = "select a\nfrom t\n\nselect b\nfrom u";
+        let spans = crate::sql::splitter::statements(sql);
+        assert_eq!(spans.len(), 2);
+        assert_eq!(&sql[spans[0].start..spans[0].end], "select a\nfrom t");
+        assert_eq!(&sql[spans[1].start..spans[1].end], "select b\nfrom u");
     }
 
     #[test]

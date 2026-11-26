@@ -545,6 +545,12 @@ fn field_alias_edits(body: &str, sql: &str, base: usize, edits: &mut Vec<Edit>) 
         if tokens.is_empty() {
             continue;
         }
+        if tokens
+            .iter()
+            .any(|token| token.kind == Kind::Word && token.text.eq_ignore_ascii_case("into"))
+        {
+            continue;
+        }
         let has_as = tokens
             .iter()
             .any(|token| token.kind == Kind::Word && token.text.eq_ignore_ascii_case("as"));
@@ -560,7 +566,7 @@ fn field_alias_edits(body: &str, sql: &str, base: usize, edits: &mut Vec<Edit>) 
         let lower = last.text.to_ascii_lowercase();
         if matches!(
             lower.as_str(),
-            "end" | "null" | "true" | "false" | "distinct" | "all"
+            "end" | "null" | "true" | "false" | "distinct" | "all" | "unknown"
         ) {
             continue;
         }
@@ -949,6 +955,15 @@ mod tests {
         let fixed = normalized(sql);
         assert_eq!(fixed, expected);
         assert_eq!(normalized(&fixed), fixed);
+    }
+
+    #[test]
+    fn skips_into_targets_and_unknown_predicates() {
+        assert_fixed(
+            "SELECT foo, bar INTO baz FROM qux;",
+            "select foo, bar into baz from qux",
+        );
+        assert_fixed("SELECT TRUE IS NOT UNKNOWN;", "select true is not unknown");
     }
 
     #[test]

@@ -52,7 +52,7 @@ v0.1 只实现 **SQL 断行决策**（规则 `sql-break`）：根据子句复杂
 - 格式化幂等：`format(format(x)) == format(x)`；合规输入不做任何改动。
 - 对 `fix` 接受的块，修复后重新 `check` 为空；被 `skipped` 的块保持原样，`check` 继续报告。
 - 块无法按选定方言解析时不修复；`check` 只输出解析错误，不猜结构。
-- 修复覆盖子句、布尔组、含子查询的单条件括号、独立 `case`、内联子查询、隐式 cross join、`with` 框架、集合运算与 `rollup` 参数；token 层覆盖大小写、空格、`as`、`distinct`、`case` 括号、`between` 括号与 `not` 改写。
+- 修复覆盖子句、布尔组、含子查询的单条件括号、独立 `case`、内联子查询、隐式 cross join、from join 换行、`with` 框架、集合运算与 `rollup` 参数；token 层覆盖大小写、空格、`as`、`distinct`、`case` 括号、`between` 括号与 `not` 改写。
 
 ## 构建与测试
 

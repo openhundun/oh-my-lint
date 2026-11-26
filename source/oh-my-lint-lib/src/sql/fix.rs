@@ -1,7 +1,7 @@
 //! 修复：只重写违规区间，块内其余字节原样保留。
 
 /// 目前能正确渲染的违规类型。
-const SUPPORTED_FIXES: [&str; 18] = [
+const SUPPORTED_FIXES: [&str; 19] = [
     "select",
     "from",
     "where",
@@ -13,6 +13,7 @@ const SUPPORTED_FIXES: [&str; 18] = [
     "group",
     "case",
     "cross-join",
+    "from-join",
     "set-op",
     "set-op-branch",
     "set-op-parens",
@@ -153,6 +154,9 @@ fn render(text: &str, violation: &crate::sql::checker::Violation) -> Option<Stri
     }
     if violation.kind == "cross-join" {
         return render_cross_join(text, violation);
+    }
+    if violation.kind == "from-join" {
+        return render_from_join(text, violation);
     }
     let body = &text[violation.span.start..violation.span.end];
     let elements = crate::sql::splitter::split_elements(violation.kind, body);
@@ -409,6 +413,74 @@ fn render_subquery(text: &str, violation: &crate::sql::checker::Violation) -> Op
     Some(format!("\n{}\n{pad}", lines.join("\n")))
 }
 
+/// `from` 的 join 版式：首表留在 `from` 行，join 行回到 `from` 缩进。
+fn render_from_join(text: &str, violation: &crate::sql::checker::Violation) -> Option<String> {
+    let body = &text[violation.span.start..violation.span.end];
+    if body.trim_start_matches([' ', '\t']).starts_with('\n') {
+        return render_from_body(body, violation.indent);
+    }
+    let clause = body.trim();
+    let pad = " ".repeat(violation.indent);
+    let at_line_start = violation.span.start == 0 || text[..violation.span.start].ends_with('\n');
+    Some(format!(
+        "{}{pad}{clause}",
+        if at_line_start { "" } else { "\n" }
+    ))
+}
+
+/// 首表原在下一行时，重排整个 `from` 正文。
+fn render_from_body(body: &str, indent: usize) -> Option<String> {
+    let tokens = crate::sql::lexer::tokens(body);
+    let mut depth = 0i32;
+    let mut starts = Vec::new();
+    for (index, token) in tokens.iter().enumerate() {
+        match token.kind {
+            crate::sql::lexer::Kind::Punct if token.text == "(" => depth += 1,
+            crate::sql::lexer::Kind::Punct if token.text == ")" => depth -= 1,
+            crate::sql::lexer::Kind::Word
+                if depth == 0 && token.text.eq_ignore_ascii_case("join") =>
+            {
+                let mut start = token.start;
+                let mut probe = index;
+                while probe > 0 {
+                    probe -= 1;
+                    let previous = &tokens[probe];
+                    if previous.kind == crate::sql::lexer::Kind::Whitespace {
+                        continue;
+                    }
+                    if previous.kind == crate::sql::lexer::Kind::Word
+                        && crate::sql::splitter::is_join_modifier(previous.text)
+                    {
+                        start = previous.start;
+                        continue;
+                    }
+                    break;
+                }
+                starts.push(start);
+            }
+            _ => {}
+        }
+    }
+    if starts.is_empty() {
+        return None;
+    }
+    let first = body[..starts[0]].trim();
+    let mut rendered = String::new();
+    if !first.is_empty() {
+        rendered.push(' ');
+        rendered.push_str(first);
+    }
+    for (index, &start) in starts.iter().enumerate() {
+        let end = starts.get(index + 1).copied().unwrap_or(body.len());
+        rendered.push('\n');
+        rendered.push_str(&" ".repeat(indent));
+        rendered.push_str(body[start..end].trim());
+    }
+    let trailing = body.trim_end().len();
+    rendered.push_str(&body[trailing..]);
+    Some(rendered)
+}
+
 /// 显式 join 后的逗号表改写为 `cross join`。
 fn render_cross_join(_text: &str, violation: &crate::sql::checker::Violation) -> Option<String> {
     let pad = " ".repeat(violation.indent);
@@ -467,6 +539,28 @@ mod tests {
     #[test]
     fn rejects_comments() {
         assert!(crate::sql::fix::format("select a -- x\nfrom t").is_err());
+    }
+
+    #[test]
+    fn breaks_inline_join() {
+        let sql = "select a from t left join u on t.id = u.id";
+        let fixed = crate::sql::format(sql).expect("format");
+        assert_eq!(fixed, "select a\nfrom t\nleft join u on t.id = u.id");
+        assert_eq!(crate::sql::format(&fixed).expect("second"), fixed);
+    }
+
+    #[test]
+    fn breaks_join_after_from_newline() {
+        let sql = "select a\nfrom\n    t left join u on t.id = u.id";
+        let fixed = crate::sql::format(sql).expect("format");
+        assert_eq!(fixed, "select a\nfrom t\nleft join u on t.id = u.id");
+    }
+
+    #[test]
+    fn reindents_join() {
+        let sql = "select a\nfrom t\n        left join u on t.id = u.id";
+        let fixed = crate::sql::format(sql).expect("format");
+        assert_eq!(fixed, "select a\nfrom t\nleft join u on t.id = u.id");
     }
 
     #[test]

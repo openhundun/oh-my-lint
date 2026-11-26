@@ -158,30 +158,33 @@ fn check_clauses(
         if elements.is_empty() {
             continue;
         }
-        let expected = if crate::sql::decision::needs_break(clause.kind, &elements) {
-            Mode::Break
-        } else {
-            Mode::Inline
-        };
-        let actual = crate::sql::splitter::has_top_level_newline(body.trim());
-        if (expected == Mode::Break) != actual {
-            found.push(Violation {
-                kind: clause.kind,
-                element_count: elements.len(),
-                expected,
-                span: crate::span::Span::new(
-                    statement_start + base + clause.body_start,
-                    statement_start + base + clause.body_end,
-                ),
-                indent: line_indent(statement_text, base + clause.keyword_start),
-                next_indent: trailing_indent(body),
-                message: format!(
-                    "{} n={} expected={}",
-                    clause.kind,
-                    elements.len(),
-                    expected.as_str()
-                ),
-            });
+        let has_join = clause.kind == "from" && crate::sql::decision::has_join(body);
+        if !has_join {
+            let expected = if crate::sql::decision::needs_break(clause.kind, &elements) {
+                Mode::Break
+            } else {
+                Mode::Inline
+            };
+            let actual = crate::sql::splitter::has_top_level_newline(body.trim());
+            if (expected == Mode::Break) != actual {
+                found.push(Violation {
+                    kind: clause.kind,
+                    element_count: elements.len(),
+                    expected,
+                    span: crate::span::Span::new(
+                        statement_start + base + clause.body_start,
+                        statement_start + base + clause.body_end,
+                    ),
+                    indent: line_indent(statement_text, base + clause.keyword_start),
+                    next_indent: trailing_indent(body),
+                    message: format!(
+                        "{} n={} expected={}",
+                        clause.kind,
+                        elements.len(),
+                        expected.as_str()
+                    ),
+                });
+            }
         }
         check_groups(
             statement_start,
@@ -374,21 +377,27 @@ fn check_join(
                     .map_or(0, |index| index + 1);
                 let prefix = &statement_text[line_start..absolute];
                 let leading = prefix.len() - prefix.trim_start().len();
-                let modifier = prefix.trim().to_ascii_lowercase();
-                let modifier_ok = modifier.is_empty()
-                    || matches!(
-                        modifier.as_str(),
-                        "left" | "right" | "full" | "inner" | "cross" | "natural"
-                    );
-                if modifier_ok && leading == from_indent {
-                    continue;
+                let mut clause_start = absolute;
+                for (offset, word) in prefix_words(prefix) {
+                    if crate::sql::splitter::is_join_modifier(word) {
+                        clause_start = line_start + offset;
+                    } else {
+                        break;
+                    }
+                }
+                let at_line_start = prefix[..clause_start - line_start].trim().is_empty();
+                if at_line_start {
+                    if leading == from_indent {
+                        continue;
+                    }
+                    clause_start = line_start;
                 }
                 found.push(Violation {
                     kind: "from-join",
                     element_count: 0,
                     expected: Mode::Break,
                     span: crate::span::Span::new(
-                        statement_start + absolute,
+                        statement_start + clause_start,
                         statement_start + absolute + token.text.len(),
                     ),
                     indent: from_indent,
@@ -399,6 +408,25 @@ fn check_join(
             _ => {}
         }
     }
+}
+
+/// 前缀中的词及字节偏移；从右往左用于识别 join 修饰词。
+fn prefix_words(prefix: &str) -> Vec<(usize, &str)> {
+    let mut words = Vec::new();
+    let mut start = 0usize;
+    for (index, ch) in prefix.char_indices() {
+        if ch.is_whitespace() {
+            if start < index {
+                words.push((start, &prefix[start..index]));
+            }
+            start = index + ch.len_utf8();
+        }
+    }
+    if start < prefix.len() {
+        words.push((start, &prefix[start..]));
+    }
+    words.reverse();
+    words
 }
 
 /// `rollup(...)` 参数列表：≥4 或含复杂表达式时逐元素一行。

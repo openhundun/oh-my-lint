@@ -499,6 +499,14 @@ fn count_top_level_word(text: &str, word: &str) -> usize {
     count
 }
 
+/// join 修饰词；用于把 `left outer join` 整体移到新行。
+pub fn is_join_modifier(word: &str) -> bool {
+    matches!(
+        word.to_ascii_lowercase().as_str(),
+        "left" | "right" | "full" | "inner" | "cross" | "natural" | "outer"
+    )
+}
+
 fn is_word(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_'
 }

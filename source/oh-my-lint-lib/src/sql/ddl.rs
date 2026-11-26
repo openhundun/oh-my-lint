@@ -73,16 +73,7 @@ impl Column {
     /// D2 的其余约束，按固定顺序拼接。
     fn rest(&self) -> String {
         let mut parts = Vec::new();
-        for value in [
-            &self.default,
-            &self.generated,
-            &self.unique,
-            &self.check,
-            &self.references,
-        ]
-        .into_iter()
-        .flatten()
-        {
+        for value in [&self.default, &self.generated, &self.unique, &self.check, &self.references].into_iter().flatten() {
             parts.push(value.as_str());
         }
         parts.join(" ")
@@ -111,15 +102,7 @@ impl Column {
         if !self.ty.is_empty() {
             parts.push(self.ty.clone());
         }
-        for value in [
-            &self.storage,
-            &self.compression,
-            &self.collate,
-            &self.not_null,
-        ]
-        .into_iter()
-        .flatten()
-        {
+        for value in [&self.storage, &self.compression, &self.collate, &self.not_null].into_iter().flatten() {
             parts.push(value.clone());
         }
         let rest = self.rest();
@@ -188,11 +171,7 @@ fn render(parsed: Parsed<'_>, body: Body, tail_properties: Vec<String>) -> Optio
 }
 
 fn body_breaks(elements: &[Element], promoted: &[String]) -> bool {
-    if !promoted.is_empty()
-        || elements
-            .iter()
-            .any(|element| matches!(element, Element::Constraint(_)))
-    {
+    if !promoted.is_empty() || elements.iter().any(|element| matches!(element, Element::Constraint(_))) {
         return true;
     }
     let columns: Vec<&Column> = elements
@@ -232,15 +211,20 @@ fn broken_body(elements: &[Element], promoted: &[String]) -> Vec<String> {
         .collect();
     let alignment = Alignment::new(&columns);
     let mut groups: Vec<Vec<String>> = Vec::new();
-    for element in elements {
-        match element {
-            Element::Column(column) => groups.push(vec![alignment.line(column)]),
-            Element::Constraint(text) => groups.push(constraint_lines(text)),
-        }
+    for column in &columns {
+        groups.push(vec![alignment.line(column)]);
     }
-    for line in promoted {
-        groups.push(vec![line.clone()]);
-    }
+    let mut constraints: Vec<String> = elements
+        .iter()
+        .filter_map(|element| match element {
+            Element::Constraint(text) => Some(text.clone()),
+            Element::Column(_) => None,
+        })
+        .collect();
+    constraints.sort_by_key(|text| constraint_rank(text));
+    let mut table_constraints = promoted.to_vec();
+    table_constraints.extend(constraints);
+    groups.extend(constraint_groups(&table_constraints));
     let last_group = groups.len().saturating_sub(1);
     for (index, group) in groups.iter_mut().enumerate() {
         if index < last_group
@@ -261,24 +245,24 @@ fn broken_body(elements: &[Element], promoted: &[String]) -> Vec<String> {
 /// D3：name、type、storage、compression、collate、not null 的宽度。
 ///
 /// 只有"该字段后面还有非空字段"的行才参与宽度计算；因此行尾字段不会把
-/// 前面的列撑宽。空单元只有在同列有宽度时才占位对齐。
+/// 前面的列撑宽。某行缺失的可选字段不占位，后续字段直接左靠。
 struct Alignment {
-    widths: [usize; 7],
-    active: [bool; 7],
+    /// `[当前单元格][下一个实际出现的单元格]` 的宽度。
+    widths: [[usize; 7]; 7],
 }
 
 impl Alignment {
     fn new(columns: &[&Column]) -> Self {
-        let mut widths = [0usize; 7];
+        let mut widths = [[0usize; 7]; 7];
         for column in columns {
             let cells = column.cells();
-            let last = last_non_empty(&cells);
-            for (index, cell) in cells.iter().enumerate().take(last) {
-                widths[index] = widths[index].max(cell.chars().count());
+            let indices: Vec<usize> = (0..cells.len()).filter(|index| !cells[*index].is_empty()).collect();
+            for pair in indices.windows(2) {
+                let (current, next) = (pair[0], pair[1]);
+                widths[current][next] = widths[current][next].max(cells[current].chars().count());
             }
         }
-        let active = std::array::from_fn(|index| widths[index] > 0);
-        Self { widths, active }
+        Self { widths }
     }
 
     fn line(&self, column: &Column) -> String {
@@ -287,16 +271,14 @@ impl Alignment {
             return column.inline_text();
         }
         let cells = column.cells();
-        let last = last_non_empty(&cells);
-        let indices: Vec<usize> = (0..=last)
-            .filter(|index| self.active[*index] || !cells[*index].is_empty())
-            .collect();
+        // 只对齐本行实际出现的单元；缺失的可选列不占位，后续单元直接左靠。
+        let indices: Vec<usize> = (0..cells.len()).filter(|index| !cells[*index].is_empty()).collect();
         let mut output = String::new();
         for (position, index) in indices.iter().enumerate() {
             let cell = &cells[*index];
             output.push_str(cell);
-            if position + 1 < indices.len() {
-                let padding = self.widths[*index].saturating_sub(cell.chars().count()) + 1;
+            if let Some(next) = indices.get(position + 1) {
+                let padding = self.widths[*index][*next].saturating_sub(cell.chars().count()) + 1;
                 for _ in 0..padding {
                     output.push(' ');
                 }
@@ -306,9 +288,102 @@ impl Alignment {
     }
 }
 
-/// 行内最后一个非空字段的下标。
-fn last_non_empty(cells: &[String; 7]) -> usize {
-    cells.iter().rposition(|cell| !cell.is_empty()).unwrap_or(0)
+/// D4 的表级约束顺序：主键 → 唯一 → 检查 → 外键 → 排除。
+fn constraint_rank(text: &str) -> u8 {
+    let toks = significant(text);
+    let mut index = 0;
+    if word_at(&toks, index, "constraint") {
+        index += 2;
+    }
+    let Some(token) = toks.get(index) else {
+        return u8::MAX;
+    };
+    if token.kind != Kind::Word {
+        return u8::MAX;
+    }
+    match token.text.to_ascii_lowercase().as_str() {
+        "primary" => 0,
+        "unique" => 1,
+        "check" => 2,
+        "foreign" => 3,
+        "exclude" => 4,
+        _ => u8::MAX,
+    }
+}
+
+/// 对齐约束名与 `foreign key (...)` 头部；复杂 `exclude` 不参与。
+fn constraint_groups(texts: &[String]) -> Vec<Vec<String>> {
+    let named_width = texts
+        .iter()
+        .filter_map(|text| {
+            let end = constraint_prefix_end(text)?;
+            Some(text[..end].trim_end().chars().count())
+        })
+        .max()
+        .unwrap_or(0);
+    let fk_width = texts.iter().filter_map(|text| foreign_key_head(text).map(|(head, _)| head.chars().count())).max().unwrap_or(0);
+    texts
+        .iter()
+        .map(|text| {
+            let lines = constraint_lines(text);
+            if lines.len() > 1 {
+                return lines;
+            }
+            vec![align_constraint(text, named_width, fk_width)]
+        })
+        .collect()
+}
+
+fn align_constraint(text: &str, named_width: usize, fk_width: usize) -> String {
+    let mut output = String::new();
+    let mut rest = text;
+    if let Some(end) = constraint_prefix_end(text) {
+        let prefix = text[..end].trim_end();
+        rest = text[end..].trim_start();
+        output.push_str(prefix);
+        output.push_str(&" ".repeat(named_width.saturating_sub(prefix.chars().count()) + 1));
+    }
+    if let Some((head, tail)) = foreign_key_head(rest) {
+        output.push_str(head);
+        output.push_str(&" ".repeat(fk_width.saturating_sub(head.chars().count()) + 1));
+        output.push_str(tail);
+    } else {
+        output.push_str(rest);
+    }
+    output
+}
+
+/// `constraint <name>` 的结束字节。
+fn constraint_prefix_end(text: &str) -> Option<usize> {
+    let toks = significant(text);
+    if !word_at(&toks, 0, "constraint") {
+        return None;
+    }
+    let name = toks.get(1)?;
+    is_ident(name).then(|| token_end(name))
+}
+
+/// `[constraint <name>] foreign key (...)` 的头部与 `references` 起始的尾部。
+fn foreign_key_head(text: &str) -> Option<(&str, &str)> {
+    let toks = significant(text);
+    let mut index = 0;
+    if word_at(&toks, index, "constraint") {
+        index += 2;
+    }
+    if !(word_at(&toks, index, "foreign") && word_at(&toks, index + 1, "key")) {
+        return None;
+    }
+    let start = toks[index].start;
+    index += 2;
+    if !punct_at(&toks, index, "(") {
+        return None;
+    }
+    let close = matching_paren(&toks, index)?;
+    if !word_at(&toks, close + 1, "references") {
+        return None;
+    }
+    let end = token_end(&toks[close]);
+    Some((text[start..end].trim_end(), text[end..].trim_start()))
 }
 
 fn constraint_lines(text: &str) -> Vec<String> {
@@ -350,10 +425,7 @@ fn exclude_lines(text: &str) -> Option<Vec<String>> {
     if elements.is_empty() {
         return None;
     }
-    let simple = elements.len() <= 3
-        && elements
-            .iter()
-            .all(|element| exclude_element_simple(element));
+    let simple = elements.len() <= 3 && elements.iter().all(|element| exclude_element_simple(element));
     if simple {
         return Some(vec![text.to_owned()]);
     }
@@ -377,10 +449,7 @@ fn exclude_element_simple(element: &str) -> bool {
     let toks = significant(element);
     !toks.iter().any(|token| {
         if token.kind == Kind::Word {
-            matches!(
-                token.text.to_ascii_lowercase().as_str(),
-                "select" | "case" | "and" | "or"
-            )
+            matches!(token.text.to_ascii_lowercase().as_str(), "select" | "case" | "and" | "or")
         } else {
             token.kind == Kind::Punct && matches!(token.text, "(" | ")" | "+" | "-" | "*" | "/")
         }
@@ -417,9 +486,7 @@ fn exclude_options(text: &str) -> Option<Vec<String>> {
         if index <= start {
             return None;
         }
-        options.push(collapse(
-            &text[toks[start].start..token_end(&toks[index - 1])],
-        ));
+        options.push(collapse(&text[toks[start].start..token_end(&toks[index - 1])]));
     }
     Some(options)
 }
@@ -429,14 +496,7 @@ fn is_exclude_option_start(toks: &[Token<'_>], index: usize) -> bool {
         token.kind == Kind::Word
             && matches!(
                 token.text.to_ascii_lowercase().as_str(),
-                "include"
-                    | "with"
-                    | "using"
-                    | "where"
-                    | "deferrable"
-                    | "initially"
-                    | "valid"
-                    | "not"
+                "include" | "with" | "using" | "where" | "deferrable" | "initially" | "valid" | "not"
             )
     })
 }
@@ -555,10 +615,7 @@ fn parse_column(element: &str, typed: bool) -> Option<Column> {
         return None;
     }
     let depth = depths(&toks);
-    let mut column = Column {
-        name: name.text.to_owned(),
-        ..Column::default()
-    };
+    let mut column = Column { name: name.text.to_owned(), ..Column::default() };
     let mut index = 1;
 
     if typed {
@@ -772,11 +829,7 @@ fn parse_column(element: &str, typed: bool) -> Option<Column> {
                 while end < toks.len() && !is_constraint_boundary(&toks, end) {
                     end += 1;
                 }
-                let suffix = if end > at + 2 {
-                    collapse(slice(element, &toks, at + 2, end))
-                } else {
-                    String::new()
-                };
+                let suffix = if end > at + 2 { collapse(slice(element, &toks, at + 2, end)) } else { String::new() };
                 column.pk = Some((prefix, suffix));
                 index = end;
             }
@@ -805,8 +858,7 @@ fn is_type_boundary(toks: &[Token<'_>], index: usize) -> bool {
         return false;
     }
     match token.text.to_ascii_lowercase().as_str() {
-        "storage" | "compression" | "collate" | "default" | "generated" | "unique" | "check"
-        | "references" | "primary" | "constraint" | "null" => true,
+        "storage" | "compression" | "collate" | "default" | "generated" | "unique" | "check" | "references" | "primary" | "constraint" | "null" => true,
         "not" => word_at(toks, index + 1, "null"),
         _ => false,
     }
@@ -825,8 +877,7 @@ fn is_reference_boundary(toks: &[Token<'_>], index: usize) -> bool {
     }
     match token.text.to_ascii_lowercase().as_str() {
         "default" => !word_at(toks, index.wrapping_sub(1), "set"),
-        "storage" | "compression" | "collate" | "generated" | "unique" | "check" | "references"
-        | "primary" | "constraint" => true,
+        "storage" | "compression" | "collate" | "generated" | "unique" | "check" | "references" | "primary" | "constraint" => true,
         "not" => word_at(toks, index + 1, "null"),
         _ => false,
     }
@@ -861,10 +912,7 @@ fn canonical_type(text: &str) -> String {
             if *level != 0 {
                 continue;
             }
-            if (word_at(&toks, index, "with") || word_at(&toks, index, "without"))
-                && word_at(&toks, index + 1, "time")
-                && word_at(&toks, index + 2, "zone")
-            {
+            if (word_at(&toks, index, "with") || word_at(&toks, index, "without")) && word_at(&toks, index + 1, "time") && word_at(&toks, index + 2, "zone") {
                 suffix = Some((index, word_at(&toks, index, "with")));
                 break;
             }
@@ -920,11 +968,7 @@ fn parse_statement<'a>(text: &'a str, toks: &[Token<'a>]) -> Option<Parsed<'a>> 
     }
     let depth = depths(toks);
     // CTAS 的顶层 `as` 不归本模块。
-    if toks
-        .iter()
-        .enumerate()
-        .any(|(index, token)| depth[index] == 0 && is_word(token, "as"))
-    {
+    if toks.iter().enumerate().any(|(index, token)| depth[index] == 0 && is_word(token, "as")) {
         return None;
     }
 
@@ -937,10 +981,7 @@ fn parse_statement<'a>(text: &'a str, toks: &[Token<'a>]) -> Option<Parsed<'a>> 
             break;
         }
         let lower = toks[index].text.to_ascii_lowercase();
-        if matches!(
-            lower.as_str(),
-            "global" | "local" | "temporary" | "temp" | "unlogged" | "or" | "replace"
-        ) {
+        if matches!(lower.as_str(), "global" | "local" | "temporary" | "temp" | "unlogged" | "or" | "replace") {
             index += 1;
             continue;
         }
@@ -949,10 +990,7 @@ fn parse_statement<'a>(text: &'a str, toks: &[Token<'a>]) -> Option<Parsed<'a>> 
     if !found_table {
         return None;
     }
-    if word_at(toks, index, "if")
-        && word_at(toks, index + 1, "not")
-        && word_at(toks, index + 2, "exists")
-    {
+    if word_at(toks, index, "if") && word_at(toks, index + 1, "not") && word_at(toks, index + 2, "exists") {
         index += 3;
     }
     consume_qualified(toks, &mut index)?;
@@ -975,14 +1013,7 @@ fn parse_statement<'a>(text: &'a str, toks: &[Token<'a>]) -> Option<Parsed<'a>> 
 
     if index >= toks.len() || !punct(&toks[index], "(") {
         let inline = collapse(text);
-        return Some(Parsed {
-            base_header: inline.clone(),
-            inline_header: inline,
-            pre_property: None,
-            typed,
-            body: None,
-            tail: "",
-        });
+        return Some(Parsed { base_header: inline.clone(), inline_header: inline, pre_property: None, typed, body: None, tail: "" });
     }
 
     let open = &toks[index];
@@ -1098,28 +1129,19 @@ fn parse_properties(text: &str) -> Option<Vec<String>> {
         if index <= start {
             return None;
         }
-        properties.push(collapse(
-            &text[toks[start].start..token_end(&toks[index - 1])],
-        ));
+        properties.push(collapse(&text[toks[start].start..token_end(&toks[index - 1])]));
     }
     Some(properties)
 }
 
 fn properties_inline(properties: &[String]) -> bool {
-    properties.len() <= 2
-        && properties
-            .iter()
-            .all(|property| property_simple(property) && property_max_params(property) <= 3)
+    properties.len() <= 2 && properties.iter().all(|property| property_simple(property) && property_max_params(property) <= 3)
 }
 
 fn property_simple(text: &str) -> bool {
-    significant(text).iter().all(|token| {
-        token.kind != Kind::Word
-            || !matches!(
-                token.text.to_ascii_lowercase().as_str(),
-                "select" | "case" | "and" | "or"
-            )
-    })
+    significant(text)
+        .iter()
+        .all(|token| token.kind != Kind::Word || !matches!(token.text.to_ascii_lowercase().as_str(), "select" | "case" | "and" | "or"))
 }
 
 fn property_max_params(text: &str) -> usize {
@@ -1221,18 +1243,14 @@ fn consume_qualified(tokens: &[Token<'_>], index: &mut usize) -> Option<()> {
         return None;
     }
     *index += 1;
-    while *index + 1 < tokens.len() && punct(&tokens[*index], ".") && is_ident(&tokens[*index + 1])
-    {
+    while *index + 1 < tokens.len() && punct(&tokens[*index], ".") && is_ident(&tokens[*index + 1]) {
         *index += 2;
     }
     Some(())
 }
 
 fn significant(text: &str) -> Vec<Token<'_>> {
-    tokens(text)
-        .into_iter()
-        .filter(|token| !matches!(token.kind, Kind::Whitespace | Kind::Comment))
-        .collect()
+    tokens(text).into_iter().filter(|token| !matches!(token.kind, Kind::Whitespace | Kind::Comment)).collect()
 }
 
 /// 把 segment 内的空白折叠成一个空格；字符串与引号标识符原样保留。
@@ -1296,18 +1314,12 @@ mod tests {
 
     #[test]
     fn three_columns_stay_inline() {
-        check(
-            "create table t (a int, b text, c boolean);",
-            "create table t (a int, b text, c boolean)",
-        );
+        check("create table t (a int, b text, c boolean);", "create table t (a int, b text, c boolean)");
     }
 
     #[test]
     fn four_columns_break() {
-        check(
-            "create table t (a int, b int, c int, d int);",
-            "create table t (\n    a int,\n    b int,\n    c int,\n    d int\n)",
-        );
+        check("create table t (a int, b int, c int, d int);", "create table t (\n    a int,\n    b int,\n    c int,\n    d int\n)");
     }
 
     #[test]
@@ -1315,6 +1327,14 @@ mod tests {
         check(
             "create table t (a int, b int, constraint uq unique (b));",
             "create table t (\n    a int,\n    b int,\n    constraint uq unique (b)\n)",
+        );
+    }
+
+    #[test]
+    fn table_constraints_are_ordered_and_aligned() {
+        check(
+            "create table t (a int, b int, constraint fk_b foreign key (b) references p (id), constraint uq unique (a), primary key (a, b));",
+            "create table t (\n    a int not null,\n    b int not null,\n    primary key (a, b),\n    constraint uq   unique (a),\n    constraint fk_b foreign key (b) references p (id)\n)",
         );
     }
 
@@ -1375,19 +1395,16 @@ mod tests {
     }
 
     #[test]
-    fn absent_optional_fields_reserve_columns_before_rest() {
+    fn absent_optional_fields_do_not_reserve_columns() {
         check(
             "create table t (id bigint not null default 1, a text collate numeric not null unique, b text unique);",
-            "create table t (\n    id bigint                 not null default 1,\n    a  text   collate numeric not null unique,\n    b  text                            unique\n)",
+            "create table t (\n    id bigint not null default 1,\n    a  text collate numeric not null unique,\n    b  text unique\n)",
         );
     }
 
     #[test]
     fn extra_modifier_limits_inline_to_two_columns() {
-        check(
-            "create table t (a int default 1, b int default 2);",
-            "create table t (a int default 1, b int default 2)",
-        );
+        check("create table t (a int default 1, b int default 2);", "create table t (a int default 1, b int default 2)");
         check(
             "create table t (a int default 1, b int default 2, c int default 3);",
             "create table t (\n    a int default 1,\n    b int default 2,\n    c int default 3\n)",
@@ -1404,27 +1421,18 @@ mod tests {
 
     #[test]
     fn constraint_name_stays_attached() {
-        check(
-            "create table t (a int constraint nn not null, b int);",
-            "create table t (a int constraint nn not null, b int)",
-        );
+        check("create table t (a int constraint nn not null, b int);", "create table t (a int constraint nn not null, b int)");
     }
 
     #[test]
     fn explicit_null_and_default_storage_are_omitted() {
         check("create table t (a int null);", "create table t (a int)");
-        check(
-            "create table t (a text storage default, b text compression default);",
-            "create table t (a text, b text)",
-        );
+        check("create table t (a text storage default, b text compression default);", "create table t (a text, b text)");
     }
 
     #[test]
     fn type_names_are_canonical() {
-        check(
-            "create table t (a integer, b int8, c bool);",
-            "create table t (a int, b bigint, c boolean)",
-        );
+        check("create table t (a integer, b int8, c bool);", "create table t (a int, b bigint, c boolean)");
         check(
             "create table t (a numeric(10, 2), b real, c double precision);",
             "create table t (a decimal(10, 2), b float4, c float8)",
@@ -1433,10 +1441,7 @@ mod tests {
             "create table t (a timestamp with time zone, b time with time zone, c character varying(40));",
             "create table t (a timestamptz, b timetz, c varchar(40))",
         );
-        check(
-            "create table t (a character(5), b int4, c character varying);",
-            "create table t (a char(5), b int, c varchar)",
-        );
+        check("create table t (a character(5), b int4, c character varying);", "create table t (a char(5), b int, c varchar)");
         check(
             "create table t (a timestamp(3) with time zone, b timestamp without time zone);",
             "create table t (a timestamptz(3), b timestamp)",
@@ -1445,14 +1450,8 @@ mod tests {
 
     #[test]
     fn collate_numeric_is_not_a_type_name() {
-        check(
-            "create table t (a text collate numeric not null);",
-            "create table t (a text collate numeric not null)",
-        );
-        check(
-            "create table t (a numeric(10, 2) collate numeric);",
-            "create table t (a decimal(10, 2) collate numeric)",
-        );
+        check("create table t (a text collate numeric not null);", "create table t (a text collate numeric not null)");
+        check("create table t (a numeric(10, 2) collate numeric);", "create table t (a decimal(10, 2) collate numeric)");
     }
 
     #[test]
@@ -1466,18 +1465,12 @@ mod tests {
     #[test]
     fn empty_body_stays_inline() {
         check("create table t ();", "create table t ()");
-        check(
-            "create table t () inherits (parent_table);",
-            "create table t () inherits (parent_table)",
-        );
+        check("create table t () inherits (parent_table);", "create table t () inherits (parent_table)");
     }
 
     #[test]
     fn properties_inline_when_body_and_property_are_simple() {
-        check(
-            "create table t (a int) partition by range (a);",
-            "create table t (a int) partition by range (a)",
-        );
+        check("create table t (a int) partition by range (a);", "create table t (a int) partition by range (a)");
         check(
             "create table t (a int) partition by range (extract(year from a), extract(month from a));",
             "create table t (a int) partition by range (extract(year from a), extract(month from a))",
@@ -1510,14 +1503,8 @@ mod tests {
 
     #[test]
     fn default_properties_are_omitted() {
-        check(
-            "create table t (a int) without oids;",
-            "create table t (a int)",
-        );
-        check(
-            "create table t (a int) on commit preserve rows;",
-            "create table t (a int)",
-        );
+        check("create table t (a int) without oids;", "create table t (a int)");
+        check("create table t (a int) on commit preserve rows;", "create table t (a int)");
     }
 
     #[test]
@@ -1538,21 +1525,12 @@ mod tests {
 
     #[test]
     fn ctas_is_not_owned() {
-        assert_eq!(
-            layout("create table t as select 1", Dialect::Postgres),
-            None
-        );
-        assert_eq!(
-            layout("create table t (a int) as select 1", Dialect::Postgres),
-            None
-        );
+        assert_eq!(layout("create table t as select 1", Dialect::Postgres), None);
+        assert_eq!(layout("create table t (a int) as select 1", Dialect::Postgres), None);
     }
 
     #[test]
     fn no_paren_partition_table_stays_one_line() {
-        check(
-            "create table cities_partdef partition of cities default;",
-            "create table cities_partdef partition of cities default",
-        );
+        check("create table cities_partdef partition of cities default;", "create table cities_partdef partition of cities default");
     }
 }

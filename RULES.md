@@ -24,7 +24,7 @@
 - R36 类型别名归一到受限子集：`int`（`integer`/`int4`）、`bigint`（`int8`）、`smallint`（`int2`）、`boolean`（`bool`）、`varchar`（`character varying`/`char varying`）、`char`（`character`）、`decimal`（`numeric`）、`float4`（`real`）、`float8`（`double precision`）、`timestamptz`（`timestamp with time zone`）、`serial`/`bigserial`/`smallserial`；`timestamp without time zone`→`timestamp`，`time without time zone`→`time`，`time with time zone`→`timetz`。`numeric` 只在类型位置改，`collate numeric` 这类排序规则名不动。
 - R37 命名参数等号两侧不加空格（`with (fillfactor=70)`、`set (parameter_1='value')`、`opclass (opt1=1)`）；表达式里的 `a = b` 仍有空格。
 - R38 默认形式省略：显式 `null`、`asc`、`nulls distinct`、ASC 下的 `nulls last`、DESC 下的 `nulls first`、`match simple`、`not deferrable initially immediate`、`on commit preserve rows`、列定义里的 `storage default`/`compression default`、`without oids`、`outer`。保留非默认形式；两种非默认形式并存时，右对齐区分后缀（`distinct`、`first`/`last`）。`alter … set storage default` 是 action，不省略。
-- R39 SQL 关键字构造与括号之间留一个空格：`primary key (`、`unique (`、`check (`、`foreign key (`、`references t (`、`exclude using gist (`、`include (`、`with (`、`set (`、`options (`、`using gin (`；类型和函数调用紧贴：`varchar(40)`、`now()`、`nextval(…)`、`char_length(…)`。
+- R39 SQL 关键字构造与括号之间留一个空格：`primary key (`、`unique (`、`check (`、`foreign key (`、`references t (`、`exclude using gist (`、`include (`、`with (`、`set (`、`options (`、`using gin (`；派生表别名后的字段列表也留空格：`) t (a, b)`；类型和函数调用紧贴：`varchar(40)`、`now()`、`nextval(…)`、`char_length(…)`。
 
 ### 解析门禁
 
@@ -74,21 +74,24 @@
 
 - M1 `DELETE`：子句为 `with`、`delete from`、`using`、`where`、`returning`。简单判定同 R11：`returning` 元素 ≤3 且不触发 R7，其他子句元素 ≤1，`using` 无 join，CTE 各体简单；简单语句整行。非简单时每个子句独占一行、0 缩进；`where` 按 R8/R19，`returning` 按 R7，`using` 按 R6/R23；显式 join 的缩进等于 `using`；`returning` 别名必须有 `as`。`where` 超过一个条件即不算简单，但条件本身仍只在 ≥4 或复杂时逐元素断行。`with` 各部分都简单时允许整行。
 - M2 `EXPLAIN`：`explain` 头与被执行语句必然分行，被执行语句在下一行、0 缩进。头部只占一行，选项以 `, ` 连接，不因数量折行；布尔值统一 `true`/`false`（`on`/`off`、`1`/`0` 只在布尔选项位置改写），裸选项保持裸写，`format text|xml|json|yaml` 与 `serialize none|text|binary` 保留；`analyse`/`analyze` 不互相归一。被执行语句按 DQL 处理。
+- M3 `VALUES` 行构造器：超过 1 个值元组时逐元组一行，元组与 `values` 同缩进、不额外缩进。独立 `INSERT ... VALUES` 的 `values` 与 `insert into` 头同行；派生表 `(values ...)` 的 `values` 在左括号下一行，闭合 `)` 回到左括号所在缩进。
 
 ## DDL
 
 - D1 `CREATE TABLE` 主体：有表约束即视为复杂，整体断行：`create table <name> (` 首行，元素一行一个、+4，`);` 独立行。无表约束时：全部列只有 `name type`（`not null` 属于 type）≤3 列内联；任一列带 `default`/`generated`/`unique`/`check`/`references`/`storage`/`compression`/`collate` 等额外修饰时 ≤2 列内联；否则断行。单元素不因复杂度断行；空体 `()` 保持内联。
 - D2 列声明顺序：`name type` → `storage` → `compression` → `collate` → `not null` → `default` → `generated` → `unique` → `check` → `references`。`constraint <name>` 必须紧贴它命名的约束，不能作为尾部独立段。主键提升为表级、独占一行（仅 CREATE TABLE；ALTER 的列级主键暂不拆，见 D7）；主键列必须显式 `not null`（typed table 写 `name with options not null`）。显式 `null` 按 R38 省略。
-- D3 多行对齐：断行的列定义按 `name`、`type`、`storage`、`compression`、`collate`、`not null`、其余约束的顺序分列对齐；某一列出现类型修饰时，所有行保留该对齐列，空单元补空格；没有后续内容的行不补行尾空格。`not null` 虽然属于 type 语义，仍作为独立对齐列。内联主体不对齐；R38 的非默认变体右对齐。
-- D4 表约束：`primary key (...)`、`unique (...)`、`foreign key (...) references ...`、`check (...)`、`exclude ...` 各占一行、缩进 +4。`primary key`/`unique`/`foreign key` 的字段参数始终同一行；`exclude` 元素列表在 ≤3 个简单元素时同行，≥4 或含复杂表达式时一元素一行，闭合 `)` 回约束缩进，后续 `include`/`with`/`using index`/`where` 各占一行。约束名用 `constraint <name>` 前缀；关键字与括号之间按 R39 留空格。
+- D3 多行对齐：断行的列定义按 `name`、`type`、`storage`、`compression`、`collate`、`not null`、其余约束的顺序分列对齐；宽度按多行共同出现的相邻单元格计算，某行缺失的可选列不占位，后续字段直接左靠；没有后续内容的行不补行尾空格。`not null` 虽然属于 type 语义，仍作为独立对齐列。内联主体不对齐；R38 的非默认变体右对齐。
+- D4 表约束：`primary key (...)`、`unique (...)`、`foreign key (...) references ...`、`check (...)`、`exclude ...` 各占一行、缩进 +4，并按主键 → 唯一 → 检查 → 外键 → 排除的顺序排列。`primary key`/`unique`/`foreign key` 的字段参数始终同一行；`exclude` 元素列表在 ≤3 个简单元素时同行，≥4 或含复杂表达式时一元素一行，闭合 `)` 回约束缩进，后续 `include`/`with`/`using index`/`where` 各占一行。约束名用 `constraint <name>` 前缀，同组约束的 `constraint <name>` 前缀与外键的 `foreign key (...)` 头部对齐；关键字与括号之间按 R39 留空格。
 - D5 表属性：body 断行时，每个属性子句独占一行、0 缩进；body 内联时，属性子句 ≤2、每个属性的参数元素 ≤3、且无复杂表达式，则全部同行，否则每个属性一行。属性包括 `inherits`、`partition of`、`for values`、`partition by`、`using`、`with`/`without oids`、`on commit`、`tablespace`。不引入行宽阈值。
-- D6 `CREATE INDEX`：整条语句一行；索引字段/表达式、`include`、`with`、`where`、`tablespace` 都不折行，字段参数始终同一行。`using <method> (` 留空格；命名参数按 R37。
+- D6 `CREATE INDEX`：整条语句一行；索引字段/表达式、`include`、`with`、`where`、`tablespace` 都不折行，字段参数始终同一行。`using <method> (` 留空格；命名参数按 R37。同一张表的连续索引对齐索引名、`if not exists`、`on` 与 `where`；`create index` 与 `create unique index` 共用这些列。
 - D7 `ALTER TABLE`：顶层 action 1–2 个时整条一行；≥3 个时 `alter table <name>` 首行，每个 action 一行、+4，逗号留行尾，最后一行带 `;`。action 内部：列定义按 D2，约束按 D4，`exclude` 列表按 D4，`set (...)`/`reset (...)` 同行，`attach partition ... for values ...` 同行，`using <expr>` 同行。暂不把 `add column ... primary key` 拆成多个 action。
 - D8 `CREATE TABLE AS`：header（`create ... table ...` 及其 `on commit`/`using`/`without oids`/`tablespace`/`with (...)`）保持一行，`as (` 留在 header；查询体简单时整条一行，不简单时 body +4、`)` 回 0。查询体统一加括号，`as select …` 改为 `as (select …)`；`with no data` 接在 `)` 后同行，默认的 `with data` 按 R38 省略。查询体按 DQL。
+- D9 同表 DDL 分组：`create table` → `comment on table/column` → `create unique index` → `create index` → `alter table`/`alter sequence` 连续排列，组内语句之间不保留空行；组与组之间仍遵守 R40。`comment on column` 的顺序与 `create table` 字段顺序一致；`alter sequence` 跟随其所属建表组。
 
 ## 不变量
 
 - R29 断行不看行长，不按文件或语句另设字符阈值；表属性内联只看 D5 的结构条件。
 - R30 幂等：格式化结果再次格式化逐字节不变；合规文本零改动；块外字节与块内未列入 R25–R28、R35–R39 的字符逐字节保留；R34 跳过的块逐字节保留。
-- R31 含注释的语句块不参与结构判定；token 规则仍运行并逐字节保留注释，结构版式保持原样。
+- R31 所有语句前导的 `--`/`/* */` 注释都删除；可解析语句内部的注释也删除，无法解析语句的正文（含其内部注释）逐字节保留。
+- R40 语句之间最多保留一行空行；文件以 `\n` 结尾，且末尾只有这一行空行。
 - R32 范围：所有 sqlparser 能解析的语句。DQL、DML、DDL 有结构版式；其余语句只做 token 规范化。宿主语言不处理。

@@ -3,9 +3,7 @@
 //! 只暴露四个正式方言；`postgres` 是默认值。
 
 use sqlparser::ast::{SetExpr, Statement};
-use sqlparser::dialect::{
-    Dialect as ParserDialect, DuckDbDialect, HiveDialect, MySqlDialect, PostgreSqlDialect,
-};
+use sqlparser::dialect::{Dialect as ParserDialect, DuckDbDialect, HiveDialect, MySqlDialect, PostgreSqlDialect};
 use sqlparser::parser::Parser;
 
 /// 支持的解析方言；默认 `Postgres`。
@@ -48,6 +46,7 @@ pub enum StatementKind {
     CreateTable,
     CreateIndex,
     AlterTable,
+    Insert,
     Other,
 }
 
@@ -63,10 +62,7 @@ pub fn classify_one(sql: &str, dialect: Dialect) -> Result<StatementKind, String
         [statement] => statement,
         [] => return Err("no statement to classify".to_owned()),
         _ => {
-            return Err(format!(
-                "expected one statement, found {}",
-                statements.len()
-            ));
+            return Err(format!("expected one statement, found {}", statements.len()));
         }
     };
     Ok(match statement {
@@ -81,6 +77,7 @@ pub fn classify_one(sql: &str, dialect: Dialect) -> Result<StatementKind, String
         Statement::CreateTable(_) => StatementKind::CreateTable,
         Statement::CreateIndex(_) => StatementKind::CreateIndex,
         Statement::AlterTable(_) => StatementKind::AlterTable,
+        Statement::Insert(_) => StatementKind::Insert,
         _ => StatementKind::Other,
     })
 }
@@ -120,22 +117,12 @@ mod tests {
             ("create table t (a int)", StatementKind::CreateTable),
             ("create index i on t (a)", StatementKind::CreateIndex),
             ("alter table t add column b int", StatementKind::AlterTable),
-            (
-                "with keep as (select 1) delete from t using keep",
-                StatementKind::Delete,
-            ),
-            (
-                "with src as (select 1) update t set a = 1",
-                StatementKind::Other,
-            ),
-            ("insert into t (a) values (1)", StatementKind::Other),
+            ("with keep as (select 1) delete from t using keep", StatementKind::Delete),
+            ("with src as (select 1) update t set a = 1", StatementKind::Other),
+            ("insert into t (a) values (1)", StatementKind::Insert),
         ];
         for (sql, expected) in cases {
-            assert_eq!(
-                classify_one(sql, Dialect::Postgres),
-                Ok(expected),
-                "classify {sql}"
-            );
+            assert_eq!(classify_one(sql, Dialect::Postgres), Ok(expected), "classify {sql}");
         }
     }
 

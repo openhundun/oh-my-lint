@@ -1,23 +1,10 @@
 //! `oh-my-lint` 命令行入口：检查、块级修复、规则列表。
 
-const SKIP_DIRECTORIES: &[&str] = &[
-    ".git",
-    ".venv",
-    "__pycache__",
-    ".ruff_cache",
-    "build",
-    "dist",
-    "node_modules",
-    "target",
-];
+const SKIP_DIRECTORIES: &[&str] = &[".git", ".venv", "__pycache__", ".ruff_cache", "build", "dist", "node_modules", "target"];
 
 /// 主命令。
 #[derive(clap::Parser)]
-#[command(
-    name = "oh-my-lint",
-    version,
-    about = "按房规检查并修复代码；修复只碰最小语法块"
-)]
+#[command(name = "oh-my-lint", version, about = "按房规检查并修复代码；修复只碰最小语法块")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -205,10 +192,7 @@ fn engine_for(dialect: oh_my_lint_lib::sql::Dialect) -> oh_my_lint_lib::engine::
     oh_my_lint_lib::engine::Engine::new(vec![Box::new(oh_my_lint_lib::sql::SqlRule::new(dialect))])
 }
 
-fn check(
-    engine: &oh_my_lint_lib::engine::Engine,
-    args: CheckArgs,
-) -> oh_my_lint_lib::error::Result<u8> {
+fn check(engine: &oh_my_lint_lib::engine::Engine, args: CheckArgs) -> oh_my_lint_lib::error::Result<u8> {
     let documents = load_paths(&args.paths)?;
     let mut findings = Vec::new();
     let mut blocks = 0usize;
@@ -245,49 +229,19 @@ fn check(
 
     let total = findings.len();
     if args.json {
-        let output = CheckOut {
-            findings,
-            summary: SummaryOut {
-                files: documents.len(),
-                blocks,
-                findings: total,
-            },
-        };
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&output).map_err(json_error)?
-        );
+        let output = CheckOut { findings, summary: SummaryOut { files: documents.len(), blocks, findings: total } };
+        println!("{}", serde_json::to_string_pretty(&output).map_err(json_error)?);
     } else {
         for finding in &findings {
-            println!(
-                "{}:{}:{}: {} {}: {}",
-                finding.file,
-                finding.line,
-                finding.column,
-                finding.rule,
-                finding.severity,
-                finding.message
-            );
+            println!("{}:{}:{}: {} {}: {}", finding.file, finding.line, finding.column, finding.rule, finding.severity, finding.message);
         }
-        println!(
-            "checked {} files, {} blocks, {} findings",
-            documents.len(),
-            blocks,
-            total
-        );
+        println!("checked {} files, {} blocks, {} findings", documents.len(), blocks, total);
     }
 
-    if total > args.max_warnings {
-        Ok(1)
-    } else {
-        Ok(0)
-    }
+    if total > args.max_warnings { Ok(1) } else { Ok(0) }
 }
 
-fn fix(
-    engine: &oh_my_lint_lib::engine::Engine,
-    args: FixArgs,
-) -> oh_my_lint_lib::error::Result<u8> {
+fn fix(engine: &oh_my_lint_lib::engine::Engine, args: FixArgs) -> oh_my_lint_lib::error::Result<u8> {
     if args.stdin {
         return fix_stdin(engine, &args);
     }
@@ -295,36 +249,22 @@ fn fix(
         return fix_file(engine, file, args.range.as_deref(), &args);
     }
     if args.range.is_some() {
-        return Err(oh_my_lint_lib::error::Error::Rejected(
-            "--range requires --file or --stdin".to_owned(),
-        ));
+        return Err(oh_my_lint_lib::error::Error::Rejected("--range requires --file or --stdin".to_owned()));
     }
     fix_paths(engine, &args)
 }
 
-fn fix_stdin(
-    engine: &oh_my_lint_lib::engine::Engine,
-    args: &FixArgs,
-) -> oh_my_lint_lib::error::Result<u8> {
+fn fix_stdin(engine: &oh_my_lint_lib::engine::Engine, args: &FixArgs) -> oh_my_lint_lib::error::Result<u8> {
     let mut text = String::new();
     std::io::Read::read_to_string(&mut std::io::stdin(), &mut text)?;
     let path = stdin_path(args)?;
     let document = oh_my_lint_lib::source::Document::from_text(path, text)?;
-    let range = args
-        .range
-        .as_deref()
-        .map(|spec| document.parse_range(spec))
-        .transpose()?;
+    let range = args.range.as_deref().map(|spec| document.parse_range(spec)).transpose()?;
     let fixes = engine.apply(&document, range, args.unsafe_fixes);
     emit_fixes(&document, &fixes, args, false, true)
 }
 
-fn fix_file(
-    engine: &oh_my_lint_lib::engine::Engine,
-    file: &std::path::Path,
-    range: Option<&str>,
-    args: &FixArgs,
-) -> oh_my_lint_lib::error::Result<u8> {
+fn fix_file(engine: &oh_my_lint_lib::engine::Engine, file: &std::path::Path, range: Option<&str>, args: &FixArgs) -> oh_my_lint_lib::error::Result<u8> {
     let document = oh_my_lint_lib::source::Document::load(file)?;
     let snippet = range.is_some();
     let range = range.map(|spec| document.parse_range(spec)).transpose()?;
@@ -332,15 +272,18 @@ fn fix_file(
     emit_fixes(&document, &fixes, args, args.write, snippet)
 }
 
-fn fix_paths(
-    engine: &oh_my_lint_lib::engine::Engine,
-    args: &FixArgs,
-) -> oh_my_lint_lib::error::Result<u8> {
+fn fix_paths(engine: &oh_my_lint_lib::engine::Engine, args: &FixArgs) -> oh_my_lint_lib::error::Result<u8> {
     let documents = load_paths(&args.paths)?;
     let mut outcomes = Vec::new();
     for document in &documents {
         let fixes = engine.apply(document, None, args.unsafe_fixes);
         if fixes.is_empty() {
+            if args.write {
+                let text = oh_my_lint_lib::engine::normalize_file_end(&document.text);
+                if text != document.text {
+                    write_atomic(&document.path, &text)?;
+                }
+            }
             continue;
         }
         if args.write {
@@ -355,30 +298,17 @@ fn fix_paths(
     if remaining > 0 {
         return Ok(1);
     }
-    if args.write {
-        Ok(0)
-    } else {
-        Ok(if changed { 1 } else { 0 })
-    }
+    if args.write { Ok(0) } else { Ok(if changed { 1 } else { 0 }) }
 }
 
-fn emit_fixes(
-    document: &oh_my_lint_lib::source::Document,
-    fixes: &[oh_my_lint_lib::engine::FileFix],
-    args: &FixArgs,
-    write: bool,
-    snippet: bool,
-) -> oh_my_lint_lib::error::Result<u8> {
+fn emit_fixes(document: &oh_my_lint_lib::source::Document, fixes: &[oh_my_lint_lib::engine::FileFix], args: &FixArgs, write: bool, snippet: bool) -> oh_my_lint_lib::error::Result<u8> {
     if write && !fixes.is_empty() {
         let text = oh_my_lint_lib::engine::splice(&document.text, fixes);
         write_atomic(&document.path, &text)?;
     }
     let outputs = outputs(document, fixes, write);
     if args.json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&outputs).map_err(json_error)?
-        );
+        println!("{}", serde_json::to_string_pretty(&outputs).map_err(json_error)?);
     } else if args.diff {
         for outcome in &outputs {
             print!("{}", outcome.patch);
@@ -396,60 +326,31 @@ fn emit_fixes(
     Ok(if failed { 1 } else { 0 })
 }
 
-fn outputs(
-    document: &oh_my_lint_lib::source::Document,
-    fixes: &[oh_my_lint_lib::engine::FileFix],
-    written: bool,
-) -> Vec<FixOut> {
+fn outputs(document: &oh_my_lint_lib::source::Document, fixes: &[oh_my_lint_lib::engine::FileFix], written: bool) -> Vec<FixOut> {
     fixes
         .iter()
         .map(|fix| {
-            let fixed_document = oh_my_lint_lib::source::Document {
-                path: document.path.clone(),
-                text: fix.fixed.clone(),
-                blocks: Vec::new(),
-            };
+            let fixed_document = oh_my_lint_lib::source::Document { path: document.path.clone(), text: fix.fixed.clone(), blocks: Vec::new() };
             let (start_line, start_column) = document.line_col(fix.block_span.start);
             let (end_line, end_column) = document.line_col(fix.block_span.end);
             FixOut {
                 file: display_path(&document.path),
                 block_range: format!("{start_line}:{start_column}-{end_line}:{end_column}"),
                 fixed_text: fix.fixed.clone(),
-                patch: oh_my_lint_lib::diff::unified(
-                    &display_path(&document.path),
-                    &fix.original,
-                    &fix.fixed,
-                ),
+                patch: oh_my_lint_lib::diff::unified(&display_path(&document.path), &fix.original, &fix.fixed),
                 applied: fix.applied.clone(),
-                skipped: fix
-                    .skipped
-                    .iter()
-                    .map(|skip| SkippedOut {
-                        rule: skip.rule.clone(),
-                        reason: skip.reason.clone(),
-                    })
-                    .collect(),
-                remaining: fix
-                    .remaining
-                    .iter()
-                    .map(|finding| finding_output(Some(&fixed_document), finding))
-                    .collect(),
+                skipped: fix.skipped.iter().map(|skip| SkippedOut { rule: skip.rule.clone(), reason: skip.reason.clone() }).collect(),
+                remaining: fix.remaining.iter().map(|finding| finding_output(Some(&fixed_document), finding)).collect(),
                 written,
             }
         })
         .collect()
 }
 
-fn finding_output(
-    document: Option<&oh_my_lint_lib::source::Document>,
-    finding: &oh_my_lint_lib::model::Finding,
-) -> FindingOut {
+fn finding_output(document: Option<&oh_my_lint_lib::source::Document>, finding: &oh_my_lint_lib::model::Finding) -> FindingOut {
     let (line, column) = document.map_or((1, 1), |document| document.line_col(finding.span.start));
     FindingOut {
-        file: document.map_or_else(
-            || "<fixed>".to_owned(),
-            |document| display_path(&document.path),
-        ),
+        file: document.map_or_else(|| "<fixed>".to_owned(), |document| display_path(&document.path)),
         line,
         column,
         rule: finding.rule.clone(),
@@ -485,11 +386,7 @@ fn print_outcomes(outcomes: &[FixOut], args: &FixArgs) {
             outcome.file,
             outcome.block_range,
             outcome.applied,
-            outcome
-                .skipped
-                .iter()
-                .map(|skip| skip.rule.as_str())
-                .collect::<Vec<_>>()
+            outcome.skipped.iter().map(|skip| skip.rule.as_str()).collect::<Vec<_>>()
         );
     }
     if outcomes.is_empty() {
@@ -497,10 +394,7 @@ fn print_outcomes(outcomes: &[FixOut], args: &FixArgs) {
     }
 }
 
-fn rules(
-    engine: &oh_my_lint_lib::engine::Engine,
-    args: RulesArgs,
-) -> oh_my_lint_lib::error::Result<u8> {
+fn rules(engine: &oh_my_lint_lib::engine::Engine, args: RulesArgs) -> oh_my_lint_lib::error::Result<u8> {
     let rules: Vec<RuleOut> = engine
         .rules()
         .map(|rule| RuleOut {
@@ -509,10 +403,7 @@ fn rules(
         })
         .collect();
     if args.json {
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&rules).map_err(json_error)?
-        );
+        println!("{}", serde_json::to_string_pretty(&rules).map_err(json_error)?);
     } else {
         for rule in rules {
             println!("{:<16} {}", rule.id, rule.description);
@@ -521,27 +412,16 @@ fn rules(
     Ok(0)
 }
 
-fn explain(
-    engine: &oh_my_lint_lib::engine::Engine,
-    args: ExplainArgs,
-) -> oh_my_lint_lib::error::Result<u8> {
-    let Some(rule) = engine
-        .rules()
-        .find(|rule| oh_my_lint_lib::model::Rule::id(*rule) == args.rule)
-    else {
-        return Err(oh_my_lint_lib::error::Error::Rejected(format!(
-            "unknown rule: {}",
-            args.rule
-        )));
+fn explain(engine: &oh_my_lint_lib::engine::Engine, args: ExplainArgs) -> oh_my_lint_lib::error::Result<u8> {
+    let Some(rule) = engine.rules().find(|rule| oh_my_lint_lib::model::Rule::id(*rule) == args.rule) else {
+        return Err(oh_my_lint_lib::error::Error::Rejected(format!("unknown rule: {}", args.rule)));
     };
     println!("{}", oh_my_lint_lib::model::Rule::id(rule));
     println!("{}", oh_my_lint_lib::model::Rule::description(rule));
     Ok(0)
 }
 
-fn load_paths(
-    paths: &[std::path::PathBuf],
-) -> oh_my_lint_lib::error::Result<Vec<oh_my_lint_lib::source::Document>> {
+fn load_paths(paths: &[std::path::PathBuf]) -> oh_my_lint_lib::error::Result<Vec<oh_my_lint_lib::source::Document>> {
     let mut documents = Vec::new();
     for path in paths {
         if path.is_dir() {
@@ -552,35 +432,23 @@ fn load_paths(
                 documents.push(document);
             }
         } else {
-            return Err(oh_my_lint_lib::error::Error::Rejected(format!(
-                "path not found: {}",
-                path.display()
-            )));
+            return Err(oh_my_lint_lib::error::Error::Rejected(format!("path not found: {}", path.display())));
         }
     }
     documents.sort_by(|left, right| left.path.cmp(&right.path));
     Ok(documents)
 }
 
-fn collect_directory(
-    directory: &std::path::Path,
-    documents: &mut Vec<oh_my_lint_lib::source::Document>,
-) -> oh_my_lint_lib::error::Result<()> {
+fn collect_directory(directory: &std::path::Path, documents: &mut Vec<oh_my_lint_lib::source::Document>) -> oh_my_lint_lib::error::Result<()> {
     for entry in std::fs::read_dir(directory)? {
         let entry = entry?;
         let path = entry.path();
         let name = entry.file_name();
         if path.is_dir() {
-            if path
-                .symlink_metadata()
-                .is_ok_and(|metadata| metadata.file_type().is_symlink())
-            {
+            if path.symlink_metadata().is_ok_and(|metadata| metadata.file_type().is_symlink()) {
                 continue;
             }
-            if SKIP_DIRECTORIES
-                .iter()
-                .any(|skip| name.to_string_lossy() == *skip)
-            {
+            if SKIP_DIRECTORIES.iter().any(|skip| name.to_string_lossy() == *skip) {
                 continue;
             }
             collect_directory(&path, documents)?;
@@ -604,20 +472,14 @@ fn stdin_path(args: &FixArgs) -> oh_my_lint_lib::error::Result<std::path::PathBu
     }
     match args.lang.as_deref() {
         Some("sql") => Ok(std::path::PathBuf::from("stdin.sql")),
-        Some(other) => Err(oh_my_lint_lib::error::Error::Unsupported(format!(
-            "unsupported language: {other}"
-        ))),
-        None => Err(oh_my_lint_lib::error::Error::Rejected(
-            "--stdin needs --stdin-filename or --lang sql".to_owned(),
-        )),
+        Some(other) => Err(oh_my_lint_lib::error::Error::Unsupported(format!("unsupported language: {other}"))),
+        None => Err(oh_my_lint_lib::error::Error::Rejected("--stdin needs --stdin-filename or --lang sql".to_owned())),
     }
 }
 
 fn write_atomic(path: &std::path::Path, text: &str) -> oh_my_lint_lib::error::Result<()> {
     let parent = path.parent().unwrap_or_else(|| std::path::Path::new("."));
-    let file_name = path
-        .file_name()
-        .map_or_else(|| "stdin".into(), |name| name.to_string_lossy());
+    let file_name = path.file_name().map_or_else(|| "stdin".into(), |name| name.to_string_lossy());
     let temporary = parent.join(format!(".{file_name}.oh-my-lint.tmp"));
     {
         let mut file = std::fs::File::create(&temporary)?;
@@ -629,10 +491,7 @@ fn write_atomic(path: &std::path::Path, text: &str) -> oh_my_lint_lib::error::Re
 }
 
 fn display_path(path: &std::path::Path) -> String {
-    path.strip_prefix(std::env::current_dir().unwrap_or_default())
-        .unwrap_or(path)
-        .display()
-        .to_string()
+    path.strip_prefix(std::env::current_dir().unwrap_or_default()).unwrap_or(path).display().to_string()
 }
 
 fn severity_name(severity: oh_my_lint_lib::model::Severity) -> &'static str {

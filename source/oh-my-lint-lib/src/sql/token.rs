@@ -28,13 +28,7 @@ struct Wrap {
 
 /// 报告全部 token 规范化问题。
 pub fn issues(sql: &str) -> Vec<Issue> {
-    edits(sql)
-        .into_iter()
-        .map(|edit| Issue {
-            span: edit.span,
-            message: edit.message.to_owned(),
-        })
-        .collect()
+    edits(sql).into_iter().map(|edit| Issue { span: edit.span, message: edit.message.to_owned() }).collect()
 }
 
 /// 应用全部 token 规范化编辑。
@@ -46,13 +40,7 @@ pub fn normalize(sql: &str) -> String {
             break;
         }
         let mut ordered = found;
-        ordered.sort_by(|left, right| {
-            right
-                .span
-                .start
-                .cmp(&left.span.start)
-                .then(right.span.end.cmp(&left.span.end))
-        });
+        ordered.sort_by(|left, right| right.span.start.cmp(&left.span.start).then(right.span.end.cmp(&left.span.end)));
         let mut changed = false;
         let mut boundary = usize::MAX;
         for edit in ordered {
@@ -113,11 +101,7 @@ fn lowercase_edits(tokens: &[Token], edits: &mut Vec<Edit>) {
         }
         let lower = token.text.to_lowercase();
         if lower != token.text {
-            edits.push(Edit {
-                span: span(token),
-                replacement: lower,
-                message: "keywords and bare identifiers should be lowercase",
-            });
+            edits.push(Edit { span: span(token), replacement: lower, message: "keywords and bare identifiers should be lowercase" });
         }
     }
 }
@@ -125,11 +109,7 @@ fn lowercase_edits(tokens: &[Token], edits: &mut Vec<Edit>) {
 fn symbol_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
     for token in tokens {
         if token.kind == Kind::Punct && token.text == "<>" {
-            edits.push(Edit {
-                span: span(token),
-                replacement: "!=".to_owned(),
-                message: "use != instead of <>",
-            });
+            edits.push(Edit { span: span(token), replacement: "!=".to_owned(), message: "use != instead of <>" });
         }
     }
     let bytes = sql.as_bytes();
@@ -144,11 +124,7 @@ fn symbol_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
             end -= 1;
         }
         if end < index {
-            edits.push(Edit {
-                span: Span::new(end, index),
-                replacement: String::new(),
-                message: "remove trailing whitespace",
-            });
+            edits.push(Edit { span: Span::new(end, index), replacement: String::new(), message: "remove trailing whitespace" });
         }
         if index < bytes.len() {
             index += 1;
@@ -171,10 +147,7 @@ fn spacing_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                     continue;
                 };
                 let name = &tokens[previous];
-                if word_is(name, "distinct")
-                    && previous_non_ws(tokens, previous)
-                        .is_some_and(|before| word_is(&tokens[before], "select"))
-                {
+                if word_is(name, "distinct") && previous_non_ws(tokens, previous).is_some_and(|before| word_is(&tokens[before], "select")) {
                     continue;
                 }
                 push_gap(
@@ -192,24 +165,10 @@ fn spacing_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
             }
             "," => {
                 if let Some(previous) = previous_non_ws(tokens, index) {
-                    push_gap(
-                        edits,
-                        sql,
-                        token_end(&tokens[previous]),
-                        token.start,
-                        "",
-                        "no space before comma",
-                    );
+                    push_gap(edits, sql, token_end(&tokens[previous]), token.start, "", "no space before comma");
                 }
                 if let Some(next) = next_non_ws(tokens, index) {
-                    push_gap(
-                        edits,
-                        sql,
-                        token_end(token),
-                        tokens[next].start,
-                        " ",
-                        "one space after comma",
-                    );
+                    push_gap(edits, sql, token_end(token), tokens[next].start, " ", "one space after comma");
                 }
             }
             "=" => {
@@ -218,24 +177,10 @@ fn spacing_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                 }
                 if named_argument(tokens, index) {
                     if let Some(previous) = previous_non_ws(tokens, index) {
-                        push_gap(
-                            edits,
-                            sql,
-                            token_end(&tokens[previous]),
-                            token.start,
-                            "",
-                            "named argument equals should hug",
-                        );
+                        push_gap(edits, sql, token_end(&tokens[previous]), token.start, "", "named argument equals should hug");
                     }
                     if let Some(next) = next_non_ws(tokens, index) {
-                        push_gap(
-                            edits,
-                            sql,
-                            token_end(token),
-                            tokens[next].start,
-                            "",
-                            "named argument equals should hug",
-                        );
+                        push_gap(edits, sql, token_end(token), tokens[next].start, "", "named argument equals should hug");
                     }
                 } else {
                     binary_gap(tokens, index, sql, edits);
@@ -252,14 +197,7 @@ fn spacing_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                 }
                 if is_unary(tokens, index) {
                     if let Some(next) = next_non_ws(tokens, index) {
-                        push_gap(
-                            edits,
-                            sql,
-                            token_end(token),
-                            tokens[next].start,
-                            "",
-                            "no space after unary sign",
-                        );
+                        push_gap(edits, sql, token_end(token), tokens[next].start, "", "no space after unary sign");
                     }
                 } else {
                     binary_gap(tokens, index, sql, edits);
@@ -267,16 +205,11 @@ fn spacing_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
             }
             "*" => {
                 let previous = previous_non_ws(tokens, index);
-                if previous.is_some_and(|previous| {
-                    tokens[previous].kind == Kind::Punct
-                        && matches!(tokens[previous].text, "(" | ".")
-                }) {
+                if previous.is_some_and(|previous| tokens[previous].kind == Kind::Punct && matches!(tokens[previous].text, "(" | ".")) {
                     continue;
                 }
                 let next = next_non_ws(tokens, index);
-                if next.is_some_and(|next| {
-                    tokens[next].kind == Kind::Punct && matches!(tokens[next].text, ")" | ",")
-                }) {
+                if next.is_some_and(|next| tokens[next].kind == Kind::Punct && matches!(tokens[next].text, ")" | ",")) {
                     continue;
                 }
                 binary_gap(tokens, index, sql, edits);
@@ -310,24 +243,10 @@ fn operator_definition(tokens: &[Token], index: usize) -> bool {
 fn binary_gap(tokens: &[Token], index: usize, sql: &str, edits: &mut Vec<Edit>) {
     let token = &tokens[index];
     if let Some(previous) = previous_non_ws(tokens, index) {
-        push_gap(
-            edits,
-            sql,
-            token_end(&tokens[previous]),
-            token.start,
-            " ",
-            "one space around binary operator",
-        );
+        push_gap(edits, sql, token_end(&tokens[previous]), token.start, " ", "one space around binary operator");
     }
     if let Some(next) = next_non_ws(tokens, index) {
-        push_gap(
-            edits,
-            sql,
-            token_end(token),
-            tokens[next].start,
-            " ",
-            "one space around binary operator",
-        );
+        push_gap(edits, sql, token_end(token), tokens[next].start, " ", "one space around binary operator");
     }
 }
 
@@ -378,20 +297,8 @@ fn keyword_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
             "outer" => {
                 if let Some(previous) = previous_non_ws(tokens, index) {
                     let before = &tokens[previous];
-                    if before.kind == Kind::Word
-                        && matches!(
-                            before.text.to_ascii_lowercase().as_str(),
-                            "left" | "right" | "full"
-                        )
-                    {
-                        push_gap(
-                            edits,
-                            sql,
-                            token_end(before),
-                            token_end(token),
-                            "",
-                            "left outer join should be left join",
-                        );
+                    if before.kind == Kind::Word && matches!(before.text.to_ascii_lowercase().as_str(), "left" | "right" | "full") {
+                        push_gap(edits, sql, token_end(before), token_end(token), "", "left outer join should be left join");
                     }
                 }
             }
@@ -402,14 +309,7 @@ fn keyword_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                 if matches!(tokens[previous].text, "=" | "=>") {
                     continue;
                 }
-                push_gap(
-                    edits,
-                    sql,
-                    token_end(&tokens[previous]),
-                    token_end(token),
-                    "",
-                    "explicit asc is redundant",
-                );
+                push_gap(edits, sql, token_end(&tokens[previous]), token_end(token), "", "explicit asc is redundant");
             }
             "nulls" => {
                 let Some(which) = next_non_ws(tokens, index) else {
@@ -424,14 +324,7 @@ fn keyword_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                     if let Some(previous) = previous_non_ws(tokens, index)
                         && !word_is(&tokens[previous], "not")
                     {
-                        push_gap(
-                            edits,
-                            sql,
-                            token_end(&tokens[previous]),
-                            token_end(candidate),
-                            "",
-                            "nulls distinct is the default",
-                        );
+                        push_gap(edits, sql, token_end(&tokens[previous]), token_end(candidate), "", "nulls distinct is the default");
                     }
                     continue;
                 }
@@ -439,22 +332,14 @@ fn keyword_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                     continue;
                 }
                 let previous = previous_non_ws(tokens, index);
-                let direction_before =
-                    previous.map(|previous| tokens[previous].text.to_ascii_lowercase());
+                let direction_before = previous.map(|previous| tokens[previous].text.to_ascii_lowercase());
                 let default_suffix = match direction_before.as_deref() {
                     Some("desc") => candidate_lower == "first",
                     _ => candidate_lower == "last",
                 };
                 if default_suffix {
                     if let Some(previous) = previous {
-                        push_gap(
-                            edits,
-                            sql,
-                            token_end(&tokens[previous]),
-                            token_end(candidate),
-                            "",
-                            "default nulls ordering is redundant",
-                        );
+                        push_gap(edits, sql, token_end(&tokens[previous]), token_end(candidate), "", "default nulls ordering is redundant");
                     }
                     continue;
                 }
@@ -462,12 +347,7 @@ fn keyword_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                     continue;
                 };
                 let direction_token = &tokens[direction];
-                if direction_token.kind != Kind::Word
-                    || !matches!(
-                        direction_token.text.to_ascii_lowercase().as_str(),
-                        "asc" | "desc"
-                    )
-                {
+                if direction_token.kind != Kind::Word || !matches!(direction_token.text.to_ascii_lowercase().as_str(), "asc" | "desc") {
                     continue;
                 }
                 let gap = &sql[token.start..token_end(direction_token)];
@@ -476,18 +356,12 @@ fn keyword_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                 }
                 edits.push(Edit {
                     span: Span::new(token.start, token_end(direction_token)),
-                    replacement: format!(
-                        "{} nulls {}",
-                        direction_token.text.to_ascii_lowercase(),
-                        candidate.text.to_ascii_lowercase()
-                    ),
+                    replacement: format!("{} nulls {}", direction_token.text.to_ascii_lowercase(), candidate.text.to_ascii_lowercase()),
                     message: "nulls first/last goes after the direction",
                 });
             }
             "distinct" => {
-                if !previous_non_ws(tokens, index)
-                    .is_some_and(|previous| word_is(&tokens[previous], "select"))
-                {
+                if !previous_non_ws(tokens, index).is_some_and(|previous| word_is(&tokens[previous], "select")) {
                     continue;
                 }
                 let Some(open) = next_non_ws(tokens, index) else {
@@ -499,13 +373,8 @@ fn keyword_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                 let Some(close) = matching_paren(tokens, open) else {
                     continue;
                 };
-                let inner: Vec<&Token> = tokens[open + 1..close]
-                    .iter()
-                    .filter(|token| token.kind != Kind::Whitespace)
-                    .collect();
-                if inner.len() != 1
-                    || !matches!(inner[0].kind, Kind::Word | Kind::QuotedIdent | Kind::Number)
-                {
+                let inner: Vec<&Token> = tokens[open + 1..close].iter().filter(|token| token.kind != Kind::Whitespace).collect();
+                if inner.len() != 1 || !matches!(inner[0].kind, Kind::Word | Kind::QuotedIdent | Kind::Number) {
                     continue;
                 }
                 let gap = &sql[token_end(token)..tokens[close].start];
@@ -528,20 +397,14 @@ fn keyword_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                 let Some(after) = next_non_ws(tokens, next.saturating_sub(1)) else {
                     continue;
                 };
-                if tokens[after].kind == Kind::Word && tokens[after].text.eq_ignore_ascii_case("is")
-                {
+                if tokens[after].kind == Kind::Word && tokens[after].text.eq_ignore_ascii_case("is") {
                     let Some(null_token) = next_non_ws(tokens, after) else {
                         continue;
                     };
-                    if tokens[null_token].kind == Kind::Word
-                        && tokens[null_token].text.eq_ignore_ascii_case("null")
-                    {
+                    if tokens[null_token].kind == Kind::Word && tokens[null_token].text.eq_ignore_ascii_case("null") {
                         edits.push(Edit {
                             span: Span::new(token.start, token_end(&tokens[null_token])),
-                            replacement: format!(
-                                "{} is not null",
-                                &sql[tokens[first].start..ident_end]
-                            ),
+                            replacement: format!("{} is not null", &sql[tokens[first].start..ident_end]),
                             message: "use is not null instead of not ... is null",
                         });
                     }
@@ -551,24 +414,15 @@ fn keyword_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                     };
                     let rhs_token = &tokens[rhs];
                     let simple = match rhs_token.kind {
-                        Kind::Word => !matches!(
-                            rhs_token.text.to_ascii_lowercase().as_str(),
-                            "any" | "all" | "some" | "null" | "exists"
-                        ),
+                        Kind::Word => !matches!(rhs_token.text.to_ascii_lowercase().as_str(), "any" | "all" | "some" | "null" | "exists"),
                         Kind::QuotedIdent | Kind::Number | Kind::String => true,
                         _ => false,
                     };
-                    let followed_by_call = next_non_ws(tokens, rhs).is_some_and(|next| {
-                        tokens[next].kind == Kind::Punct && tokens[next].text == "("
-                    });
+                    let followed_by_call = next_non_ws(tokens, rhs).is_some_and(|next| tokens[next].kind == Kind::Punct && tokens[next].text == "(");
                     if simple && !followed_by_call {
                         edits.push(Edit {
                             span: Span::new(token.start, token_end(rhs_token)),
-                            replacement: format!(
-                                "{} != {}",
-                                &sql[tokens[first].start..ident_end],
-                                &sql[rhs_token.start..token_end(rhs_token)]
-                            ),
+                            replacement: format!("{} != {}", &sql[tokens[first].start..ident_end], &sql[rhs_token.start..token_end(rhs_token)]),
                             message: "use != instead of not ... = ...",
                         });
                     }
@@ -597,9 +451,7 @@ fn statement_flavors(tokens: &[Token], sql: &str) -> Vec<(Span, StatementFlavor)
 }
 
 fn classify_statement(tokens: &[Token], statement: Span) -> StatementFlavor {
-    let mut words = tokens.iter().filter(|token| {
-        token.kind == Kind::Word && token.start >= statement.start && token.start < statement.end
-    });
+    let mut words = tokens.iter().filter(|token| token.kind == Kind::Word && token.start >= statement.start && token.start < statement.end);
     let Some(first) = words.next() else {
         return StatementFlavor::Other;
     };
@@ -621,17 +473,7 @@ fn classify_statement(tokens: &[Token], statement: Span) -> StatementFlavor {
             return StatementFlavor::CreateIndex;
         }
         let lower = word.text.to_ascii_lowercase();
-        if !matches!(
-            lower.as_str(),
-            "or" | "replace"
-                | "unique"
-                | "temp"
-                | "temporary"
-                | "unlogged"
-                | "global"
-                | "local"
-                | "materialized"
-        ) {
+        if !matches!(lower.as_str(), "or" | "replace" | "unique" | "temp" | "temporary" | "unlogged" | "global" | "local" | "materialized") {
             return StatementFlavor::Other;
         }
     }
@@ -640,20 +482,12 @@ fn classify_statement(tokens: &[Token], statement: Span) -> StatementFlavor {
 
 fn flavor_at(flavors: &[(Span, StatementFlavor)], offset: usize) -> StatementFlavor {
     statement_at(flavors, offset)
-        .map(|statement| {
-            flavors
-                .iter()
-                .find(|(span, _)| *span == statement)
-                .map_or(StatementFlavor::Other, |(_, flavor)| *flavor)
-        })
+        .map(|statement| flavors.iter().find(|(span, _)| *span == statement).map_or(StatementFlavor::Other, |(_, flavor)| *flavor))
         .unwrap_or(StatementFlavor::Other)
 }
 
 fn statement_at(flavors: &[(Span, StatementFlavor)], offset: usize) -> Option<Span> {
-    flavors
-        .iter()
-        .find(|(span, _)| span.start <= offset && offset <= span.end)
-        .map(|(span, _)| *span)
+    flavors.iter().find(|(span, _)| span.start <= offset && offset <= span.end).map(|(span, _)| *span)
 }
 
 fn depth_before(tokens: &[Token], statement: Span, index: usize) -> i32 {
@@ -712,11 +546,7 @@ fn spaced_paren_word(lower: &str) -> bool {
 }
 
 /// `(` 前是否是表名/方法名等关系位置，而不是函数调用。
-fn relation_paren(
-    tokens: &[Token],
-    flavors: &[(Span, StatementFlavor)],
-    name_index: usize,
-) -> bool {
+fn relation_paren(tokens: &[Token], flavors: &[(Span, StatementFlavor)], name_index: usize) -> bool {
     let mut probe = name_index;
     loop {
         let Some(dot) = previous_non_ws(tokens, probe) else {
@@ -750,16 +580,41 @@ fn relation_paren(
             let Some(table) = previous_non_ws(tokens, before) else {
                 return false;
             };
-            ident(&tokens[table])
-                && previous_non_ws(tokens, table).is_some_and(|word| word_is(&tokens[word], "into"))
+            ident(&tokens[table]) && previous_non_ws(tokens, table).is_some_and(|word| word_is(&tokens[word], "into"))
         }
         _ => false,
     }
 }
 
+/// 派生表别名后的字段列表 `) t (a, b)` 需要空格，不能当函数调用。
+fn alias_column_paren(tokens: &[Token], index: usize) -> bool {
+    let token = &tokens[index];
+    if !matches!(token.kind, Kind::Word | Kind::QuotedIdent) {
+        return false;
+    }
+    if token.kind == Kind::Word
+        && matches!(
+            token.text.to_ascii_lowercase().as_str(),
+            "over" | "filter" | "within" | "partition" | "group" | "order" | "by" | "using" | "on"
+        )
+    {
+        return false;
+    }
+    let Some(before) = previous_non_ws(tokens, index) else {
+        return false;
+    };
+    if punct(&tokens[before], ")") {
+        return true;
+    }
+    word_is(&tokens[before], "as") && previous_non_ws(tokens, before).is_some_and(|index| punct(&tokens[index], ")"))
+}
+
 /// R39：判断 `(` 应紧贴前一个词（函数/类型调用）还是留一个空格（关键字构造）。
 fn paren_hugs(tokens: &[Token], flavors: &[(Span, StatementFlavor)], index: usize) -> Option<bool> {
     let token = &tokens[index];
+    if alias_column_paren(tokens, index) {
+        return Some(false);
+    }
     match token.kind {
         Kind::QuotedIdent => Some(!relation_paren(tokens, flavors, index)),
         Kind::Word => {
@@ -897,14 +752,7 @@ fn default_form_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                     continue;
                 };
                 if word_is(&tokens[simple], "simple") {
-                    remove_phrase(
-                        tokens,
-                        sql,
-                        edits,
-                        index,
-                        simple,
-                        "match simple is the default",
-                    );
+                    remove_phrase(tokens, sql, edits, index, simple, "match simple is the default");
                 }
             }
             "not" => {
@@ -924,14 +772,7 @@ fn default_form_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                     continue;
                 };
                 if word_is(&tokens[immediate], "immediate") {
-                    remove_phrase(
-                        tokens,
-                        sql,
-                        edits,
-                        index,
-                        immediate,
-                        "not deferrable initially immediate is the default",
-                    );
+                    remove_phrase(tokens, sql, edits, index, immediate, "not deferrable initially immediate is the default");
                 }
             }
             "on" => {
@@ -951,14 +792,7 @@ fn default_form_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                     continue;
                 };
                 if word_is(&tokens[rows], "rows") {
-                    remove_phrase(
-                        tokens,
-                        sql,
-                        edits,
-                        index,
-                        rows,
-                        "on commit preserve rows is the default",
-                    );
+                    remove_phrase(tokens, sql, edits, index, rows, "on commit preserve rows is the default");
                 }
             }
             "storage" | "compression" => {
@@ -968,33 +802,17 @@ fn default_form_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                 if !word_is(&tokens[default], "default") {
                     continue;
                 }
-                if previous_non_ws(tokens, index)
-                    .is_some_and(|previous| word_is(&tokens[previous], "set"))
-                {
+                if previous_non_ws(tokens, index).is_some_and(|previous| word_is(&tokens[previous], "set")) {
                     continue;
                 }
-                remove_phrase(
-                    tokens,
-                    sql,
-                    edits,
-                    index,
-                    default,
-                    "default column storage is redundant",
-                );
+                remove_phrase(tokens, sql, edits, index, default, "default column storage is redundant");
             }
             "without" => {
                 let Some(oids) = next_non_ws(tokens, index) else {
                     continue;
                 };
                 if word_is(&tokens[oids], "oids") {
-                    remove_phrase(
-                        tokens,
-                        sql,
-                        edits,
-                        index,
-                        oids,
-                        "without oids is the default",
-                    );
+                    remove_phrase(tokens, sql, edits, index, oids, "without oids is the default");
                 }
             }
             "with" => {
@@ -1006,47 +824,21 @@ fn default_form_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                 }
             }
             "null" if column_null_constraint(tokens, &flavors, index) => {
-                remove_phrase(
-                    tokens,
-                    sql,
-                    edits,
-                    index,
-                    index,
-                    "explicit null column constraint is redundant",
-                );
+                remove_phrase(tokens, sql, edits, index, index, "explicit null column constraint is redundant");
             }
             _ => {}
         }
     }
 }
 
-fn remove_phrase(
-    tokens: &[Token],
-    sql: &str,
-    edits: &mut Vec<Edit>,
-    first: usize,
-    last: usize,
-    message: &'static str,
-) {
+fn remove_phrase(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>, first: usize, last: usize, message: &'static str) {
     let Some(previous) = previous_non_ws(tokens, first) else {
         return;
     };
-    push_gap(
-        edits,
-        sql,
-        token_end(&tokens[previous]),
-        token_end(&tokens[last]),
-        "",
-        message,
-    );
+    push_gap(edits, sql, token_end(&tokens[previous]), token_end(&tokens[last]), "", message);
 }
 
-fn ctas_with_data(
-    tokens: &[Token],
-    flavors: &[(Span, StatementFlavor)],
-    with_index: usize,
-    data_index: usize,
-) -> bool {
+fn ctas_with_data(tokens: &[Token], flavors: &[(Span, StatementFlavor)], with_index: usize, data_index: usize) -> bool {
     let offset = tokens[with_index].start;
     if flavor_at(flavors, offset) != StatementFlavor::CreateTable {
         return false;
@@ -1057,11 +849,9 @@ fn ctas_with_data(
     if depth_before(tokens, statement, with_index) != 0 {
         return false;
     }
-    let has_as = tokens[..with_index].iter().any(|token| {
-        token.kind == Kind::Word
-            && token.start >= statement.start
-            && token.text.eq_ignore_ascii_case("as")
-    });
+    let has_as = tokens[..with_index]
+        .iter()
+        .any(|token| token.kind == Kind::Word && token.start >= statement.start && token.text.eq_ignore_ascii_case("as"));
     if !has_as {
         return false;
     }
@@ -1071,11 +861,7 @@ fn ctas_with_data(
     }
 }
 
-fn column_null_constraint(
-    tokens: &[Token],
-    flavors: &[(Span, StatementFlavor)],
-    index: usize,
-) -> bool {
+fn column_null_constraint(tokens: &[Token], flavors: &[(Span, StatementFlavor)], index: usize) -> bool {
     let offset = tokens[index].start;
     let Some(statement) = statement_at(flavors, offset) else {
         return false;
@@ -1148,17 +934,7 @@ fn column_null_constraint(
                 || (tokens[next].kind == Kind::Word
                     && matches!(
                         tokens[next].text.to_ascii_lowercase().as_str(),
-                        "not"
-                            | "default"
-                            | "unique"
-                            | "primary"
-                            | "references"
-                            | "check"
-                            | "constraint"
-                            | "collate"
-                            | "storage"
-                            | "compression"
-                            | "generated"
+                        "not" | "default" | "unique" | "primary" | "references" | "check" | "constraint" | "collate" | "storage" | "compression" | "generated"
                     ))
         }
     }
@@ -1180,9 +956,7 @@ fn typed_literal_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
             index += 1;
             continue;
         }
-        if previous_non_ws(tokens, index)
-            .is_some_and(|previous| punct(&tokens[previous], ".") || punct(&tokens[previous], "::"))
-        {
+        if previous_non_ws(tokens, index).is_some_and(|previous| punct(&tokens[previous], ".") || punct(&tokens[previous], "::")) {
             index += 1;
             continue;
         }
@@ -1216,27 +990,26 @@ fn typed_literal_at(tokens: &[Token], sql: &str, index: usize) -> Option<(usize,
                 last = close;
                 cursor = next_non_ws(tokens, close)?;
             }
-            let (name, last) =
-                if word_is(&tokens[cursor], "with") || word_is(&tokens[cursor], "without") {
-                    let with = word_is(&tokens[cursor], "with");
-                    let time = next_non_ws(tokens, cursor)?;
-                    if !word_is(&tokens[time], "time") {
-                        return None;
-                    }
-                    let zone = next_non_ws(tokens, time)?;
-                    if !word_is(&tokens[zone], "zone") {
-                        return None;
-                    }
-                    let name = match (lower.as_str(), with) {
-                        ("timestamp", true) => "timestamptz",
-                        ("timestamp", false) => "timestamp",
-                        (_, true) => "timetz",
-                        (_, false) => "time",
-                    };
-                    (name, zone)
-                } else {
-                    (lower.as_str(), last)
+            let (name, last) = if word_is(&tokens[cursor], "with") || word_is(&tokens[cursor], "without") {
+                let with = word_is(&tokens[cursor], "with");
+                let time = next_non_ws(tokens, cursor)?;
+                if !word_is(&tokens[time], "time") {
+                    return None;
+                }
+                let zone = next_non_ws(tokens, time)?;
+                if !word_is(&tokens[zone], "zone") {
+                    return None;
+                }
+                let name = match (lower.as_str(), with) {
+                    ("timestamp", true) => "timestamptz",
+                    ("timestamp", false) => "timestamp",
+                    (_, true) => "timetz",
+                    (_, false) => "time",
                 };
+                (name, zone)
+            } else {
+                (lower.as_str(), last)
+            };
             let string = next_non_ws(tokens, last)?;
             if tokens[string].kind != Kind::String {
                 return None;
@@ -1276,11 +1049,7 @@ fn interval_cast_edits(tokens: &[Token], edits: &mut Vec<Edit>) {
         let Some(normalized) = normalize_interval_literal(token.text) else {
             continue;
         };
-        edits.push(Edit {
-            span: span(token),
-            replacement: normalized,
-            message: "interval units should be lowercase singular",
-        });
+        edits.push(Edit { span: span(token), replacement: normalized, message: "interval units should be lowercase singular" });
     }
 }
 
@@ -1301,8 +1070,7 @@ fn normalize_interval_literal(text: &str) -> Option<String> {
 fn normalize_interval_body(body: &str) -> String {
     let trimmed = body.trim_start();
     let bytes = trimmed.as_bytes();
-    let iso =
-        matches!(bytes.first(), Some(b'P' | b'p')) && bytes.get(1).is_some_and(u8::is_ascii_digit);
+    let iso = matches!(bytes.first(), Some(b'P' | b'p')) && bytes.get(1).is_some_and(u8::is_ascii_digit);
     if iso {
         return body.to_owned();
     }
@@ -1384,9 +1152,7 @@ fn type_alias_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
             index += 1;
             continue;
         }
-        if previous_non_ws(tokens, index)
-            .is_some_and(|previous| word_is(&tokens[previous], "collate"))
-        {
+        if previous_non_ws(tokens, index).is_some_and(|previous| word_is(&tokens[previous], "collate")) {
             index += 1;
             continue;
         }
@@ -1493,21 +1259,7 @@ fn character_terminates(tokens: &[Token], next: Option<usize>) -> bool {
     }
     matches!(
         token.text.to_ascii_lowercase().as_str(),
-        "not"
-            | "null"
-            | "default"
-            | "primary"
-            | "unique"
-            | "references"
-            | "check"
-            | "constraint"
-            | "collate"
-            | "storage"
-            | "compression"
-            | "generated"
-            | "using"
-            | "with"
-            | "array"
+        "not" | "null" | "default" | "primary" | "unique" | "references" | "check" | "constraint" | "collate" | "storage" | "compression" | "generated" | "using" | "with" | "array"
     )
 }
 
@@ -1543,8 +1295,7 @@ fn in_cast_type(tokens: &[Token], index: usize) -> bool {
                     let Some(name) = previous_non_ws(tokens, probe) else {
                         return false;
                     };
-                    return tokens[name].kind == Kind::Word
-                        && (word_is(&tokens[name], "cast") || word_is(&tokens[name], "try_cast"));
+                    return tokens[name].kind == Kind::Word && (word_is(&tokens[name], "cast") || word_is(&tokens[name], "try_cast"));
                 }
                 depth -= 1;
             }
@@ -1555,11 +1306,7 @@ fn in_cast_type(tokens: &[Token], index: usize) -> bool {
     false
 }
 
-fn in_create_table_column(
-    tokens: &[Token],
-    flavors: &[(Span, StatementFlavor)],
-    index: usize,
-) -> bool {
+fn in_create_table_column(tokens: &[Token], flavors: &[(Span, StatementFlavor)], index: usize) -> bool {
     let Some(statement) = statement_at(flavors, tokens[index].start) else {
         return false;
     };
@@ -1591,12 +1338,7 @@ fn in_alter_type(tokens: &[Token], index: usize) -> bool {
     if !ident(&tokens[previous]) {
         return false;
     }
-    if tokens[previous].kind == Kind::Word
-        && matches!(
-            tokens[previous].text.to_ascii_lowercase().as_str(),
-            "column" | "add" | "type" | "rename" | "to" | "set"
-        )
-    {
+    if tokens[previous].kind == Kind::Word && matches!(tokens[previous].text.to_ascii_lowercase().as_str(), "column" | "add" | "type" | "rename" | "to" | "set") {
         return false;
     }
     let Some(before) = previous_non_ws(tokens, previous) else {
@@ -1694,8 +1436,7 @@ fn table_alias_edits(body: &str, sql: &str, base: usize, edits: &mut Vec<Edit>) 
                     continue;
                 };
                 let before = &tokens[previous];
-                let valid_before = matches!(before.kind, Kind::Word | Kind::QuotedIdent)
-                    || (before.kind == Kind::Punct && before.text == ")");
+                let valid_before = matches!(before.kind, Kind::Word | Kind::QuotedIdent) || (before.kind == Kind::Punct && before.text == ")");
                 if !valid_before {
                     continue;
                 }
@@ -1723,47 +1464,29 @@ fn table_alias_edits(body: &str, sql: &str, base: usize, edits: &mut Vec<Edit>) 
 fn field_alias_edits(body: &str, sql: &str, base: usize, edits: &mut Vec<Edit>) {
     for element in comma_spans(body) {
         let element_text = &body[element.start..element.end];
-        let tokens: Vec<Token> = tokens(element_text)
-            .into_iter()
-            .filter(|token| token.kind != Kind::Whitespace)
-            .collect();
+        let tokens: Vec<Token> = tokens(element_text).into_iter().filter(|token| token.kind != Kind::Whitespace).collect();
         if tokens.is_empty() {
             continue;
         }
-        if tokens
-            .iter()
-            .any(|token| token.kind == Kind::Word && token.text.eq_ignore_ascii_case("into"))
-        {
+        if tokens.iter().any(|token| token.kind == Kind::Word && token.text.eq_ignore_ascii_case("into")) {
             continue;
         }
         // `IS JSON OBJECT` 的 OBJECT 是类型修饰，不是字段别名。
-        if tokens
-            .iter()
-            .any(|token| token.kind == Kind::Word && token.text.eq_ignore_ascii_case("is"))
-            && tokens
-                .iter()
-                .any(|token| token.kind == Kind::Word && token.text.eq_ignore_ascii_case("json"))
+        if tokens.iter().any(|token| token.kind == Kind::Word && token.text.eq_ignore_ascii_case("is"))
+            && tokens.iter().any(|token| token.kind == Kind::Word && token.text.eq_ignore_ascii_case("json"))
         {
             continue;
         }
-        let trailing_ddl = tokens.iter().any(|token| {
-            token.kind == Kind::Word
-                && matches!(
-                    token.text.to_ascii_lowercase().as_str(),
-                    "with" | "without" | "tablespace" | "using"
-                )
-        }) || tokens.windows(2).any(|pair| {
-            pair[0].kind == Kind::Word
-                && pair[0].text.eq_ignore_ascii_case("on")
-                && pair[1].kind == Kind::Word
-                && pair[1].text.eq_ignore_ascii_case("commit")
-        });
+        let trailing_ddl = tokens
+            .iter()
+            .any(|token| token.kind == Kind::Word && matches!(token.text.to_ascii_lowercase().as_str(), "with" | "without" | "tablespace" | "using"))
+            || tokens
+                .windows(2)
+                .any(|pair| pair[0].kind == Kind::Word && pair[0].text.eq_ignore_ascii_case("on") && pair[1].kind == Kind::Word && pair[1].text.eq_ignore_ascii_case("commit"));
         if trailing_ddl {
             continue;
         }
-        let has_as = tokens
-            .iter()
-            .any(|token| token.kind == Kind::Word && token.text.eq_ignore_ascii_case("as"));
+        let has_as = tokens.iter().any(|token| token.kind == Kind::Word && token.text.eq_ignore_ascii_case("as"));
         if has_as {
             continue;
         }
@@ -1774,10 +1497,7 @@ fn field_alias_edits(body: &str, sql: &str, base: usize, edits: &mut Vec<Edit>) 
             continue;
         }
         let lower = last.text.to_ascii_lowercase();
-        if matches!(
-            lower.as_str(),
-            "end" | "null" | "true" | "false" | "distinct" | "all" | "unknown"
-        ) {
+        if matches!(lower.as_str(), "end" | "null" | "true" | "false" | "distinct" | "all" | "unknown") {
             continue;
         }
         let Some(previous) = tokens.len().checked_sub(2).map(|index| &tokens[index]) else {
@@ -1794,20 +1514,12 @@ fn field_alias_edits(body: &str, sql: &str, base: usize, edits: &mut Vec<Edit>) 
         if previous.kind == Kind::Word
             && matches!(
                 (previous.text.to_ascii_lowercase().as_str(), lower.as_str()),
-                ("character", "varying")
-                    | ("char", "varying")
-                    | ("double", "precision")
-                    | ("time", "zone")
+                ("character", "varying") | ("char", "varying") | ("double", "precision") | ("time", "zone")
             )
         {
             continue;
         }
-        if previous.kind == Kind::Word
-            && matches!(
-                previous.text.to_ascii_lowercase().as_str(),
-                "distinct" | "all"
-            )
-        {
+        if previous.kind == Kind::Word && matches!(previous.text.to_ascii_lowercase().as_str(), "distinct" | "all") {
             continue;
         }
         let _ = sql;
@@ -1824,10 +1536,7 @@ fn case_paren_edits(sql: &str, edits: &mut Vec<Edit>) {
     let functions = crate::sql::checker::function_paren_spans(sql);
     let cases = crate::sql::checker::outermost(crate::sql::checker::case_spans(sql));
     for case in cases {
-        if functions
-            .iter()
-            .any(|span| span.start <= case.start && case.end <= span.end)
-        {
+        if functions.iter().any(|span| span.start <= case.start && case.end <= span.end) {
             continue;
         }
         let before = sql[..case.start].trim_end();
@@ -1848,14 +1557,7 @@ fn case_paren_edits(sql: &str, edits: &mut Vec<Edit>) {
     }
 }
 
-fn push_gap(
-    edits: &mut Vec<Edit>,
-    sql: &str,
-    start: usize,
-    end: usize,
-    replacement: &str,
-    message: &'static str,
-) {
+fn push_gap(edits: &mut Vec<Edit>, sql: &str, start: usize, end: usize, replacement: &str, message: &'static str) {
     if start > end || end > sql.len() {
         return;
     }
@@ -1863,11 +1565,7 @@ fn push_gap(
     if gap.contains('\n') || gap == replacement {
         return;
     }
-    edits.push(Edit {
-        span: Span::new(start, end),
-        replacement: replacement.to_owned(),
-        message,
-    });
+    edits.push(Edit { span: Span::new(start, end), replacement: replacement.to_owned(), message });
 }
 
 fn span(token: &Token) -> Span {
@@ -2006,17 +1704,10 @@ fn collect_list(body: &str, base: usize, wraps: &mut Vec<Wrap>) {
     for condition in splitter::condition_spans(body) {
         let text = &body[condition.start..condition.end];
         for group in splitter::boolean_group_spans(text) {
-            collect_list(
-                &text[group.start..group.end],
-                base + condition.start + group.start,
-                wraps,
-            );
+            collect_list(&text[group.start..group.end], base + condition.start + group.start, wraps);
         }
         if has_top_level_between(text) && !is_wrapped(text) {
-            wraps.push(Wrap {
-                start: base + condition.start,
-                end: base + condition.end,
-            });
+            wraps.push(Wrap { start: base + condition.start, end: base + condition.end });
         }
     }
 }
@@ -2042,13 +1733,7 @@ fn collect_on(body: &str, base: usize, wraps: &mut Vec<Wrap>) {
                     end = next.start;
                     break;
                 }
-                Kind::Word
-                    if depth == 0
-                        && matches!(
-                            next.text.to_ascii_lowercase().as_str(),
-                            "join" | "left" | "right" | "full" | "inner" | "cross" | "natural"
-                        ) =>
-                {
+                Kind::Word if depth == 0 && matches!(next.text.to_ascii_lowercase().as_str(), "join" | "left" | "right" | "full" | "inner" | "cross" | "natural") => {
                     end = next.start;
                     break;
                 }
@@ -2125,12 +1810,7 @@ fn has_top_level_between(condition: &str) -> bool {
             b')' => depth -= 1,
             _ => {}
         }
-        if depth == 0
-            && (index == 0 || !is_word(bytes[index - 1]))
-            && lower
-                .get(index..)
-                .is_some_and(|rest| rest.starts_with("between"))
-        {
+        if depth == 0 && (index == 0 || !is_word(bytes[index - 1])) && lower.get(index..).is_some_and(|rest| rest.starts_with("between")) {
             return true;
         }
         index += 1;
@@ -2180,19 +1860,13 @@ mod tests {
 
     #[test]
     fn skips_into_targets_and_unknown_predicates() {
-        assert_fixed(
-            "SELECT foo, bar INTO baz FROM qux;",
-            "select foo, bar into baz from qux;",
-        );
+        assert_fixed("SELECT foo, bar INTO baz FROM qux;", "select foo, bar into baz from qux;");
         assert_fixed("SELECT TRUE IS NOT UNKNOWN;", "select true is not unknown;");
     }
 
     #[test]
     fn wraps_between_condition() {
-        assert_fixed(
-            "select a from t where x between 1 and 2",
-            "select a from t where (x between 1 and 2)",
-        );
+        assert_fixed("select a from t where x between 1 and 2", "select a from t where (x between 1 and 2)");
     }
 
     #[test]
@@ -2211,18 +1885,12 @@ mod tests {
 
     #[test]
     fn wraps_only_the_between_condition_inline() {
-        assert_fixed(
-            "select a from t where a = 1 and b between 2 and 3",
-            "select a from t where a = 1 and (b between 2 and 3)",
-        );
+        assert_fixed("select a from t where a = 1 and b between 2 and 3", "select a from t where a = 1 and (b between 2 and 3)");
     }
 
     #[test]
     fn wraps_inside_boolean_group() {
-        assert_fixed(
-            "select a from t where (a = 1 or b between 2 and 3)",
-            "select a from t where (a = 1 or (b between 2 and 3))",
-        );
+        assert_fixed("select a from t where (a = 1 or b between 2 and 3)", "select a from t where (a = 1 or (b between 2 and 3))");
     }
 
     #[test]
@@ -2255,18 +1923,12 @@ mod tests {
 
     #[test]
     fn lowercases_words_and_keeps_literals() {
-        assert_fixed(
-            "SELECT A, 'Keep Me' AS B FROM T",
-            "select a, 'Keep Me' as b from t",
-        );
+        assert_fixed("SELECT A, 'Keep Me' AS B FROM T", "select a, 'Keep Me' as b from t");
     }
 
     #[test]
     fn rewrites_symbols_and_spacing() {
-        assert_fixed(
-            "select a,b from t where x<>y",
-            "select a, b from t where x != y",
-        );
+        assert_fixed("select a,b from t where x<>y", "select a, b from t where x != y");
         assert_fixed("select a from t;", "select a from t;");
         assert_fixed("select a from t;   ", "select a from t;");
     }
@@ -2281,10 +1943,7 @@ mod tests {
 
     #[test]
     fn hugs_function_parentheses() {
-        assert_fixed(
-            "select count (*) from t group by rollup (a, b)",
-            "select count(*) from t group by rollup(a, b)",
-        );
+        assert_fixed("select count (*) from t group by rollup (a, b)", "select count(*) from t group by rollup(a, b)");
     }
 
     #[test]
@@ -2302,52 +1961,31 @@ mod tests {
 
     #[test]
     fn rewrites_not_equals() {
-        assert_fixed(
-            "select a from t where not b = 1",
-            "select a from t where b != 1",
-        );
-        assert_fixed(
-            "select a from t where not b = any(select c from u)",
-            "select a from t where not b = any(select c from u)",
-        );
+        assert_fixed("select a from t where not b = 1", "select a from t where b != 1");
+        assert_fixed("select a from t where not b = any(select c from u)", "select a from t where not b = any(select c from u)");
     }
 
     #[test]
     fn rewrites_not_is_null() {
-        assert_fixed(
-            "select a from t where not b is null",
-            "select a from t where b is not null",
-        );
+        assert_fixed("select a from t where not b is null", "select a from t where b is not null");
     }
 
     #[test]
     fn adds_field_alias_as() {
-        assert_fixed(
-            "select sum(a) total from t",
-            "select sum(a) as total from t",
-        );
+        assert_fixed("select sum(a) total from t", "select sum(a) as total from t");
         assert_fixed("select a b from t", "select a as b from t");
         assert_fixed("select distinct a from t", "select distinct a from t");
     }
 
     #[test]
     fn removes_table_alias_as() {
-        assert_fixed(
-            "select a from t as x, (select 1) as y",
-            "select a from t x, (select 1) y",
-        );
+        assert_fixed("select a from t as x, (select 1) as y", "select a from t x, (select 1) y");
     }
 
     #[test]
     fn parenthesizes_standalone_case() {
-        assert_fixed(
-            "select case when a = 1 then 1 else 0 end as f from t",
-            "select (case when a = 1 then 1 else 0 end) as f from t",
-        );
-        assert_fixed(
-            "select sum(case when a = 1 then 1 else 0 end) as f from t",
-            "select sum(case when a = 1 then 1 else 0 end) as f from t",
-        );
+        assert_fixed("select case when a = 1 then 1 else 0 end as f from t", "select (case when a = 1 then 1 else 0 end) as f from t");
+        assert_fixed("select sum(case when a = 1 then 1 else 0 end) as f from t", "select sum(case when a = 1 then 1 else 0 end) as f from t");
     }
 
     #[test]
@@ -2360,10 +1998,7 @@ mod tests {
             "select timestamptz '2020-01-01 00:00', interval '8 HOURS'",
             "select '2020-01-01 00:00'::timestamptz, '8 hour'::interval",
         );
-        assert_fixed(
-            "select timestamp(3) with time zone '2020-01-01'",
-            "select '2020-01-01'::timestamptz(3)",
-        );
+        assert_fixed("select timestamp(3) with time zone '2020-01-01'", "select '2020-01-01'::timestamptz(3)");
     }
 
     #[test]
@@ -2372,39 +2007,21 @@ mod tests {
         use crate::sql::parse::Dialect;
 
         with_dialect(Dialect::Mysql, || {
-            assert_eq!(
-                normalized("SELECT DATE '2020-01-01'"),
-                "select date '2020-01-01'"
-            );
-            assert_eq!(
-                normalized("select interval '8 HOURS'"),
-                "select interval '8 HOURS'"
-            );
+            assert_eq!(normalized("SELECT DATE '2020-01-01'"), "select date '2020-01-01'");
+            assert_eq!(normalized("select interval '8 HOURS'"), "select interval '8 HOURS'");
             assert_eq!(normalized("select '3S'::interval"), "select '3S'::interval");
         });
         with_dialect(Dialect::Postgres, || {
-            assert_eq!(
-                normalized("SELECT DATE '2020-01-01'"),
-                "select '2020-01-01'::date"
-            );
-            assert_eq!(
-                normalized("select interval '8 HOURS'"),
-                "select '8 hour'::interval"
-            );
+            assert_eq!(normalized("SELECT DATE '2020-01-01'"), "select '2020-01-01'::date");
+            assert_eq!(normalized("select interval '8 HOURS'"), "select '8 hour'::interval");
         });
     }
 
     #[test]
     fn normalizes_interval_units() {
-        assert_fixed(
-            "select interval '1 HOUR 2 MINUTES'",
-            "select '1 hour 2 minute'::interval",
-        );
+        assert_fixed("select interval '1 HOUR 2 MINUTES'", "select '1 hour 2 minute'::interval");
         assert_fixed("select '3S'::interval", "select '3 second'::interval");
-        assert_fixed(
-            "select interval '1 day 2 HOURS'",
-            "select '1 day 2 hour'::interval",
-        );
+        assert_fixed("select interval '1 day 2 HOURS'", "select '1 day 2 hour'::interval");
         assert_fixed("select interval 'P1D'", "select 'P1D'::interval");
     }
 
@@ -2421,10 +2038,7 @@ mod tests {
             "create table t (a integer primary key, b int8, c bool, d numeric(10, 2), e real, f double precision, g timestamp with time zone, h character varying(20), i character)",
             "create table t (a int primary key, b bigint, c boolean, d decimal(10, 2), e float4, f float8, g timestamptz, h varchar(20), i char)",
         );
-        assert_fixed(
-            "create table t (a timestamp(3), b numeric (10, 2))",
-            "create table t (a timestamp(3), b decimal(10, 2))",
-        );
+        assert_fixed("create table t (a timestamp(3), b numeric (10, 2))", "create table t (a timestamp(3), b decimal(10, 2))");
         assert_fixed(
             "select a::int4, cast(b as double precision), c::character varying, d::timestamp without time zone, e::time with time zone from t",
             "select a::int, cast(b as float8), c::varchar, d::timestamp, e::timetz from t",
@@ -2433,79 +2047,37 @@ mod tests {
 
     #[test]
     fn keeps_collation_names() {
-        assert_fixed(
-            "create table t (a text collate numeric, b numeric)",
-            "create table t (a text collate numeric, b decimal)",
-        );
-        assert_fixed(
-            "select a from t order by a collate numeric",
-            "select a from t order by a collate numeric",
-        );
+        assert_fixed("create table t (a text collate numeric, b numeric)", "create table t (a text collate numeric, b decimal)");
+        assert_fixed("select a from t order by a collate numeric", "select a from t order by a collate numeric");
     }
 
     #[test]
     fn keeps_calls_named_like_types() {
-        assert_fixed(
-            "select varchar(a), numeric(b), int4(c) from t",
-            "select varchar(a), numeric(b), int4(c) from t",
-        );
+        assert_fixed("select varchar(a), numeric(b), int4(c) from t", "select varchar(a), numeric(b), int4(c) from t");
     }
 
     #[test]
     fn keeps_distinct_constraint_parens() {
-        assert_fixed(
-            "create table t (fld int, unique nulls not distinct (fld))",
-            "create table t (fld int, unique nulls not distinct (fld))",
-        );
-        assert_fixed(
-            "create unique index i on t (fld) nulls not distinct",
-            "create unique index i on t (fld) nulls not distinct",
-        );
+        assert_fixed("create table t (fld int, unique nulls not distinct (fld))", "create table t (fld int, unique nulls not distinct (fld))");
+        assert_fixed("create unique index i on t (fld) nulls not distinct", "create unique index i on t (fld) nulls not distinct");
         assert_fixed("select distinct(a) from t", "select distinct a from t");
     }
 
     #[test]
     fn hugs_named_arguments() {
-        assert_fixed(
-            "create table t (a int) with (fillfactor = 70)",
-            "create table t (a int) with (fillfactor=70)",
-        );
-        assert_fixed(
-            "alter table t set (parameter_1 = 'value')",
-            "alter table t set (parameter_1='value')",
-        );
-        assert_fixed(
-            "select foo(a = 1, b = 2) from t",
-            "select foo(a=1, b=2) from t",
-        );
-        assert_fixed(
-            "alter table t set (opt1, opt2=5, ns.opt5=6, opt7=asc)",
-            "alter table t set (opt1, opt2=5, ns.opt5=6, opt7=asc)",
-        );
-        assert_fixed(
-            "alter table t set (opt1, opt2 = 5, ns.opt5 = 6, opt7 = asc)",
-            "alter table t set (opt1, opt2=5, ns.opt5=6, opt7=asc)",
-        );
-        assert_fixed(
-            "create table t (a int) with (arg1=3, arg5='str')",
-            "create table t (a int) with (arg1=3, arg5='str')",
-        );
-        assert_fixed(
-            "select a from t where t.a = 1",
-            "select a from t where t.a = 1",
-        );
-        assert_fixed(
-            "select a from t where a = 1 and b = 2",
-            "select a from t where a = 1 and b = 2",
-        );
+        assert_fixed("create table t (a int) with (fillfactor = 70)", "create table t (a int) with (fillfactor=70)");
+        assert_fixed("alter table t set (parameter_1 = 'value')", "alter table t set (parameter_1='value')");
+        assert_fixed("select foo(a = 1, b = 2) from t", "select foo(a=1, b=2) from t");
+        assert_fixed("alter table t set (opt1, opt2=5, ns.opt5=6, opt7=asc)", "alter table t set (opt1, opt2=5, ns.opt5=6, opt7=asc)");
+        assert_fixed("alter table t set (opt1, opt2 = 5, ns.opt5 = 6, opt7 = asc)", "alter table t set (opt1, opt2=5, ns.opt5=6, opt7=asc)");
+        assert_fixed("create table t (a int) with (arg1=3, arg5='str')", "create table t (a int) with (arg1=3, arg5='str')");
+        assert_fixed("select a from t where t.a = 1", "select a from t where t.a = 1");
+        assert_fixed("select a from t where a = 1 and b = 2", "select a from t where a = 1 and b = 2");
     }
 
     #[test]
     fn spaces_keyword_parentheses_and_hugs_calls() {
-        assert_fixed(
-            "select a from t where a in(1, 2, 3)",
-            "select a from t where a in (1, 2, 3)",
-        );
+        assert_fixed("select a from t where a in(1, 2, 3)", "select a from t where a in (1, 2, 3)");
         assert_fixed(
             "create table t (a int check(a > 0), unique(a), b varchar (10))",
             "create table t (a int check (a > 0), unique (a), b varchar(10))",
@@ -2514,22 +2086,10 @@ mod tests {
             "create table t (a int, primary key(a), foreign key(a) references u(a))",
             "create table t (a int, primary key (a), foreign key (a) references u (a))",
         );
-        assert_fixed(
-            "create index i on t using gin(a) include(b)",
-            "create index i on t using gin (a) include (b)",
-        );
-        assert_fixed(
-            "explain(analyze true, buffers false) select 1",
-            "explain (analyze true, buffers false) select 1",
-        );
-        assert_fixed(
-            "select left(lower(name), 1), right(code, 2) from t",
-            "select left(lower(name), 1), right(code, 2) from t",
-        );
-        assert_fixed(
-            "create table t (a int default (1 + 2))",
-            "create table t (a int default (1 + 2))",
-        );
+        assert_fixed("create index i on t using gin(a) include(b)", "create index i on t using gin (a) include (b)");
+        assert_fixed("explain(analyze true, buffers false) select 1", "explain (analyze true, buffers false) select 1");
+        assert_fixed("select left(lower(name), 1), right(code, 2) from t", "select left(lower(name), 1), right(code, 2) from t");
+        assert_fixed("create table t (a int default (1 + 2))", "create table t (a int default (1 + 2))");
         assert_fixed(
             "create table t (a int generated always as identity (increment 4))",
             "create table t (a int generated always as identity (increment 4))",
@@ -2546,35 +2106,17 @@ mod tests {
             "create table t (a int null, b int not null, c int default null)",
             "create table t (a int, b int not null, c int default null)",
         );
-        assert_fixed(
-            "select a from t order by a asc nulls last",
-            "select a from t order by a",
-        );
-        assert_fixed(
-            "select a from t order by a desc nulls first",
-            "select a from t order by a desc",
-        );
+        assert_fixed("select a from t order by a asc nulls last", "select a from t order by a");
+        assert_fixed("select a from t order by a desc nulls first", "select a from t order by a desc");
         assert_fixed("create index i on t (a asc)", "create index i on t (a)");
         assert_fixed(
             "create table t (a int references u (b) match simple not deferrable initially immediate)",
             "create table t (a int references u (b))",
         );
-        assert_fixed(
-            "create table t (a int) on commit preserve rows",
-            "create table t (a int)",
-        );
-        assert_fixed(
-            "create table t (a text storage default, b text compression default)",
-            "create table t (a text, b text)",
-        );
-        assert_fixed(
-            "create table t (a int) without oids",
-            "create table t (a int)",
-        );
-        assert_fixed(
-            "create table t as select 1 with data",
-            "create table t as select 1",
-        );
+        assert_fixed("create table t (a int) on commit preserve rows", "create table t (a int)");
+        assert_fixed("create table t (a text storage default, b text compression default)", "create table t (a text, b text)");
+        assert_fixed("create table t (a int) without oids", "create table t (a int)");
+        assert_fixed("create table t as select 1 with data", "create table t as select 1");
     }
 
     #[test]

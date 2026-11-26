@@ -1,9 +1,7 @@
 //! 文档与块：`.sql` 整个文件是一块；`.py` 只认模块级 `SQL = """..."""` 常量。
 
 /// 模块级 `SQL = """` 的起点；只匹配行首，避免抓函数里的局部量。
-static PYTHON_SQL: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-    regex::Regex::new(r#"(?m)^SQL\s*=\s*""""#).expect("valid SQL constant pattern")
-});
+static PYTHON_SQL: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new(r#"(?m)^SQL\s*=\s*""""#).expect("valid SQL constant pattern"));
 
 /// 一个源文件及其中的 SQL 块；块区间是文件字节坐标。
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -26,14 +24,10 @@ impl Document {
             Some("sql") => sql_blocks(&text),
             Some("py") => python_blocks(&text),
             Some(other) => {
-                return Err(crate::error::Error::Unsupported(format!(
-                    "unsupported extension: {other}"
-                )));
+                return Err(crate::error::Error::Unsupported(format!("unsupported extension: {other}")));
             }
             None => {
-                return Err(crate::error::Error::Unsupported(
-                    "file has no extension".to_owned(),
-                ));
+                return Err(crate::error::Error::Unsupported("file has no extension".to_owned()));
             }
         };
         Ok(Self { path, text, blocks })
@@ -61,9 +55,7 @@ impl Document {
     /// 1 基行列换算成字节偏移；越界返回错误。
     pub fn offset(&self, line: usize, column: usize) -> crate::error::Result<usize> {
         if line == 0 || column == 0 {
-            return Err(crate::error::Error::Rejected(
-                "line and column are 1-based".to_owned(),
-            ));
+            return Err(crate::error::Error::Rejected("line and column are 1-based".to_owned()));
         }
         let mut current_line = 1;
         let mut current_column = 1;
@@ -81,39 +73,27 @@ impl Document {
         if current_line == line && current_column == column {
             return Ok(self.text.len());
         }
-        Err(crate::error::Error::Rejected(format!(
-            "offset out of range: {line}:{column}"
-        )))
+        Err(crate::error::Error::Rejected(format!("offset out of range: {line}:{column}")))
     }
 
     /// 解析 `L:C-L:C` 形式的范围；结束列是开区间。
     pub fn parse_range(&self, spec: &str) -> crate::error::Result<crate::span::Span> {
-        let (start, end) = spec
-            .split_once('-')
-            .ok_or_else(|| crate::error::Error::Rejected(format!("invalid range: {spec}")))?;
+        let (start, end) = spec.split_once('-').ok_or_else(|| crate::error::Error::Rejected(format!("invalid range: {spec}")))?;
         let (start_line, start_column) = parse_position(start)?;
         let (end_line, end_column) = parse_position(end)?;
         let start_offset = self.offset(start_line, start_column)?;
         let end_offset = self.offset(end_line, end_column)?;
         if start_offset > end_offset {
-            return Err(crate::error::Error::Rejected(format!(
-                "range starts after it ends: {spec}"
-            )));
+            return Err(crate::error::Error::Rejected(format!("range starts after it ends: {spec}")));
         }
         Ok(crate::span::Span::new(start_offset, end_offset))
     }
 }
 
 fn parse_position(spec: &str) -> crate::error::Result<(usize, usize)> {
-    let (line, column) = spec
-        .split_once(':')
-        .ok_or_else(|| crate::error::Error::Rejected(format!("invalid position: {spec}")))?;
-    let line = line
-        .parse::<usize>()
-        .map_err(|_| crate::error::Error::Rejected(format!("invalid line: {line}")))?;
-    let column = column
-        .parse::<usize>()
-        .map_err(|_| crate::error::Error::Rejected(format!("invalid column: {column}")))?;
+    let (line, column) = spec.split_once(':').ok_or_else(|| crate::error::Error::Rejected(format!("invalid position: {spec}")))?;
+    let line = line.parse::<usize>().map_err(|_| crate::error::Error::Rejected(format!("invalid line: {line}")))?;
+    let column = column.parse::<usize>().map_err(|_| crate::error::Error::Rejected(format!("invalid column: {column}")))?;
     Ok((line, column))
 }
 
@@ -124,11 +104,7 @@ fn sql_blocks(text: &str) -> Vec<crate::model::Block> {
     }
     let start = text.len() - text.trim_start_matches('\n').len();
     let span = crate::span::Span::new(start, start + trimmed.len());
-    vec![crate::model::Block {
-        span,
-        text: trimmed.to_owned(),
-        language: crate::model::Language::Sql,
-    }]
+    vec![crate::model::Block { span, text: trimmed.to_owned(), language: crate::model::Language::Sql }]
 }
 
 fn python_blocks(text: &str) -> Vec<crate::model::Block> {
@@ -160,9 +136,7 @@ mod tests {
     #[test]
     fn extracts_python_sql_constant() {
         let text = "SQL = \"\"\"\nselect a from t\n\"\"\"\n";
-        let document =
-            crate::source::Document::from_text(std::path::PathBuf::from("q.py"), text.to_owned())
-                .expect("load");
+        let document = crate::source::Document::from_text(std::path::PathBuf::from("q.py"), text.to_owned()).expect("load");
         assert_eq!(document.blocks.len(), 1);
         assert_eq!(document.blocks[0].text, "select a from t");
         assert_eq!(document.blocks[0].span, crate::span::Span::new(10, 25));
@@ -171,18 +145,14 @@ mod tests {
     #[test]
     fn ignores_indented_local_sql() {
         let text = "def f():\n    SQL = \"\"\"\nselect 1\n\"\"\"\n";
-        let document =
-            crate::source::Document::from_text(std::path::PathBuf::from("q.py"), text.to_owned())
-                .expect("load");
+        let document = crate::source::Document::from_text(std::path::PathBuf::from("q.py"), text.to_owned()).expect("load");
         assert!(document.blocks.is_empty());
     }
 
     #[test]
     fn trims_only_newlines_on_sql_files() {
         let text = "\nselect 1\n";
-        let document =
-            crate::source::Document::from_text(std::path::PathBuf::from("q.sql"), text.to_owned())
-                .expect("load");
+        let document = crate::source::Document::from_text(std::path::PathBuf::from("q.sql"), text.to_owned()).expect("load");
         assert_eq!(document.blocks[0].text, "select 1");
         assert_eq!(document.blocks[0].span, crate::span::Span::new(1, 9));
     }
@@ -190,14 +160,9 @@ mod tests {
     #[test]
     fn converts_line_and_column() {
         let text = "select 1\nfrom t\n";
-        let document =
-            crate::source::Document::from_text(std::path::PathBuf::from("q.sql"), text.to_owned())
-                .expect("load");
+        let document = crate::source::Document::from_text(std::path::PathBuf::from("q.sql"), text.to_owned()).expect("load");
         assert_eq!(document.line_col(9), (2, 1));
         assert_eq!(document.offset(2, 1).expect("offset"), 9);
-        assert_eq!(
-            document.parse_range("2:1-3:1").expect("range"),
-            crate::span::Span::new(9, 16)
-        );
+        assert_eq!(document.parse_range("2:1-3:1").expect("range"), crate::span::Span::new(9, 16));
     }
 }

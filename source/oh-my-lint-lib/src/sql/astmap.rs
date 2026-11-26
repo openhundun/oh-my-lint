@@ -22,11 +22,7 @@ pub struct Structure {
 pub fn structure(sql: &str, dialect: Dialect) -> Option<Structure> {
     let statements = crate::sql::parse::parse(sql, dialect).ok()?;
     let index = crate::sql::lexer::LineIndex::new(sql);
-    let mut collector = QueryCollector {
-        sql,
-        index: &index,
-        spans: Vec::new(),
-    };
+    let mut collector = QueryCollector { sql, index: &index, spans: Vec::new() };
     for statement in &statements {
         let _ = statement.visit(&mut collector);
     }
@@ -41,20 +37,13 @@ impl Structure {
     ///
     /// 根查询必须从语句起点开始，否则返回 `None`，由调用方回退到文本扫描。
     pub fn blocks(&self, statement: Span, statement_text: &str) -> Option<Vec<Span>> {
-        let mut queries: Vec<Span> = self
-            .queries
-            .iter()
-            .filter(|query| statement.start <= query.start && query.end <= statement.end)
-            .copied()
-            .collect();
+        let mut queries: Vec<Span> = self.queries.iter().filter(|query| statement.start <= query.start && query.end <= statement.end).copied().collect();
         queries.sort();
         let root = *queries.first()?;
         if root.start != statement.start {
             return None;
         }
-        let lexical = crate::sql::lexer::with_dialect(self.dialect, || {
-            crate::sql::splitter::all_statements(statement_text)
-        });
+        let lexical = crate::sql::lexer::with_dialect(self.dialect, || crate::sql::splitter::all_statements(statement_text));
         let mut blocks: Vec<Span> = queries
             .into_iter()
             .filter(|query| query.start > root.start)
@@ -63,10 +52,7 @@ impl Structure {
                 let end = lexical
                     .iter()
                     .find(|block| block.start == start)
-                    .map_or_else(
-                        || trailing_paren(statement_text, query.end - statement.start),
-                        |block| block.end,
-                    );
+                    .map_or_else(|| trailing_paren(statement_text, query.end - statement.start), |block| block.end);
                 Span::new(start, end)
             })
             .collect();
@@ -84,11 +70,7 @@ fn trailing_paren(text: &str, end: usize) -> usize {
     while index < bytes.len() && bytes[index].is_ascii_whitespace() {
         index += 1;
     }
-    if index < bytes.len() && bytes[index] == b')' {
-        index
-    } else {
-        end
-    }
+    if index < bytes.len() && bytes[index] == b')' { index } else { end }
 }
 
 struct QueryCollector<'a> {
@@ -121,11 +103,7 @@ mod tests {
         let sql = "with c as (select a from t) select * from c where x in (select y from u)";
         let structure = structure_of(sql);
         assert_eq!(structure.queries.len(), 3);
-        let texts: Vec<&str> = structure
-            .queries
-            .iter()
-            .map(|span| &sql[span.start..span.end])
-            .collect();
+        let texts: Vec<&str> = structure.queries.iter().map(|span| &sql[span.start..span.end]).collect();
         assert!(texts.iter().any(|text| text.starts_with("with c as")));
         assert!(texts.iter().any(|text| text.starts_with("select a")));
         assert!(texts.iter().any(|text| text.starts_with("select y")));
@@ -136,10 +114,7 @@ mod tests {
         let sql = "select '中文' from t";
         let structure = structure_of(sql);
         assert_eq!(structure.queries.len(), 1);
-        assert_eq!(
-            &sql[structure.queries[0].start..structure.queries[0].end],
-            sql
-        );
+        assert_eq!(&sql[structure.queries[0].start..structure.queries[0].end], sql);
     }
 
     #[test]
@@ -147,14 +122,9 @@ mod tests {
         let sql = "select a from (select b from t) x";
         let structure = structure_of(sql);
         let statement = crate::sql::splitter::statements(sql)[0];
-        let blocks = structure
-            .blocks(statement, &sql[statement.start..statement.end])
-            .expect("blocks");
+        let blocks = structure.blocks(statement, &sql[statement.start..statement.end]).expect("blocks");
         assert_eq!(blocks.len(), 2);
-        assert_eq!(
-            &sql[statement.start + blocks[1].start..statement.start + blocks[1].end],
-            "select b from t"
-        );
+        assert_eq!(&sql[statement.start + blocks[1].start..statement.start + blocks[1].end], "select b from t");
     }
 
     #[test]

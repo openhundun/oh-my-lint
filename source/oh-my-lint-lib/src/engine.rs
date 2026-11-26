@@ -61,11 +61,7 @@ impl Engine {
             for rule in &self.rules {
                 let fixable = rule.fix(block).is_some();
                 for finding in rule.check(block) {
-                    found.push(LocatedFinding {
-                        block_span: block.span,
-                        finding,
-                        fixable,
-                    });
+                    found.push(LocatedFinding { block_span: block.span, finding, fixable });
                 }
             }
         }
@@ -76,12 +72,7 @@ impl Engine {
     ///
     /// 块级模式只应用 `FixScope::Local`；其余修复进入 `skipped`，由调用方升级到
     /// `--whole-file`（后续版本）或人工处理。
-    pub fn fix(
-        &self,
-        document: &crate::source::Document,
-        range: Option<crate::span::Span>,
-        allow_unsafe: bool,
-    ) -> Vec<BlockFix> {
+    pub fn fix(&self, document: &crate::source::Document, range: Option<crate::span::Span>, allow_unsafe: bool) -> Vec<BlockFix> {
         let mut fixes = Vec::new();
         for block in &document.blocks {
             if let Some(range) = range
@@ -102,33 +93,20 @@ impl Engine {
         let mut skipped = Vec::new();
 
         for rule in &self.rules {
-            let candidate = crate::model::Block {
-                span: crate::span::Span::default(),
-                text: current.clone(),
-                language: block.language,
-            };
+            let candidate = crate::model::Block { span: crate::span::Span::default(), text: current.clone(), language: block.language };
             if let Err(error) = rule.can_fix(&candidate) {
-                skipped.push(Skipped {
-                    rule: rule.id().to_owned(),
-                    reason: error.to_string(),
-                });
+                skipped.push(Skipped { rule: rule.id().to_owned(), reason: error.to_string() });
                 continue;
             }
             let Some(fix) = rule.fix(&candidate) else {
                 continue;
             };
             if fix.scope != crate::model::FixScope::Local {
-                skipped.push(Skipped {
-                    rule: rule.id().to_owned(),
-                    reason: format!("{:?} fix needs file or workspace context", fix.scope),
-                });
+                skipped.push(Skipped { rule: rule.id().to_owned(), reason: format!("{:?} fix needs file or workspace context", fix.scope) });
                 continue;
             }
             if fix.safety == crate::model::FixSafety::Unsafe && !allow_unsafe {
-                skipped.push(Skipped {
-                    rule: rule.id().to_owned(),
-                    reason: "unsafe fix; pass --unsafe".to_owned(),
-                });
+                skipped.push(Skipped { rule: rule.id().to_owned(), reason: "unsafe fix; pass --unsafe".to_owned() });
                 continue;
             }
             match apply_edits(&current, &fix.edits) {
@@ -137,10 +115,7 @@ impl Engine {
                     applied.push(rule.id().to_owned());
                 }
                 Ok(_) => {}
-                Err(reason) => skipped.push(Skipped {
-                    rule: rule.id().to_owned(),
-                    reason,
-                }),
+                Err(reason) => skipped.push(Skipped { rule: rule.id().to_owned(), reason }),
             }
         }
 
@@ -148,40 +123,16 @@ impl Engine {
             return None;
         }
 
-        let fixed_block = crate::model::Block {
-            span: crate::span::Span::default(),
-            text: current.clone(),
-            language: block.language,
-        };
-        let remaining = self
-            .rules
-            .iter()
-            .flat_map(|rule| rule.check(&fixed_block))
-            .collect();
-        Some(BlockFix {
-            block_span: block.span,
-            original: block.text.clone(),
-            fixed: current,
-            applied,
-            skipped,
-            remaining,
-        })
+        let fixed_block = crate::model::Block { span: crate::span::Span::default(), text: current.clone(), language: block.language };
+        let remaining = self.rules.iter().flat_map(|rule| rule.check(&fixed_block)).collect();
+        Some(BlockFix { block_span: block.span, original: block.text.clone(), fixed: current, applied, skipped, remaining })
     }
 }
 
 /// 按偏移倒序应用文本编辑；任何越界都拒绝整条修复，避免半截改动。
-pub fn apply_edits(
-    text: &str,
-    edits: &[crate::model::TextEdit],
-) -> std::result::Result<String, String> {
+pub fn apply_edits(text: &str, edits: &[crate::model::TextEdit]) -> std::result::Result<String, String> {
     let mut ordered = edits.to_vec();
-    ordered.sort_by(|left, right| {
-        right
-            .span
-            .start
-            .cmp(&left.span.start)
-            .then(right.span.end.cmp(&left.span.end))
-    });
+    ordered.sort_by(|left, right| right.span.start.cmp(&left.span.start).then(right.span.end.cmp(&left.span.end)));
     let mut output = text.to_owned();
     for edit in ordered {
         if edit.span.end > output.len() || edit.span.start > edit.span.end {
@@ -206,12 +157,7 @@ pub struct FileFix {
 
 impl Engine {
     /// 把块修复结果映射到文件；不写盘，由 CLI 决定 `--write` / `--diff`。
-    pub fn apply(
-        &self,
-        document: &crate::source::Document,
-        range: Option<crate::span::Span>,
-        allow_unsafe: bool,
-    ) -> Vec<FileFix> {
+    pub fn apply(&self, document: &crate::source::Document, range: Option<crate::span::Span>, allow_unsafe: bool) -> Vec<FileFix> {
         self.fix(document, range, allow_unsafe)
             .into_iter()
             .map(|fix| FileFix {
@@ -238,5 +184,13 @@ pub fn splice(text: &str, fixes: &[FileFix]) -> String {
         }
         output.replace_range(fix.block_span.start..fix.block_span.end, &fix.fixed);
     }
-    output
+    normalize_file_end(&output)
+}
+
+/// 文件以单个换行结尾；块内文本由 SQL 规则负责其余空白。
+pub fn normalize_file_end(text: &str) -> String {
+    if text.is_empty() {
+        return String::new();
+    }
+    format!("{}\n", text.trim_end_matches(['\n', '\r']))
 }

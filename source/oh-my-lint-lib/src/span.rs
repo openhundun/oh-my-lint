@@ -1,18 +1,7 @@
 //! 字节区间：所有规则、编辑与文档映射共用的一种坐标。
 
 /// 源码里的半开字节区间 `[start, end)`。
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    serde::Deserialize,
-    serde::Serialize,
-)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd, serde::Deserialize, serde::Serialize)]
 pub struct Span {
     pub start: usize,
     pub end: usize,
@@ -21,14 +10,7 @@ pub struct Span {
 impl Span {
     /// 构造一个区间；`start` 大于 `end` 时交换两端。
     pub fn new(start: usize, end: usize) -> Self {
-        if start <= end {
-            Self { start, end }
-        } else {
-            Self {
-                start: end,
-                end: start,
-            }
-        }
+        if start <= end { Self { start, end } } else { Self { start: end, end: start } }
     }
 
     /// 长度为 0 的区间，常用于插入点。
@@ -64,18 +46,12 @@ impl Span {
 
     /// 平移到另一段文本的坐标系。
     pub fn shift(&self, offset: usize) -> Self {
-        Self {
-            start: self.start + offset,
-            end: self.end + offset,
-        }
+        Self { start: self.start + offset, end: self.end + offset }
     }
 
     /// 截断到 `limit` 之内。
     pub fn clamp(&self, limit: usize) -> Self {
-        Self {
-            start: self.start.min(limit),
-            end: self.end.min(limit),
-        }
+        Self { start: self.start.min(limit), end: self.end.min(limit) }
     }
 }
 

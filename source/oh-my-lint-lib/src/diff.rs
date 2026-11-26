@@ -7,10 +7,7 @@ pub fn unified(path: &str, original: &str, fixed: &str) -> String {
     }
     let diff = similar::TextDiff::from_lines(original, fixed);
     let display = path.trim_start_matches('/');
-    diff.unified_diff()
-        .header(&format!("a/{display}"), &format!("b/{display}"))
-        .context_radius(3)
-        .to_string()
+    diff.unified_diff().header(&format!("a/{display}"), &format!("b/{display}")).context_radius(3).to_string()
 }
 
 #[cfg(test)]

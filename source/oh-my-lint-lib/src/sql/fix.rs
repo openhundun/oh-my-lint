@@ -34,41 +34,22 @@ pub fn format_with(sql: &str, dialect: crate::sql::parse::Dialect) -> crate::err
     crate::sql::lexer::with_dialect(dialect, || format_with_inner(sql, dialect))
 }
 
-fn format_with_inner(
-    sql: &str,
-    dialect: crate::sql::parse::Dialect,
-) -> crate::error::Result<String> {
+fn format_with_inner(sql: &str, dialect: crate::sql::parse::Dialect) -> crate::error::Result<String> {
     if crate::sql::lexer::has_comment(sql) {
-        return Err(crate::error::Error::Rejected(
-            "comments are not supported in fix mode".to_owned(),
-        ));
+        return Err(crate::error::Error::Rejected("comments are not supported in fix mode".to_owned()));
     }
     let initial = crate::sql::checker::violations_with(sql, dialect);
-    if let Some(violation) = initial
-        .iter()
-        .find(|violation| !SUPPORTED_FIXES.contains(&violation.kind))
-    {
-        return Err(crate::error::Error::Rejected(format!(
-            "{} layout is not supported yet",
-            violation.kind
-        )));
+    if let Some(violation) = initial.iter().find(|violation| !SUPPORTED_FIXES.contains(&violation.kind)) {
+        return Err(crate::error::Error::Rejected(format!("{} layout is not supported yet", violation.kind)));
     }
     let mut current = sql.to_owned();
     for _ in 0..256 {
         let found = crate::sql::checker::violations_with(&current, dialect);
-        let Some(violation) = found.iter().min_by_key(|violation| {
-            (
-                violation.span.start,
-                std::cmp::Reverse(violation.span.len()),
-            )
-        }) else {
+        let Some(violation) = found.iter().min_by_key(|violation| (violation.span.start, std::cmp::Reverse(violation.span.len()))) else {
             break;
         };
         let Some(replacement) = render(&current, violation) else {
-            return Err(crate::error::Error::Rejected(format!(
-                "{} layout cannot be rendered in this context",
-                violation.kind
-            )));
+            return Err(crate::error::Error::Rejected(format!("{} layout cannot be rendered in this context", violation.kind)));
         };
         if replacement == current[violation.span.start..violation.span.end] {
             break;
@@ -167,20 +148,14 @@ fn render(text: &str, violation: &crate::sql::checker::Violation) -> Option<Stri
             let mut lines: Vec<String> = Vec::new();
             if matches!(violation.kind, "where" | "having") {
                 let oracle = elements.get(1).or_else(|| elements.first());
-                let anchor = if oracle
-                    .is_some_and(|element| element.connector == crate::sql::splitter::Connector::Or)
-                {
+                let anchor = if oracle.is_some_and(|element| element.connector == crate::sql::splitter::Connector::Or) {
                     "1 = 0"
                 } else {
                     "1 = 1"
                 };
                 lines.push(anchor.to_owned());
                 for element in &elements {
-                    lines.push(format!(
-                        "{} {}",
-                        crate::sql::decision::connector_word(element.connector),
-                        element.text
-                    ));
+                    lines.push(format!("{} {}", crate::sql::decision::connector_word(element.connector), element.text));
                 }
             } else {
                 for (index, element) in elements.iter().enumerate() {
@@ -189,11 +164,7 @@ fn render(text: &str, violation: &crate::sql::checker::Violation) -> Option<Stri
                 }
             }
             let padding = " ".repeat(base);
-            let content = lines
-                .iter()
-                .map(|line| format!("{padding}{line}"))
-                .collect::<Vec<_>>()
-                .join("\n");
+            let content = lines.iter().map(|line| format!("{padding}{line}")).collect::<Vec<_>>().join("\n");
             let suffix = if has_next {
                 let indent = violation.next_indent.unwrap_or(violation.indent);
                 format!("\n{}", " ".repeat(indent))
@@ -202,10 +173,7 @@ fn render(text: &str, violation: &crate::sql::checker::Violation) -> Option<Stri
             };
             if matches!(violation.kind, "where" | "having") {
                 let anchor = &lines[0];
-                Some(format!(
-                    " {anchor}\n{content}{suffix}",
-                    content = content.split_once('\n').map(|(_, rest)| rest).unwrap_or("")
-                ))
+                Some(format!(" {anchor}\n{content}{suffix}", content = content.split_once('\n').map(|(_, rest)| rest).unwrap_or("")))
             } else {
                 Some(format!("\n{content}{suffix}"))
             }
@@ -272,29 +240,13 @@ fn render_group(text: &str, violation: &crate::sql::checker::Violation) -> Optio
         crate::sql::checker::Mode::Break => {
             let pad = " ".repeat(violation.indent);
             let padding = " ".repeat(violation.indent + 4);
-            let anchor = if connective == crate::sql::splitter::Connector::Or {
-                "1 = 0"
-            } else {
-                "1 = 1"
-            };
+            let anchor = if connective == crate::sql::splitter::Connector::Or { "1 = 0" } else { "1 = 1" };
             let mut lines = vec![anchor.to_owned()];
             for (index, element) in elements.iter().enumerate() {
-                let connector = if index == 0 {
-                    connective
-                } else {
-                    element.connector
-                };
-                lines.push(format!(
-                    "{} {}",
-                    crate::sql::decision::connector_word(connector),
-                    element.text
-                ));
+                let connector = if index == 0 { connective } else { element.connector };
+                lines.push(format!("{} {}", crate::sql::decision::connector_word(connector), element.text));
             }
-            let content = lines
-                .iter()
-                .map(|line| format!("{padding}{line}"))
-                .collect::<Vec<_>>()
-                .join("\n");
+            let content = lines.iter().map(|line| format!("{padding}{line}")).collect::<Vec<_>>().join("\n");
             Some(format!("\n{content}\n{pad}"))
         }
         crate::sql::checker::Mode::Inline => {
@@ -390,11 +342,7 @@ fn render_subquery(text: &str, violation: &crate::sql::checker::Violation) -> Op
         return None;
     }
     let clauses = crate::sql::splitter::clause_spans(block);
-    if clauses.is_empty()
-        || clauses
-            .iter()
-            .any(|clause| crate::sql::splitter::SET_OPERATORS.contains(&clause.kind))
-    {
+    if clauses.is_empty() || clauses.iter().any(|clause| crate::sql::splitter::SET_OPERATORS.contains(&clause.kind)) {
         return None;
     }
     let padding = " ".repeat(violation.indent + 4);
@@ -422,10 +370,7 @@ fn render_from_join(text: &str, violation: &crate::sql::checker::Violation) -> O
     let clause = body.trim();
     let pad = " ".repeat(violation.indent);
     let at_line_start = violation.span.start == 0 || text[..violation.span.start].ends_with('\n');
-    Some(format!(
-        "{}{pad}{clause}",
-        if at_line_start { "" } else { "\n" }
-    ))
+    Some(format!("{}{pad}{clause}", if at_line_start { "" } else { "\n" }))
 }
 
 /// 首表原在下一行时，重排整个 `from` 正文。
@@ -437,9 +382,7 @@ fn render_from_body(body: &str, indent: usize) -> Option<String> {
         match token.kind {
             crate::sql::lexer::Kind::Punct if token.text == "(" => depth += 1,
             crate::sql::lexer::Kind::Punct if token.text == ")" => depth -= 1,
-            crate::sql::lexer::Kind::Word
-                if depth == 0 && token.text.eq_ignore_ascii_case("join") =>
-            {
+            crate::sql::lexer::Kind::Word if depth == 0 && token.text.eq_ignore_ascii_case("join") => {
                 let mut start = token.start;
                 let mut probe = index;
                 while probe > 0 {
@@ -448,9 +391,7 @@ fn render_from_body(body: &str, indent: usize) -> Option<String> {
                     if previous.kind == crate::sql::lexer::Kind::Whitespace {
                         continue;
                     }
-                    if previous.kind == crate::sql::lexer::Kind::Word
-                        && crate::sql::splitter::is_join_modifier(previous.text)
-                    {
+                    if previous.kind == crate::sql::lexer::Kind::Word && crate::sql::splitter::is_join_modifier(previous.text) {
                         start = previous.start;
                         continue;
                     }
@@ -492,20 +433,14 @@ fn starts_with_word(text: &str, word: &str) -> bool {
     let Some(rest) = text.trim_start().strip_prefix(word) else {
         return false;
     };
-    rest.chars().next().is_none_or(|character| {
-        !(character.is_alphanumeric() || character == '_' || character == '$')
-    })
+    rest.chars().next().is_none_or(|character| !(character.is_alphanumeric() || character == '_' || character == '$'))
 }
 
 #[cfg(test)]
 mod tests {
     /// `fix::format` 只渲染语句，不补块级分号；检查前补上 R26 的终止符。
     fn check_complete(sql: &str) -> bool {
-        let text = if sql.trim_end().ends_with(';') {
-            sql.to_owned()
-        } else {
-            format!("{sql};")
-        };
+        let text = if sql.trim_end().ends_with(';') { sql.to_owned() } else { format!("{sql};") };
         crate::sql::check(&text).is_empty()
     }
 
@@ -522,10 +457,7 @@ mod tests {
     fn inlines_three_conditions() {
         let sql = "select a from t where\n    1 = 1\n    and a = 1\n    and b = 2\n    and c = 3\n";
         let fixed = crate::sql::format(sql).expect("format");
-        assert_eq!(
-            fixed.trim(),
-            "select a\nfrom t\nwhere a = 1 and b = 2 and c = 3;"
-        );
+        assert_eq!(fixed.trim(), "select a\nfrom t\nwhere a = 1 and b = 2 and c = 3;");
         assert!(check_complete(&fixed), "{fixed}");
     }
 
@@ -612,10 +544,7 @@ mod tests {
     fn breaks_set_operation_lines() {
         let sql = "select a from t1 union all select b from t2";
         let fixed = crate::sql::fix::format(sql).expect("format");
-        assert!(
-            fixed.contains("select a from t1\nunion all\nselect b from t2"),
-            "{fixed}"
-        );
+        assert!(fixed.contains("select a from t1\nunion all\nselect b from t2"), "{fixed}");
         assert!(check_complete(&fixed), "{fixed}");
         assert_eq!(crate::sql::fix::format(&fixed).expect("second"), fixed);
     }
@@ -624,10 +553,7 @@ mod tests {
     fn strips_set_operation_branch_parens() {
         let sql = "select a from t1 except (select a from t2)";
         let fixed = crate::sql::fix::format(sql).expect("format");
-        assert!(
-            fixed.contains("select a from t1\nexcept\nselect a from t2"),
-            "{fixed}"
-        );
+        assert!(fixed.contains("select a from t1\nexcept\nselect a from t2"), "{fixed}");
         assert!(check_complete(&fixed), "{fixed}");
     }
 
@@ -635,10 +561,7 @@ mod tests {
     fn expands_rollup_arguments() {
         let sql = "select a from t group by rollup(a, b, c, d)";
         let fixed = crate::sql::fix::format(sql).expect("format");
-        assert!(
-            fixed.contains("rollup(\n    a,\n    b,\n    c,\n    d\n)"),
-            "{fixed}"
-        );
+        assert!(fixed.contains("rollup(\n    a,\n    b,\n    c,\n    d\n)"), "{fixed}");
         assert!(check_complete(&fixed), "{fixed}");
     }
 
@@ -646,10 +569,7 @@ mod tests {
     fn lays_out_with_frame() {
         let sql = "with x as (select a from t) select a from x";
         let fixed = crate::sql::fix::format(sql).expect("format");
-        assert!(
-            fixed.contains("with\nx as (select a from t)\nselect a\nfrom x"),
-            "{fixed}"
-        );
+        assert!(fixed.contains("with\nx as (select a from t)\nselect a\nfrom x"), "{fixed}");
         assert!(check_complete(&fixed), "{fixed}");
         assert_eq!(crate::sql::fix::format(&fixed).expect("second"), fixed);
     }

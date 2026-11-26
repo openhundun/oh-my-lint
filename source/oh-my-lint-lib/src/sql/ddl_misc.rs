@@ -67,27 +67,17 @@ pub(crate) fn layout(sql: &str, dialect: Dialect) -> Option<String> {
         LayoutKind::CreateTableAs => render_ctas(statement, dialect)?,
     };
     let output = output.trim().to_owned();
-    if output.is_empty() {
-        None
-    } else {
-        Some(output)
-    }
+    if output.is_empty() { None } else { Some(output) }
 }
 
 /// 只看语句开头：`create [unique|fulltext|spatial] index`、`alter table`、
 /// 带顶层 `as` 的 `create ... table`；其余返回 `None`。
 fn detect_kind(statement: &str) -> Option<LayoutKind> {
     let all = tokens(statement);
-    let flat: Vec<Token> = all
-        .into_iter()
-        .filter(|token| token.kind != Kind::Whitespace)
-        .collect();
+    let flat: Vec<Token> = all.into_iter().filter(|token| token.kind != Kind::Whitespace).collect();
     if word_is(flat.first(), "create") {
         let mut index = 1;
-        if word_is(flat.get(index), "unique")
-            || word_is(flat.get(index), "fulltext")
-            || word_is(flat.get(index), "spatial")
-        {
+        if word_is(flat.get(index), "unique") || word_is(flat.get(index), "fulltext") || word_is(flat.get(index), "spatial") {
             index += 1;
         }
         if word_is(flat.get(index), "index") {
@@ -109,29 +99,20 @@ fn render_index(statement: &str) -> String {
 /// D7：`alter table <name>` 与顶层 action 分离；1–2 个 action 同行，3 个以上逐行。
 fn render_alter(statement: &str) -> Option<String> {
     let all = tokens(statement);
-    let flat: Vec<Token> = all
-        .into_iter()
-        .filter(|token| token.kind != Kind::Whitespace)
-        .collect();
+    let flat: Vec<Token> = all.into_iter().filter(|token| token.kind != Kind::Whitespace).collect();
     let header_end = alter_header_end(&flat)?;
     let header = space_parens(&inline(statement[..header_end].trim()));
     let rest = statement[header_end..].trim();
     if rest.is_empty() {
         return Some(header);
     }
-    let actions: Vec<String> = crate::sql::splitter::split_elements("alter", rest)
-        .into_iter()
-        .map(|element| element.text)
-        .collect();
+    let actions: Vec<String> = crate::sql::splitter::split_elements("alter", rest).into_iter().map(|element| element.text).collect();
     if actions.is_empty() {
         return None;
     }
     let multiline = actions.len() >= 3;
     let base = if multiline { 4 } else { 0 };
-    let formatted: Vec<String> = actions
-        .iter()
-        .map(|action| format_action(action, base))
-        .collect();
+    let formatted: Vec<String> = actions.iter().map(|action| format_action(action, base)).collect();
     let mut output = header;
     if multiline {
         for (index, action) in formatted.iter().enumerate() {
@@ -170,24 +151,16 @@ fn alter_header_end(tokens: &[Token]) -> Option<usize> {
         let Some(next) = tokens.get(index + 1) else {
             break;
         };
-        if dot.kind == Kind::Punct
-            && dot.text == "."
-            && matches!(next.kind, Kind::Word | Kind::QuotedIdent)
-        {
+        if dot.kind == Kind::Punct && dot.text == "." && matches!(next.kind, Kind::Word | Kind::QuotedIdent) {
             index += 2;
             continue;
         }
         break;
     }
-    if tokens
-        .get(index)
-        .is_some_and(|token| token.kind == Kind::Punct && token.text == "*")
-    {
+    if tokens.get(index).is_some_and(|token| token.kind == Kind::Punct && token.text == "*") {
         index += 1;
     }
-    tokens
-        .get(index.checked_sub(1)?)
-        .map(|token| token.start + token.text.len())
+    tokens.get(index.checked_sub(1)?).map(|token| token.start + token.text.len())
 }
 
 /// 一个顶层 action：`exclude` 列表按 D4 断行，其余保持单行。
@@ -199,10 +172,7 @@ fn format_action(action: &str, base: usize) -> String {
 fn format_exclude(action: &str, base: usize) -> Option<String> {
     let flat_text = inline(action);
     let all = tokens(&flat_text);
-    let flat: Vec<Token> = all
-        .into_iter()
-        .filter(|token| token.kind != Kind::Whitespace)
-        .collect();
+    let flat: Vec<Token> = all.into_iter().filter(|token| token.kind != Kind::Whitespace).collect();
     if !word_is(flat.first(), "add") {
         return None;
     }
@@ -242,10 +212,7 @@ fn format_exclude(action: &str, base: usize) -> Option<String> {
     if elements.is_empty() {
         return None;
     }
-    let complex = elements.len() >= 4
-        || elements
-            .iter()
-            .any(|element| decision::is_complex(element, "exclude"));
+    let complex = elements.len() >= 4 || elements.iter().any(|element| decision::is_complex(element, "exclude"));
     if !complex {
         return None;
     }
@@ -273,11 +240,7 @@ fn format_exclude(action: &str, base: usize) -> Option<String> {
     }
     lines.push(close_line);
     for segment in segments {
-        lines.push(format!(
-            "{}{}",
-            indent(base + 4),
-            space_parens(&inline(&segment))
-        ));
+        lines.push(format!("{}{}", indent(base + 4), space_parens(&inline(&segment))));
     }
     Some(lines.join("\n"))
 }
@@ -285,10 +248,7 @@ fn format_exclude(action: &str, base: usize) -> Option<String> {
 /// `exclude (...)` 之后的 `no inherit` / `include` / `with` / `using index` / `where` 分段。
 fn exclude_tail(tail: &str) -> (String, Vec<String>) {
     let all = tokens(tail);
-    let flat: Vec<Token> = all
-        .into_iter()
-        .filter(|token| token.kind != Kind::Whitespace)
-        .collect();
+    let flat: Vec<Token> = all.into_iter().filter(|token| token.kind != Kind::Whitespace).collect();
     let mut marks: Vec<usize> = Vec::new();
     let mut depth: i32 = 0;
     for token in &flat {
@@ -323,10 +283,7 @@ fn exclude_tail(tail: &str) -> (String, Vec<String>) {
 /// D8：header 单行；简单或非 `select` 查询体同行，复杂查询体 `as (` 换行、+4、`)` 回 0。
 fn render_ctas(statement: &str, dialect: Dialect) -> Option<String> {
     let all = tokens(statement);
-    let flat: Vec<Token> = all
-        .into_iter()
-        .filter(|token| token.kind != Kind::Whitespace)
-        .collect();
+    let flat: Vec<Token> = all.into_iter().filter(|token| token.kind != Kind::Whitespace).collect();
     if !word_is(flat.first(), "create") {
         return None;
     }
@@ -342,9 +299,7 @@ fn render_ctas(statement: &str, dialect: Dialect) -> Option<String> {
     }
     let (inner, suffix) = ctas_body(rest)?;
     let inner = inner.as_str();
-    let simple = first_word(inner)
-        .is_none_or(|word| !matches!(word.to_ascii_lowercase().as_str(), "select" | "with"))
-        || decision::is_simple(inner);
+    let simple = first_word(inner).is_none_or(|word| !matches!(word.to_ascii_lowercase().as_str(), "select" | "with")) || decision::is_simple(inner);
     let mut output = format!("{header} as (");
     if simple {
         output.push_str(&space_parens(&inline(inner)));
@@ -404,10 +359,7 @@ fn dedent_body(text: &str) -> String {
         if line.trim().is_empty() {
             continue;
         }
-        output.push_str(
-            line.get(min..)
-                .unwrap_or_else(|| line.trim_start_matches(' ')),
-        );
+        output.push_str(line.get(min..).unwrap_or_else(|| line.trim_start_matches(' ')));
     }
     output
 }
@@ -416,10 +368,7 @@ fn dedent_body(text: &str) -> String {
 fn ctas_body(rest: &str) -> Option<(String, String)> {
     if rest.starts_with('(') {
         let all = tokens(rest);
-        let flat: Vec<Token> = all
-            .into_iter()
-            .filter(|token| token.kind != Kind::Whitespace)
-            .collect();
+        let flat: Vec<Token> = all.into_iter().filter(|token| token.kind != Kind::Whitespace).collect();
         let close = matching_paren(&flat, 0)?;
         let close_token = flat.get(close)?;
         let inner = rest[1..close_token.start].to_owned();
@@ -451,28 +400,15 @@ fn ctas_suffix(suffix: &str) -> Option<String> {
 /// 无括号查询体末尾的 `with [no] data` 单独拆出。
 fn split_trailing_data(rest: &str) -> (String, String) {
     let all = tokens(rest);
-    let flat: Vec<Token> = all
-        .into_iter()
-        .filter(|token| token.kind != Kind::Whitespace)
-        .collect();
+    let flat: Vec<Token> = all.into_iter().filter(|token| token.kind != Kind::Whitespace).collect();
     let len = flat.len();
-    if len >= 3
-        && word_is(flat.get(len - 1), "data")
-        && word_is(flat.get(len - 2), "no")
-        && word_is(flat.get(len - 3), "with")
-    {
+    if len >= 3 && word_is(flat.get(len - 1), "data") && word_is(flat.get(len - 2), "no") && word_is(flat.get(len - 3), "with") {
         let start = flat[len - 3].start;
-        return (
-            rest[..start].trim_end().to_owned(),
-            rest[start..].trim().to_owned(),
-        );
+        return (rest[..start].trim_end().to_owned(), rest[start..].trim().to_owned());
     }
     if len >= 2 && word_is(flat.get(len - 1), "data") && word_is(flat.get(len - 2), "with") {
         let start = flat[len - 2].start;
-        return (
-            rest[..start].trim_end().to_owned(),
-            rest[start..].trim().to_owned(),
-        );
+        return (rest[..start].trim_end().to_owned(), rest[start..].trim().to_owned());
     }
     (rest.trim_end().to_owned(), String::new())
 }
@@ -497,10 +433,7 @@ fn create_table_before(tokens: &[Token], as_index: usize) -> bool {
 }
 
 fn first_word(text: &str) -> Option<String> {
-    tokens(text)
-        .into_iter()
-        .find(|token| token.kind == Kind::Word)
-        .map(|token| token.text.to_owned())
+    tokens(text).into_iter().find(|token| token.kind == Kind::Word).map(|token| token.text.to_owned())
 }
 
 /// 把任意空白压成单行；是否存在空白与是否保留空格分开决策。
@@ -558,11 +491,7 @@ fn space_parens(text: &str) -> String {
             output.push_str(token.text);
             continue;
         }
-        if token.kind == Kind::Punct
-            && token.text == "("
-            && space_before_paren(&seen)
-            && !output.ends_with(' ')
-        {
+        if token.kind == Kind::Punct && token.text == "(" && space_before_paren(&seen) && !output.ends_with(' ') {
             output.push(' ');
         }
         output.push_str(token.text);
@@ -587,10 +516,7 @@ fn space_before_paren(seen: &[Token]) -> bool {
     if lower == "key"
         && let Some(before) = before
         && before.kind == Kind::Word
-        && matches!(
-            before.text.to_ascii_lowercase().as_str(),
-            "primary" | "foreign"
-        )
+        && matches!(before.text.to_ascii_lowercase().as_str(), "primary" | "foreign")
     {
         return true;
     }
@@ -680,10 +606,7 @@ mod tests {
     }
 
     fn assert_idempotent(output: &str) {
-        assert_eq!(
-            super::layout(output, Dialect::Postgres).as_deref(),
-            Some(output)
-        );
+        assert_eq!(super::layout(output, Dialect::Postgres).as_deref(), Some(output));
     }
 
     #[test]
@@ -704,10 +627,7 @@ mod tests {
     #[test]
     fn create_index_adds_access_method_space() {
         let sql = "create index pointloc on points using gist(box(location, location))";
-        assert_eq!(
-            layout(sql),
-            "create index pointloc on points using gist (box(location, location))"
-        );
+        assert_eq!(layout(sql), "create index pointloc on points using gist (box(location, location))");
     }
 
     #[test]
@@ -749,9 +669,7 @@ mod tests {
         let output = layout(sql);
         assert!(!output.contains('\n'), "{output}");
         assert!(!output.contains(", "), "{output}");
-        assert!(
-            output.ends_with("primary key with (arg1=3) using index tablespace tblspace not null")
-        );
+        assert!(output.ends_with("primary key with (arg1=3) using index tablespace tblspace not null"));
     }
 
     #[test]
@@ -795,10 +713,7 @@ mod tests {
         assert_eq!(layout(sql), sql);
         assert_idempotent(sql);
         let unparenthesized = "create table t1 as select something from t2 with no data";
-        assert_eq!(
-            layout(unparenthesized),
-            "create table t1 as (select something from t2) with no data"
-        );
+        assert_eq!(layout(unparenthesized), "create table t1 as (select something from t2) with no data");
     }
 
     #[test]
@@ -817,13 +732,7 @@ mod tests {
 
     #[test]
     fn non_ctas_and_other_statements_are_not_handled() {
-        assert_eq!(
-            super::layout("create table t (a int)", Dialect::Postgres),
-            None
-        );
-        assert_eq!(
-            super::layout("insert into t values (1)", Dialect::Postgres),
-            None
-        );
+        assert_eq!(super::layout("create table t (a int)", Dialect::Postgres), None);
+        assert_eq!(super::layout("insert into t values (1)", Dialect::Postgres), None);
     }
 }

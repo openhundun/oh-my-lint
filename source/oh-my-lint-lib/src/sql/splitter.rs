@@ -1,19 +1,7 @@
 //! 深度感知切分：括号内的关键字、逗号、and/or 都不算切点。
 
 /// 参与子句级判定的关键字；顺序决定同一位置上的最长匹配（`union all` 先于 `union`）。
-pub const CLAUSE_KEYWORDS: [&str; 11] = [
-    "select",
-    "from",
-    "where",
-    "group by",
-    "having",
-    "order by",
-    "limit",
-    "union all",
-    "union",
-    "intersect",
-    "except",
-];
+pub const CLAUSE_KEYWORDS: [&str; 11] = ["select", "from", "where", "group by", "having", "order by", "limit", "union all", "union", "intersect", "except"];
 
 /// 集合运算；出现即不能整条内联。
 pub const SET_OPERATORS: [&str; 4] = ["union all", "union", "intersect", "except"];
@@ -22,9 +10,7 @@ pub const SET_OPERATORS: [&str; 4] = ["union all", "union", "intersect", "except
 pub const SENTINELS: [&str; 2] = ["1 = 1", "1 = 0"];
 
 /// 语句边界：空行后跟 select / with。
-static STATEMENT_BREAK: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-    regex::Regex::new(r"(?m)\A\n\s*\n\s*(?:select|with)\b").expect("valid statement break")
-});
+static STATEMENT_BREAK: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new(r"(?m)\A\n\s*\n\s*(?:select|with)\b").expect("valid statement break"));
 
 /// 一个子句：关键字起点、正文半开区间。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -73,10 +59,10 @@ pub fn clause_spans(text: &str) -> Vec<Clause> {
             continue;
         }
         if depth == 0 && (index == 0 || !is_word(bytes[index - 1])) {
-            let matched = CLAUSE_KEYWORDS
-                .iter()
-                .copied()
-                .find(|kind| low.get(index..).is_some_and(|rest| rest.starts_with(kind)));
+            let matched = CLAUSE_KEYWORDS.iter().copied().find(|kind| {
+                low.get(index..)
+                    .is_some_and(|rest| rest.starts_with(kind) && !rest.as_bytes().get(kind.len()).is_some_and(|byte| is_word(*byte)))
+            });
             if let Some(kind) = matched {
                 marks.push((index, kind));
                 index += kind.len();
@@ -90,12 +76,7 @@ pub fn clause_spans(text: &str) -> Vec<Clause> {
     for (order, (position, kind)) in marks.iter().enumerate() {
         let body_start = position + kind.len();
         let body_end = marks.get(order + 1).map_or(text.len(), |(next, _)| *next);
-        clauses.push(Clause {
-            kind,
-            keyword_start: *position,
-            body_start,
-            body_end,
-        });
+        clauses.push(Clause { kind, keyword_start: *position, body_start, body_end });
     }
     clauses
 }
@@ -104,10 +85,7 @@ pub fn clause_spans(text: &str) -> Vec<Clause> {
 pub fn split_elements(kind: &str, body: &str) -> Vec<Element> {
     if kind == "where" || kind == "having" {
         let mut items = split_conditions(body);
-        if items
-            .first()
-            .is_some_and(|element| SENTINELS.contains(&element.text.as_str()))
-        {
+        if items.first().is_some_and(|element| SENTINELS.contains(&element.text.as_str())) {
             items.remove(0);
         }
         items
@@ -171,23 +149,15 @@ fn group_spans(text: &str, include_single: bool) -> Vec<Group> {
     for (open, close) in pairs {
         let inner = &masked[open + 1..close];
         let trimmed = inner.trim_start();
-        if starts_with_word(trimmed, "select")
-            || starts_with_word(trimmed, "with")
-            || starts_with_word(trimmed, "case")
-        {
+        if starts_with_word(trimmed, "select") || starts_with_word(trimmed, "with") || starts_with_word(trimmed, "case") {
             continue;
         }
         if !is_group_prefix(&masked, open) {
             continue;
         }
         let inner = &text[open + 1..close];
-        if split_elements("where", inner).len() >= 2
-            || (include_single && all_statements(inner).len() > 1)
-        {
-            groups.push(Group {
-                start: open + 1,
-                end: close,
-            });
+        if split_elements("where", inner).len() >= 2 || (include_single && all_statements(inner).len() > 1) {
+            groups.push(Group { start: open + 1, end: close });
         }
     }
     groups.sort_by_key(|group| group.start);
@@ -230,9 +200,7 @@ fn starts_with_word(text: &str, word: &str) -> bool {
     let Some(rest) = text.strip_prefix(word) else {
         return false;
     };
-    rest.chars().next().is_none_or(|character| {
-        !(character.is_alphanumeric() || character == '_' || character == '$')
-    })
+    rest.chars().next().is_none_or(|character| !(character.is_alphanumeric() || character == '_' || character == '$'))
 }
 pub fn all_statements(text: &str) -> Vec<crate::span::Span> {
     let mut blocks = vec![crate::span::Span::new(0, text.len())];
@@ -292,12 +260,42 @@ pub fn statements(text: &str) -> Vec<crate::span::Span> {
                 return None;
             }
             let leading = chunk.len() - chunk.trim_start().len();
-            Some(crate::span::Span::new(
-                begin + leading,
-                begin + leading + trimmed.len(),
-            ))
+            let start = begin + leading;
+            let end = start + trimmed.len();
+            let (start, end) = trim_outer_comments(text, start, end);
+            (start < end).then_some(crate::span::Span::new(start, end))
         })
         .collect()
+}
+
+/// 去掉语句块首尾的纯注释与空白，让结构规则只看 SQL 本体。
+///
+/// 注释仍留在原文里：span 只覆盖 SQL，替换时不会碰它们。
+fn trim_outer_comments(text: &str, mut start: usize, mut end: usize) -> (usize, usize) {
+    loop {
+        while start < end && text.as_bytes()[start].is_ascii_whitespace() {
+            start += 1;
+        }
+        if text[start..end].starts_with("--") {
+            match text[start..end].find('\n') {
+                Some(index) => start += index + 1,
+                None => start = end,
+            }
+            continue;
+        }
+        if text[start..end].starts_with("/*") {
+            match text[start + 2..end].find("*/") {
+                Some(index) => start += 2 + index + 2,
+                None => start = end,
+            }
+            continue;
+        }
+        break;
+    }
+    while start < end && text.as_bytes()[end - 1].is_ascii_whitespace() {
+        end -= 1;
+    }
+    (start, end)
 }
 
 /// 切分前先抹掉 psql 元命令与 `COPY ... FROM stdin` 数据块，避免词法器整段回退。
@@ -313,9 +311,7 @@ fn neutralize_pg_dump(text: &str) -> std::borrow::Cow<'_, str> {
     let mut offset = 0;
     let mut in_copy = false;
     while offset < text.len() {
-        let end = text[offset..]
-            .find('\n')
-            .map_or(text.len(), |index| offset + index + 1);
+        let end = text[offset..].find('\n').map_or(text.len(), |index| offset + index + 1);
         let line = &text[offset..end];
         let trimmed = line.trim();
         if in_copy {
@@ -343,11 +339,7 @@ fn neutralize_pg_dump(text: &str) -> std::borrow::Cow<'_, str> {
             continue;
         }
         output.push_str(&text[cursor..start]);
-        output.extend(
-            text[start..end]
-                .bytes()
-                .map(|byte| if byte == b'\n' { '\n' } else { ' ' }),
-        );
+        output.extend(text[start..end].bytes().map(|byte| if byte == b'\n' { '\n' } else { ' ' }));
         cursor = end;
     }
     output.push_str(&text[cursor..]);
@@ -356,12 +348,7 @@ fn neutralize_pg_dump(text: &str) -> std::borrow::Cow<'_, str> {
 
 fn starts_copy_from_stdin(line: &str) -> bool {
     let bytes = line.as_bytes();
-    bytes.len() >= 5
-        && bytes[..4].eq_ignore_ascii_case(b"copy")
-        && bytes[4].is_ascii_whitespace()
-        && bytes
-            .windows(b" from stdin".len())
-            .any(|window| window.eq_ignore_ascii_case(b" from stdin"))
+    bytes.len() >= 5 && bytes[..4].eq_ignore_ascii_case(b"copy") && bytes[4].is_ascii_whitespace() && bytes.windows(b" from stdin".len()).any(|window| window.eq_ignore_ascii_case(b" from stdin"))
 }
 
 fn split_depth(body: &str) -> Vec<Element> {
@@ -389,15 +376,8 @@ fn push_element(elements: &mut Vec<Element>, piece: &str, connector: Connector) 
     if text.is_empty() {
         return;
     }
-    let connector = if elements.is_empty() {
-        Connector::None
-    } else {
-        connector
-    };
-    elements.push(Element {
-        text: text.to_owned(),
-        connector,
-    });
+    let connector = if elements.is_empty() { Connector::None } else { connector };
+    elements.push(Element { text: text.to_owned(), connector });
 }
 
 fn split_conditions(body: &str) -> Vec<Element> {
@@ -419,8 +399,7 @@ fn split_conditions(body: &str) -> Vec<Element> {
         if depth == 0 {
             let mut matched = false;
             for (word, connector) in [("and", Connector::And), ("or", Connector::Or)] {
-                let boundary = (index == 0 || !is_word(bytes[index - 1]))
-                    && (index + word.len() >= bytes.len() || !is_word(bytes[index + word.len()]));
+                let boundary = (index == 0 || !is_word(bytes[index - 1])) && (index + word.len() >= bytes.len() || !is_word(bytes[index + word.len()]));
                 if boundary && low.get(index..).is_some_and(|rest| rest.starts_with(word)) {
                     push_element(&mut pieces, &body[start..index], pending);
                     pending = connector;
@@ -458,8 +437,7 @@ pub fn condition_spans(body: &str) -> Vec<crate::span::Span> {
         if depth == 0 {
             let mut matched = false;
             for (word, len) in [("and", 3usize), ("or", 2usize)] {
-                let boundary = (index == 0 || !is_word(bytes[index - 1]))
-                    && (index + len >= bytes.len() || !is_word(bytes[index + len]));
+                let boundary = (index == 0 || !is_word(bytes[index - 1])) && (index + len >= bytes.len() || !is_word(bytes[index + len]));
                 if boundary && low.get(index..).is_some_and(|rest| rest.starts_with(word)) {
                     pieces.push((start, index));
                     index += len;
@@ -489,10 +467,7 @@ pub fn condition_spans(body: &str) -> Vec<crate::span::Span> {
         }
         merged.push((piece_start, piece_end));
     }
-    if merged
-        .first()
-        .is_some_and(|first| matches!(low[first.0..first.1].trim(), "1 = 1" | "1 = 0"))
-    {
+    if merged.first().is_some_and(|first| matches!(low[first.0..first.1].trim(), "1 = 1" | "1 = 0")) {
         merged.remove(0);
     }
     merged
@@ -550,10 +525,7 @@ fn count_top_level_word(text: &str, word: &str) -> usize {
             }
             _ => {}
         }
-        if depth == 0
-            && (index == 0 || !is_word(bytes[index - 1]))
-            && (index + word.len() >= bytes.len() || !is_word(bytes[index + word.len()]))
-            && lower.get(index..index + word.len()) == Some(word)
+        if depth == 0 && (index == 0 || !is_word(bytes[index - 1])) && (index + word.len() >= bytes.len() || !is_word(bytes[index + word.len()])) && lower.get(index..index + word.len()) == Some(word)
         {
             count += 1;
             index += word.len();
@@ -566,10 +538,7 @@ fn count_top_level_word(text: &str, word: &str) -> usize {
 
 /// join 修饰词；用于把 `left outer join` 整体移到新行。
 pub fn is_join_modifier(word: &str) -> bool {
-    matches!(
-        word.to_ascii_lowercase().as_str(),
-        "left" | "right" | "full" | "inner" | "cross" | "natural" | "outer"
-    )
+    matches!(word.to_ascii_lowercase().as_str(), "left" | "right" | "full" | "inner" | "cross" | "natural" | "outer")
 }
 
 fn is_word(byte: u8) -> bool {
@@ -583,23 +552,32 @@ mod tests {
         let clauses = crate::sql::splitter::clause_spans("select a from t where x = 1");
         assert_eq!(clauses.len(), 3);
         assert_eq!(clauses[0].kind, "select");
-        assert_eq!(
-            &"select a from t where x = 1"[clauses[0].body_start..clauses[0].body_end],
-            " a "
-        );
+        assert_eq!(&"select a from t where x = 1"[clauses[0].body_start..clauses[0].body_end], " a ");
+    }
+
+    #[test]
+    fn statements_skip_leading_comments() {
+        let text = "-- head\ninsert into t (a) values (1);";
+        let spans = crate::sql::splitter::statements(text);
+        assert_eq!(&text[spans[0].start..spans[0].end], "insert into t (a) values (1)");
+    }
+
+    #[test]
+    fn ignores_clause_keywords_as_identifier_prefix() {
+        let clauses = crate::sql::splitter::clause_spans("alter table selected_table drop column if exists datasource_id");
+        assert!(clauses.is_empty(), "{clauses:?}");
+
+        let clauses = crate::sql::splitter::clause_spans("select a from selected_table");
+        assert_eq!(clauses.len(), 2);
+        assert_eq!(clauses[0].kind, "select");
+        assert_eq!(clauses[1].kind, "from");
     }
 
     #[test]
     fn ignores_keywords_inside_parentheses() {
         let clauses = crate::sql::splitter::clause_spans("select a from (select b from t) x");
         assert_eq!(clauses.len(), 2);
-        assert_eq!(
-            clauses
-                .iter()
-                .filter(|clause| clause.kind == "select")
-                .count(),
-            1
-        );
+        assert_eq!(clauses.iter().filter(|clause| clause.kind == "select").count(), 1);
     }
 
     #[test]
@@ -619,8 +597,7 @@ mod tests {
 
     #[test]
     fn merges_between_with_nested_and() {
-        let body =
-            "d_month_seq between (select x from t where a = 1 and b = 2) and (select y from u)";
+        let body = "d_month_seq between (select x from t where a = 1 and b = 2) and (select y from u)";
         let elements = crate::sql::splitter::split_elements("where", body);
         assert_eq!(elements.len(), 1);
         assert_eq!(elements[0].text, body);
@@ -634,14 +611,8 @@ mod tests {
         let body = "(x between (select 1 from u where p = 1 and q = 2) and (select 2 from u))";
         let groups = crate::sql::splitter::condition_group_spans(body);
         assert_eq!(groups.len(), 1);
-        assert_eq!(
-            &body[groups[0].start..groups[0].end],
-            "x between (select 1 from u where p = 1 and q = 2) and (select 2 from u)"
-        );
-        assert!(
-            crate::sql::splitter::boolean_group_spans(body).is_empty(),
-            "token layer must not recurse into this group"
-        );
+        assert_eq!(&body[groups[0].start..groups[0].end], "x between (select 1 from u where p = 1 and q = 2) and (select 2 from u)");
+        assert!(crate::sql::splitter::boolean_group_spans(body).is_empty(), "token layer must not recurse into this group");
     }
 
     #[test]
@@ -654,10 +625,7 @@ mod tests {
     fn finds_nested_statements() {
         let blocks = crate::sql::splitter::all_statements("select a from (select b from t) x");
         assert_eq!(blocks.len(), 2);
-        assert_eq!(
-            &"select a from (select b from t) x"[blocks[1].start..blocks[1].end],
-            "select b from t"
-        );
+        assert_eq!(&"select a from (select b from t) x"[blocks[1].start..blocks[1].end], "select b from t");
     }
 
     #[test]
@@ -681,10 +649,7 @@ mod tests {
         let spans = crate::sql::splitter::statements(sql);
         assert_eq!(spans.len(), 2);
         assert_eq!(&sql[spans[0].start..spans[0].end], "SET X = 1");
-        assert_eq!(
-            &sql[spans[1].start..spans[1].end],
-            "CREATE INDEX IDX ON T (A)"
-        );
+        assert_eq!(&sql[spans[1].start..spans[1].end], "CREATE INDEX IDX ON T (A)");
 
         let formatted = crate::sql::format(sql).expect("format pg_dump");
         assert!(formatted.contains("set x = 1;"));

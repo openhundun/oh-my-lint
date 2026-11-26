@@ -9,19 +9,7 @@ use crate::sql::splitter::{self, Connector, Element};
 use crate::sql::token;
 
 /// `EXPLAIN` 里只接受布尔值的选项；其余选项原样保留。
-const BOOLEAN_OPTIONS: [&str; 11] = [
-    "analyze",
-    "analyse",
-    "verbose",
-    "costs",
-    "settings",
-    "buffers",
-    "wal",
-    "timing",
-    "summary",
-    "generic_plan",
-    "memory",
-];
+const BOOLEAN_OPTIONS: [&str; 11] = ["analyze", "analyse", "verbose", "costs", "settings", "buffers", "wal", "timing", "summary", "generic_plan", "memory"];
 
 /// 渲染 `DELETE`、`EXPLAIN`；无法渲染时返回 `None`。
 pub(crate) fn layout(sql: &str, dialect: Dialect) -> Option<String> {
@@ -37,6 +25,7 @@ fn layout_inner(sql: &str, dialect: Dialect) -> Option<String> {
     let statements = parse::parse(normalized, dialect).ok()?;
     let output = match statements.as_slice() {
         [Statement::Delete(delete)] => layout_delete(normalized, delete)?,
+        [Statement::Insert(_)] => layout_insert(normalized, dialect)?,
         [Statement::Explain { statement, .. }] => layout_explain(normalized, statement, dialect)?,
         [Statement::Query(query)] => match query.body.as_ref() {
             SetExpr::Delete(Statement::Delete(delete)) => layout_delete(normalized, delete)?,
@@ -48,6 +37,44 @@ fn layout_inner(sql: &str, dialect: Dialect) -> Option<String> {
         return None;
     }
     Some(output)
+}
+
+/// `INSERT ... SELECT`：保留 insert 头，把查询体交给 DQL 版式。
+fn layout_insert(text: &str, dialect: Dialect) -> Option<String> {
+    let words = top_words(text);
+    let select = words.iter().position(|word| word.text == "select" || word.text == "with")?;
+    let header = text[..words[select].start].trim_end();
+    if !header.get(.."insert".len()).is_some_and(|prefix| prefix.eq_ignore_ascii_case("insert")) {
+        return None;
+    }
+    let query = &text[words[select].start..];
+    if query.trim().is_empty() {
+        return None;
+    }
+    let flat = flatten_query(query)?;
+    let formatted = crate::sql::fix::format_with(&flat, dialect).ok()?;
+    let output = format!("{header}\n{formatted}");
+    parse::parse(&output, dialect).ok()?;
+    Some(output)
+}
+
+/// 压掉查询里的换行，让 DQL 版式从元素列表重新渲染；字符串与注释原样。
+fn flatten_query(query: &str) -> Option<String> {
+    if lexer::has_comment(query) {
+        return None;
+    }
+    let mut flat = String::with_capacity(query.len());
+    for token in lexer::tokens(query) {
+        if token.kind == Kind::Whitespace {
+            if !flat.ends_with(' ') {
+                flat.push(' ');
+            }
+        } else {
+            flat.push_str(token.text);
+        }
+    }
+    let flat = flat.trim();
+    (!flat.is_empty()).then(|| token::normalize(flat))
 }
 
 /// `DELETE` 的顶层子句，顺序固定。
@@ -93,10 +120,7 @@ fn layout_delete(text: &str, delete: &Delete) -> Option<String> {
         // 复杂 CTE 不在这里重排，避免破坏 `values`/集合运算体。
         return None;
     }
-    let collected: Vec<Vec<String>> = parts
-        .iter()
-        .map(|part| render_delete_part(text, *part))
-        .collect();
+    let collected: Vec<Vec<String>> = parts.iter().map(|part| render_delete_part(text, *part)).collect();
     if delete_simple(text, &parts) {
         let mut pieces = Vec::new();
         for lines in collected {
@@ -137,57 +161,20 @@ fn delete_parts(text: &str) -> Option<Vec<Part>> {
     if from_word.text != "from" {
         return None;
     }
-    let using_index = words
-        .iter()
-        .enumerate()
-        .skip(delete_index + 2)
-        .find(|(_, word)| word.text == "using")
-        .map(|(index, _)| index);
+    let using_index = words.iter().enumerate().skip(delete_index + 2).find(|(_, word)| word.text == "using").map(|(index, _)| index);
     let after_using = using_index.map_or(delete_index + 2, |index| index + 1);
-    let where_index = words
-        .iter()
-        .enumerate()
-        .skip(after_using)
-        .find(|(_, word)| word.text == "where")
-        .map(|(index, _)| index);
+    let where_index = words.iter().enumerate().skip(after_using).find(|(_, word)| word.text == "where").map(|(index, _)| index);
     let after_where = where_index.map_or(after_using, |index| index + 1);
-    let returning_index = words
-        .iter()
-        .enumerate()
-        .skip(after_where)
-        .find(|(_, word)| word.text == "returning")
-        .map(|(index, _)| index);
+    let returning_index = words.iter().enumerate().skip(after_where).find(|(_, word)| word.text == "returning").map(|(index, _)| index);
 
     let mut parts: Vec<Part> = Vec::new();
-    if words
-        .first()
-        .is_some_and(|word| word.start == 0 && word.text == "with")
-    {
-        parts.push(Part {
-            kind: DeletePart::With,
-            keyword: 0,
-            body: words[0].end,
-            end: 0,
-        });
+    if words.first().is_some_and(|word| word.start == 0 && word.text == "with") {
+        parts.push(Part { kind: DeletePart::With, keyword: 0, body: words[0].end, end: 0 });
     }
-    parts.push(Part {
-        kind: DeletePart::DeleteFrom,
-        keyword: words[delete_index].start,
-        body: from_word.end,
-        end: 0,
-    });
-    for (index, kind) in [
-        (using_index, DeletePart::Using),
-        (where_index, DeletePart::Where),
-        (returning_index, DeletePart::Returning),
-    ] {
+    parts.push(Part { kind: DeletePart::DeleteFrom, keyword: words[delete_index].start, body: from_word.end, end: 0 });
+    for (index, kind) in [(using_index, DeletePart::Using), (where_index, DeletePart::Where), (returning_index, DeletePart::Returning)] {
         if let Some(index) = index {
-            parts.push(Part {
-                kind,
-                keyword: words[index].start,
-                body: words[index].end,
-                end: 0,
-            });
+            parts.push(Part { kind, keyword: words[index].start, body: words[index].end, end: 0 });
         }
     }
     for index in 0..parts.len() {
@@ -248,11 +235,7 @@ fn using_lines(body: &str) -> Vec<String> {
         return vec![format!("using {}", collapse(body))];
     }
     let first = collapse(&body[..starts[0]]);
-    let mut lines = vec![if first.is_empty() {
-        "using".to_owned()
-    } else {
-        format!("using {first}")
-    }];
+    let mut lines = vec![if first.is_empty() { "using".to_owned() } else { format!("using {first}") }];
     for (index, start) in starts.iter().enumerate() {
         let end = starts.get(index + 1).copied().unwrap_or(body.len());
         lines.push(collapse(&body[*start..end]));
@@ -266,44 +249,26 @@ fn where_lines(body: &str) -> Vec<String> {
     if elements.len() <= 1 || is_current_of(body) {
         return vec![format!("where {}", collapse(body))];
     }
-    let broken = elements.len() >= 4
-        || elements
-            .iter()
-            .any(|element| decision::is_complex(&element.text, "where"));
+    let broken = elements.len() >= 4 || elements.iter().any(|element| decision::is_complex(&element.text, "where"));
     if !broken {
         return vec![format!("where {}", join_conditions(&elements))];
     }
     let mut lines = vec![format!("where {}", anchor(&elements))];
     for element in &elements {
-        let connector = if element.connector == Connector::None {
-            Connector::And
-        } else {
-            element.connector
-        };
-        lines.push(format!(
-            "    {} {}",
-            decision::connector_word(connector),
-            collapse(&element.text)
-        ));
+        let connector = if element.connector == Connector::None { Connector::And } else { element.connector };
+        lines.push(format!("    {} {}", decision::connector_word(connector), collapse(&element.text)));
     }
     lines
 }
 
 fn is_current_of(body: &str) -> bool {
-    let mut words = lexer::tokens(body)
-        .into_iter()
-        .filter(|token| token.kind == Kind::Word)
-        .map(|token| token.text.to_ascii_lowercase());
+    let mut words = lexer::tokens(body).into_iter().filter(|token| token.kind == Kind::Word).map(|token| token.text.to_ascii_lowercase());
     words.next().as_deref() == Some("current") && words.next().as_deref() == Some("of")
 }
 
 fn anchor(elements: &[Element]) -> &'static str {
     let oracle = elements.get(1).or_else(|| elements.first());
-    if oracle.is_some_and(|element| element.connector == Connector::Or) {
-        "1 = 0"
-    } else {
-        "1 = 1"
-    }
+    if oracle.is_some_and(|element| element.connector == Connector::Or) { "1 = 0" } else { "1 = 1" }
 }
 
 fn join_conditions(elements: &[Element]) -> String {
@@ -326,19 +291,10 @@ fn returning_lines(body: &str) -> Vec<String> {
         return vec![format!("returning {}", collapse(body))];
     }
     let broken = elements.len() >= 4
-        || elements
-            .iter()
-            .any(|element| decision::is_complex(&element.text, "select"))
-        || (elements.len() == 3
-            && elements
-                .iter()
-                .all(|element| decision::has_alias(&element.text)));
+        || elements.iter().any(|element| decision::is_complex(&element.text, "select"))
+        || (elements.len() == 3 && elements.iter().all(|element| decision::has_alias(&element.text)));
     if !broken {
-        let joined = elements
-            .iter()
-            .map(|element| element.text.as_str())
-            .collect::<Vec<_>>()
-            .join(", ");
+        let joined = elements.iter().map(|element| element.text.as_str()).collect::<Vec<_>>().join(", ");
         return vec![format!("returning {joined}")];
     }
     let mut lines = vec!["returning".to_owned()];
@@ -352,20 +308,14 @@ fn returning_lines(body: &str) -> Vec<String> {
 fn returning_elements(body: &str) -> Vec<Element> {
     splitter::split_elements("select", body)
         .into_iter()
-        .map(|element| Element {
-            text: alias_as(&element.text),
-            connector: element.connector,
-        })
+        .map(|element| Element { text: alias_as(&element.text), connector: element.connector })
         .collect()
 }
 
 /// 补上 `returning` 的隐式别名；已有 `as` 的保持原样。
 fn alias_as(text: &str) -> String {
     let tokens = lexer::tokens(text);
-    let significant: Vec<&lexer::Token<'_>> = tokens
-        .iter()
-        .filter(|token| !matches!(token.kind, Kind::Whitespace | Kind::Comment))
-        .collect();
+    let significant: Vec<&lexer::Token<'_>> = tokens.iter().filter(|token| !matches!(token.kind, Kind::Whitespace | Kind::Comment)).collect();
     if significant.len() < 2 {
         return collapse(text);
     }
@@ -377,10 +327,8 @@ fn alias_as(text: &str) -> String {
     if previous.kind == Kind::Word && previous.text.eq_ignore_ascii_case("as") {
         return collapse(text);
     }
-    let bare_pair =
-        significant.len() == 2 && matches!(significant[0].kind, Kind::Word | Kind::QuotedIdent);
-    let ends_expression = matches!(previous.kind, Kind::String | Kind::Number)
-        || (previous.kind == Kind::Punct && previous.text == ")");
+    let bare_pair = significant.len() == 2 && matches!(significant[0].kind, Kind::Word | Kind::QuotedIdent);
+    let ends_expression = matches!(previous.kind, Kind::String | Kind::Number) || (previous.kind == Kind::Punct && previous.text == ")");
     if !(bare_pair || ends_expression) {
         return collapse(text);
     }
@@ -388,10 +336,7 @@ fn alias_as(text: &str) -> String {
         return collapse(text);
     }
     let prefix = collapse(&text[..last.start]);
-    format!(
-        "{prefix} as {}",
-        &text[last.start..last.start + last.text.len()]
-    )
+    format!("{prefix} as {}", &text[last.start..last.start + last.text.len()])
 }
 
 fn is_alias_stopword(word: &str) -> bool {
@@ -439,8 +384,7 @@ fn cte_bodies_simple(body: &str) -> bool {
                 depth -= 1;
             }
             Kind::Word if depth == 0 && token.text.eq_ignore_ascii_case("as") => {
-                let open =
-                    (index + 1..tokens.len()).find(|probe| tokens[*probe].kind != Kind::Whitespace);
+                let open = (index + 1..tokens.len()).find(|probe| tokens[*probe].kind != Kind::Whitespace);
                 let Some(open) = open else {
                     return false;
                 };
@@ -471,11 +415,7 @@ fn top_words(text: &str) -> Vec<Word> {
         match token.kind {
             Kind::Punct if token.text == "(" => depth += 1,
             Kind::Punct if token.text == ")" => depth -= 1,
-            Kind::Word if depth == 0 => words.push(Word {
-                start: token.start,
-                end: token.start + token.text.len(),
-                text: token.text.to_ascii_lowercase(),
-            }),
+            Kind::Word if depth == 0 => words.push(Word { start: token.start, end: token.start + token.text.len(), text: token.text.to_ascii_lowercase() }),
             _ => {}
         }
     }
@@ -594,15 +534,8 @@ fn explain_header(header: &str) -> Option<String> {
     if options.is_empty() {
         return Some(collapsed);
     }
-    let rendered: Vec<String> = options
-        .iter()
-        .map(|option| canonical_option(&option.text))
-        .collect();
-    Some(format!(
-        "{} ({})",
-        collapsed[..open].trim_end(),
-        rendered.join(", ")
-    ))
+    let rendered: Vec<String> = options.iter().map(|option| canonical_option(&option.text)).collect();
+    Some(format!("{} ({})", collapsed[..open].trim_end(), rendered.join(", ")))
 }
 
 fn canonical_option(option: &str) -> String {
@@ -612,10 +545,7 @@ fn canonical_option(option: &str) -> String {
     };
     let (name, rest) = collapsed.split_at(index);
     let value = rest.trim();
-    if !BOOLEAN_OPTIONS
-        .iter()
-        .any(|candidate| candidate.eq_ignore_ascii_case(name))
-    {
+    if !BOOLEAN_OPTIONS.iter().any(|candidate| candidate.eq_ignore_ascii_case(name)) {
         return collapsed;
     }
     let normalized = match value.to_ascii_lowercase().as_str() {
@@ -653,9 +583,7 @@ fn starts_with_word(text: &str, word: &str) -> bool {
     let Some(rest) = text.trim_start().strip_prefix(word) else {
         return false;
     };
-    rest.chars().next().is_none_or(|character| {
-        !(character.is_alphanumeric() || character == '_' || character == '$')
-    })
+    rest.chars().next().is_none_or(|character| !(character.is_alphanumeric() || character == '_' || character == '$'))
 }
 
 #[cfg(test)]
@@ -670,18 +598,13 @@ mod tests {
 
     #[test]
     fn keeps_single_line_delete() {
-        assert_eq!(
-            render("delete from films where kind != 'Musical'"),
-            "delete from films where kind != 'Musical'"
-        );
+        assert_eq!(render("delete from films where kind != 'Musical'"), "delete from films where kind != 'Musical'");
     }
 
     #[test]
     fn breaks_non_simple_delete_but_keeps_where_inline() {
         assert_eq!(
-            render(
-                "delete from films f using producers p where f.producer_id = p.id and p.name = 'foo'"
-            ),
+            render("delete from films f using producers p where f.producer_id = p.id and p.name = 'foo'"),
             "delete from films f\nusing producers p\nwhere f.producer_id = p.id and p.name = 'foo'"
         );
     }
@@ -704,18 +627,13 @@ mod tests {
     #[test]
     fn or_conditions_use_zero_anchor() {
         let sql = "delete from t where a = 1 or b = 2 or c = 3 or d = 4";
-        assert_eq!(
-            render(sql),
-            "delete from t\nwhere 1 = 0\n    and a = 1\n    or b = 2\n    or c = 3\n    or d = 4"
-        );
+        assert_eq!(render(sql), "delete from t\nwhere 1 = 0\n    and a = 1\n    or b = 2\n    or c = 3\n    or d = 4");
     }
 
     #[test]
     fn puts_using_join_on_its_own_line() {
         assert_eq!(
-            render(
-                "delete from foo using baz left join bar on baz.bar_id = bar.id where foo.id = bar.foo_id and baz.id = 'c'"
-            ),
+            render("delete from foo using baz left join bar on baz.bar_id = bar.id where foo.id = bar.foo_id and baz.id = 'c'"),
             "delete from foo\n\
              using baz\n\
              left join bar on baz.bar_id = bar.id\n\
@@ -734,9 +652,7 @@ mod tests {
     #[test]
     fn breaks_three_aliased_returning_items() {
         assert_eq!(
-            render(
-                "delete from tasks where status = 'DONE' returning actor_id a_id, producer_id p_id, x y"
-            ),
+            render("delete from tasks where status = 'DONE' returning actor_id a_id, producer_id p_id, x y"),
             "delete from tasks\n\
              where status = 'DONE'\n\
              returning\n\
@@ -748,16 +664,27 @@ mod tests {
 
     #[test]
     fn inlines_simple_cte() {
-        assert_eq!(
-            render("with test as (select foo from bar) delete from films"),
-            "with test as (select foo from bar) delete from films"
-        );
+        assert_eq!(render("with test as (select foo from bar) delete from films"), "with test as (select foo from bar) delete from films");
     }
 
     #[test]
     fn refuses_complex_cte() {
         let sql = "with recursive t(n) as (values (1) union all select n + 1 from t where n < 100) delete from films";
         assert_eq!(layout(sql, Dialect::Postgres), None);
+    }
+
+    #[test]
+    fn formats_insert_select_query() {
+        assert_eq!(
+            render("insert into t (a, b, c, d) select a, b, c, d from s"),
+            "insert into t (a, b, c, d)\n\
+             select\n\
+             \u{20}   a,\n\
+             \u{20}   b,\n\
+             \u{20}   c,\n\
+             \u{20}   d\n\
+             from s"
+        );
     }
 
     #[test]
@@ -777,19 +704,14 @@ mod tests {
     #[test]
     fn normalizes_boolean_option_values() {
         assert_eq!(
-            render(
-                "explain (analyze on, verbose off, costs 1, generic_plan 0, format xml) select 1"
-            ),
+            render("explain (analyze on, verbose off, costs 1, generic_plan 0, format xml) select 1"),
             "explain (analyze true, verbose false, costs true, generic_plan false, format xml)\nselect 1"
         );
     }
 
     #[test]
     fn keeps_bare_options_and_enums() {
-        assert_eq!(
-            render("explain (analyze, serialize binary, memory) select 1"),
-            "explain (analyze, serialize binary, memory)\nselect 1"
-        );
+        assert_eq!(render("explain (analyze, serialize binary, memory) select 1"), "explain (analyze, serialize binary, memory)\nselect 1");
     }
 
     #[test]

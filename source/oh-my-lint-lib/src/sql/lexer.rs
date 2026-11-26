@@ -5,9 +5,7 @@
 
 use std::cell::Cell;
 
-use sqlparser::tokenizer::{
-    Location, Span as AstSpan, Token as SqlToken, Tokenizer, Whitespace as Ws,
-};
+use sqlparser::tokenizer::{Location, Span as AstSpan, Token as SqlToken, Tokenizer, Whitespace as Ws};
 
 use crate::span::Span;
 use crate::sql::parse::Dialect;
@@ -78,11 +76,7 @@ pub fn tokens(text: &str) -> Vec<Token<'_>> {
         if span.start > cursor {
             push_gap(text, cursor, span.start, &mut result);
         }
-        result.push(Token {
-            kind: kind_of(&token.token),
-            text: &text[span.start..span.end],
-            start: span.start,
-        });
+        result.push(Token { kind: kind_of(&token.token), text: &text[span.start..span.end], start: span.start });
         cursor = span.end;
     }
     if cursor < text.len() {
@@ -123,25 +117,13 @@ fn fallback(text: &str) -> Vec<Token<'_>> {
     if text.is_empty() {
         return Vec::new();
     }
-    vec![Token {
-        kind: Kind::String,
-        text,
-        start: 0,
-    }]
+    vec![Token { kind: Kind::String, text, start: 0 }]
 }
 
 fn push_gap<'a>(text: &'a str, start: usize, end: usize, result: &mut Vec<Token<'a>>) {
     let gap = &text[start..end];
-    let kind = if gap.trim().is_empty() {
-        Kind::Whitespace
-    } else {
-        Kind::Punct
-    };
-    result.push(Token {
-        kind,
-        text: gap,
-        start,
-    });
+    let kind = if gap.trim().is_empty() { Kind::Whitespace } else { Kind::Punct };
+    result.push(Token { kind, text: gap, start });
 }
 
 fn kind_of(token: &SqlToken) -> Kind {
@@ -192,16 +174,10 @@ impl LineIndex {
     pub(crate) fn offset(&self, text: &str, location: Location) -> Option<usize> {
         let line = usize::try_from(location.line).ok()?.checked_sub(1)?;
         let start = *self.starts.get(line)?;
-        let end = self
-            .starts
-            .get(line + 1)
-            .map_or(text.len(), |next| next - 1);
+        let end = self.starts.get(line + 1).map_or(text.len(), |next| next - 1);
         let column = usize::try_from(location.column).ok()?.checked_sub(1)?;
         let line_text = &text[start..end];
-        let byte = line_text
-            .char_indices()
-            .nth(column)
-            .map_or(line_text.len(), |(index, _)| index);
+        let byte = line_text.char_indices().nth(column).map_or(line_text.len(), |(index, _)| index);
         Some(start + byte)
     }
 
@@ -234,10 +210,7 @@ mod tests {
     }
 
     fn kinds(text: &str) -> Vec<(Kind, &str)> {
-        tokens(text)
-            .into_iter()
-            .map(|token| (token.kind, token.text))
-            .collect()
+        tokens(text).into_iter().map(|token| (token.kind, token.text)).collect()
     }
 
     #[test]
@@ -245,12 +218,7 @@ mod tests {
         let sql = "select 'a, b and (c)' as x from t";
         assert_covers(sql);
         assert!(kinds(sql).contains(&(Kind::String, "'a, b and (c)'")));
-        assert!(
-            !tokens(sql)
-                .iter()
-                .any(|token| token.kind == Kind::Word && token.text == "and"),
-            "字符串内的 and 不应成为关键字"
-        );
+        assert!(!tokens(sql).iter().any(|token| token.kind == Kind::Word && token.text == "and"), "字符串内的 and 不应成为关键字");
     }
 
     #[test]
@@ -265,10 +233,7 @@ mod tests {
                 (Kind::Number, "1"),
             ]
         );
-        assert_eq!(
-            kinds("/* \"x\" */select"),
-            vec![(Kind::Comment, "/* \"x\" */"), (Kind::Word, "select")]
-        );
+        assert_eq!(kinds("/* \"x\" */select"), vec![(Kind::Comment, "/* \"x\" */"), (Kind::Word, "select")]);
     }
 
     #[test]
@@ -284,11 +249,7 @@ mod tests {
     fn two_char_operators_win() {
         let sql = "a<=b and c>=d and e<>f and g!=h and i||j and k::text";
         assert_covers(sql);
-        let puncts: Vec<&str> = tokens(sql)
-            .into_iter()
-            .filter(|token| token.kind == Kind::Punct)
-            .map(|token| token.text)
-            .collect();
+        let puncts: Vec<&str> = tokens(sql).into_iter().filter(|token| token.kind == Kind::Punct).map(|token| token.text).collect();
         assert_eq!(puncts, vec!["<=", ">=", "<>", "!=", "||", "::"]);
         assert_eq!(kinds(";"), vec![(Kind::Punct, ";")]);
     }
@@ -339,10 +300,7 @@ mod tests {
         assert_eq!(kinds("0.5"), vec![(Kind::Number, "0.5")]);
         assert_eq!(kinds("1.5e-3"), vec![(Kind::Number, "1.5e-3")]);
         assert_eq!(kinds("12E+7"), vec![(Kind::Number, "12E+7")]);
-        assert_eq!(
-            kinds("1.5e"),
-            vec![(Kind::Number, "1.5"), (Kind::Word, "e")]
-        );
+        assert_eq!(kinds("1.5e"), vec![(Kind::Number, "1.5"), (Kind::Word, "e")]);
     }
 
     #[test]
@@ -359,40 +317,20 @@ mod tests {
             let sql = "select $$a;--x$$, E'it\\'s', a # b from t";
             assert_covers(sql);
             let tokens = tokens(sql);
-            assert!(
-                tokens
-                    .iter()
-                    .any(|token| token.kind == Kind::String && token.text.starts_with("$$"))
-            );
-            assert!(
-                tokens
-                    .iter()
-                    .any(|token| token.kind == Kind::String && token.text.starts_with("E'"))
-            );
+            assert!(tokens.iter().any(|token| token.kind == Kind::String && token.text.starts_with("$$")));
+            assert!(tokens.iter().any(|token| token.kind == Kind::String && token.text.starts_with("E'")));
             assert!(!has_comment("a # b"));
         });
         with_dialect(Dialect::Mysql, || {
             assert_covers("select `a#b`, 1 # c\nfrom t");
             assert!(has_comment("select 1 # c\nfrom t"));
-            assert!(
-                tokens("select `a` from t")
-                    .iter()
-                    .any(|token| token.kind == Kind::QuotedIdent && token.text == "`a`")
-            );
+            assert!(tokens("select `a` from t").iter().any(|token| token.kind == Kind::QuotedIdent && token.text == "`a`"));
         });
         with_dialect(Dialect::Hive, || {
-            assert!(
-                tokens("select `a` from t")
-                    .iter()
-                    .any(|token| token.kind == Kind::QuotedIdent && token.text == "`a`")
-            );
+            assert!(tokens("select `a` from t").iter().any(|token| token.kind == Kind::QuotedIdent && token.text == "`a`"));
         });
         with_dialect(Dialect::DuckDb, || {
-            assert!(
-                tokens("select $$x; y$$ from t")
-                    .iter()
-                    .any(|token| token.kind == Kind::String && token.text == "$$x; y$$")
-            );
+            assert!(tokens("select $$x; y$$ from t").iter().any(|token| token.kind == Kind::String && token.text == "$$x; y$$"));
         });
     }
 

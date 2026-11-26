@@ -48,9 +48,7 @@ const NON_FUNCTION_WORDS: [&str; 44] = [
     "with",
 ];
 
-static ALIAS: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-    regex::Regex::new(r#"(?i)\bas\s+(\w+|"[^"]+"|`[^`]+`)\s*$"#).expect("alias")
-});
+static ALIAS: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new(r#"(?i)\bas\s+(\w+|"[^"]+"|`[^`]+`)\s*$"#).expect("alias"));
 
 /// 元素是否复杂：子查询、case、窗口函数、条件里的复杂函数、布尔组、超长 in 列表。
 pub fn is_complex(element: &str, kind: &str) -> bool {
@@ -80,10 +78,7 @@ pub fn is_derived(element: &str) -> bool {
     let Some(word) = probe.find(|token| token.kind != crate::sql::lexer::Kind::Whitespace) else {
         return false;
     };
-    word.kind == crate::sql::lexer::Kind::Word
-        && (word.text.eq_ignore_ascii_case("select")
-            || word.text.eq_ignore_ascii_case("with")
-            || word.text.eq_ignore_ascii_case("values"))
+    word.kind == crate::sql::lexer::Kind::Word && (word.text.eq_ignore_ascii_case("select") || word.text.eq_ignore_ascii_case("with") || word.text.eq_ignore_ascii_case("values"))
 }
 
 /// 深度 0 是否含 `join`。
@@ -93,9 +88,7 @@ pub fn has_join(element: &str) -> bool {
         match token.kind {
             crate::sql::lexer::Kind::Punct if token.text == "(" => depth += 1,
             crate::sql::lexer::Kind::Punct if token.text == ")" => depth -= 1,
-            crate::sql::lexer::Kind::Word
-                if depth == 0 && token.text.eq_ignore_ascii_case("join") =>
-            {
+            crate::sql::lexer::Kind::Word if depth == 0 && token.text.eq_ignore_ascii_case("join") => {
                 return true;
             }
             _ => {}
@@ -116,13 +109,9 @@ pub fn needs_break(kind: &str, elements: &[crate::sql::splitter::Element]) -> bo
     if count <= 1 {
         return false;
     }
-    let complex = elements
-        .iter()
-        .any(|element| is_complex(&element.text, kind));
+    let complex = elements.iter().any(|element| is_complex(&element.text, kind));
     if kind == "select" {
-        return count >= 4
-            || complex
-            || (count == 3 && elements.iter().all(|element| has_alias(&element.text)));
+        return count >= 4 || complex || (count == 3 && elements.iter().all(|element| has_alias(&element.text)));
     }
     count >= 4 || complex
 }
@@ -133,25 +122,14 @@ pub fn is_simple(text: &str) -> bool {
         return false;
     }
     let clauses = crate::sql::splitter::clause_spans(text);
-    if clauses
-        .iter()
-        .any(|clause| crate::sql::splitter::SET_OPERATORS.contains(&clause.kind))
-    {
+    if clauses.iter().any(|clause| crate::sql::splitter::SET_OPERATORS.contains(&clause.kind)) {
         return false;
     }
-    if clauses
-        .iter()
-        .filter(|clause| clause.kind == "select")
-        .count()
-        != 1
-    {
+    if clauses.iter().filter(|clause| clause.kind == "select").count() != 1 {
         return false;
     }
     for clause in &clauses {
-        let elements = crate::sql::splitter::split_elements(
-            clause.kind,
-            &text[clause.body_start..clause.body_end],
-        );
+        let elements = crate::sql::splitter::split_elements(clause.kind, &text[clause.body_start..clause.body_end]);
         let limit = if clause.kind == "select" { 3 } else { 1 };
         if elements.len() > limit {
             return false;
@@ -160,10 +138,7 @@ pub fn is_simple(text: &str) -> bool {
             return false;
         }
     }
-    for inner in crate::sql::splitter::all_statements(text)
-        .into_iter()
-        .skip(1)
-    {
+    for inner in crate::sql::splitter::all_statements(text).into_iter().skip(1) {
         if !is_simple(&text[inner.start..inner.end]) {
             return false;
         }
@@ -181,24 +156,19 @@ pub fn connector_word(connector: crate::sql::splitter::Connector) -> &'static st
 
 /// 是否是函数名：非结构关键字都可以紧跟括号调用。
 pub fn is_function_name(word: &str) -> bool {
-    !NON_FUNCTION_WORDS
-        .iter()
-        .any(|candidate| word.eq_ignore_ascii_case(candidate))
+    !NON_FUNCTION_WORDS.iter().any(|candidate| word.eq_ignore_ascii_case(candidate))
 }
 
 /// `case` 分支是否复杂：只按分支本身判定，不把 `case` 关键字算进去。
 pub fn branches_complex(text: &str) -> bool {
-    has_subquery(text)
-        || has_complex_function_call(text)
-        || has_oversized_in_list(text)
-        || !crate::sql::splitter::boolean_group_spans(text).is_empty()
+    has_subquery(text) || has_complex_function_call(text) || has_oversized_in_list(text) || !crate::sql::splitter::boolean_group_spans(text).is_empty()
 }
 
 /// 文本是否含某个独立单词（字符串与注释被整体跳过）。
 fn has_word(text: &str, word: &str) -> bool {
-    crate::sql::lexer::tokens(text).iter().any(|token| {
-        token.kind == crate::sql::lexer::Kind::Word && token.text.eq_ignore_ascii_case(word)
-    })
+    crate::sql::lexer::tokens(text)
+        .iter()
+        .any(|token| token.kind == crate::sql::lexer::Kind::Word && token.text.eq_ignore_ascii_case(word))
 }
 
 /// 文本是否含子查询：`(` 之后（忽略空白）是 `select` / `with`。
@@ -212,10 +182,7 @@ fn has_subquery(text: &str) -> bool {
             if next.kind == crate::sql::lexer::Kind::Whitespace {
                 continue;
             }
-            if next.kind == crate::sql::lexer::Kind::Word
-                && (next.text.eq_ignore_ascii_case("select")
-                    || next.text.eq_ignore_ascii_case("with"))
-            {
+            if next.kind == crate::sql::lexer::Kind::Word && (next.text.eq_ignore_ascii_case("select") || next.text.eq_ignore_ascii_case("with")) {
                 return true;
             }
             break;
@@ -280,11 +247,7 @@ fn has_complex_function_call(text: &str) -> bool {
 
 /// 简单调用：`count(*)`、单字段聚合、`cast(单字段 as 类型)`。
 fn simple_call(call: &[crate::sql::lexer::Token<'_>]) -> bool {
-    let call: Vec<crate::sql::lexer::Token<'_>> = call
-        .iter()
-        .copied()
-        .filter(|token| token.kind != crate::sql::lexer::Kind::Whitespace)
-        .collect();
+    let call: Vec<crate::sql::lexer::Token<'_>> = call.iter().copied().filter(|token| token.kind != crate::sql::lexer::Kind::Whitespace).collect();
     if call.len() < 3 || call[1].text != "(" || call[call.len() - 1].text != ")" {
         return false;
     }
@@ -296,9 +259,7 @@ fn simple_call(call: &[crate::sql::lexer::Token<'_>]) -> bool {
             match token.kind {
                 crate::sql::lexer::Kind::Punct if token.text == "(" => depth += 1,
                 crate::sql::lexer::Kind::Punct if token.text == ")" => depth -= 1,
-                crate::sql::lexer::Kind::Word
-                    if depth == 0 && token.text.eq_ignore_ascii_case("as") =>
-                {
+                crate::sql::lexer::Kind::Word if depth == 0 && token.text.eq_ignore_ascii_case("as") => {
                     return simple_operand(&inner[..index]) && !inner[index + 1..].is_empty();
                 }
                 _ => {}
@@ -310,15 +271,13 @@ fn simple_call(call: &[crate::sql::lexer::Token<'_>]) -> bool {
         return inner.is_empty();
     }
     if matches!(name.as_str(), "coalesce" | "nullif") {
-        return split_arguments(inner)
-            .iter()
-            .all(|argument| !argument.is_empty() && simple_operand(argument));
+        return split_arguments(inner).iter().all(|argument| !argument.is_empty() && simple_operand(argument));
     }
     if AGGREGATES.contains(&name.as_str()) {
-        let body = if inner.first().is_some_and(|token| {
-            token.kind == crate::sql::lexer::Kind::Word
-                && token.text.eq_ignore_ascii_case("distinct")
-        }) {
+        let body = if inner
+            .first()
+            .is_some_and(|token| token.kind == crate::sql::lexer::Kind::Word && token.text.eq_ignore_ascii_case("distinct"))
+        {
             &inner[1..]
         } else {
             inner
@@ -329,24 +288,10 @@ fn simple_call(call: &[crate::sql::lexer::Token<'_>]) -> bool {
 }
 
 /// 单列聚合：参数足够简单，按普通表达式处理。
-const AGGREGATES: [&str; 11] = [
-    "count",
-    "sum",
-    "avg",
-    "min",
-    "max",
-    "stddev",
-    "stddev_pop",
-    "stddev_samp",
-    "variance",
-    "var_pop",
-    "var_samp",
-];
+const AGGREGATES: [&str; 11] = ["count", "sum", "avg", "min", "max", "stddev", "stddev_pop", "stddev_samp", "variance", "var_pop", "var_samp"];
 
 /// 按深度 0 的逗号拆分参数。
-fn split_arguments<'a>(
-    tokens: &[crate::sql::lexer::Token<'a>],
-) -> Vec<Vec<crate::sql::lexer::Token<'a>>> {
+fn split_arguments<'a>(tokens: &[crate::sql::lexer::Token<'a>]) -> Vec<Vec<crate::sql::lexer::Token<'a>>> {
     let mut arguments: Vec<Vec<crate::sql::lexer::Token<'a>>> = vec![Vec::new()];
     let mut depth = 0;
     for token in tokens {
@@ -359,25 +304,16 @@ fn split_arguments<'a>(
             }
             _ => {}
         }
-        arguments
-            .last_mut()
-            .expect("arguments is non-empty")
-            .push(*token);
+        arguments.last_mut().expect("arguments is non-empty").push(*token);
     }
     arguments
 }
 
 /// 单个字段、`*`、字面量，或简单聚合/`cast`；允许前置一元正负号。
 fn simple_operand(tokens: &[crate::sql::lexer::Token<'_>]) -> bool {
-    let tokens: Vec<crate::sql::lexer::Token<'_>> = tokens
-        .iter()
-        .copied()
-        .filter(|token| token.kind != crate::sql::lexer::Kind::Whitespace)
-        .collect();
+    let tokens: Vec<crate::sql::lexer::Token<'_>> = tokens.iter().copied().filter(|token| token.kind != crate::sql::lexer::Kind::Whitespace).collect();
     let mut index = 0;
-    if tokens.first().is_some_and(|token| {
-        token.kind == crate::sql::lexer::Kind::Punct && matches!(token.text, "-" | "+")
-    }) {
+    if tokens.first().is_some_and(|token| token.kind == crate::sql::lexer::Kind::Punct && matches!(token.text, "-" | "+")) {
         index = 1;
     }
     let slice = &tokens[index..];
@@ -386,34 +322,21 @@ fn simple_operand(tokens: &[crate::sql::lexer::Token<'_>]) -> bool {
     }
     if slice.len() == 1 {
         return match slice[0].kind {
-            crate::sql::lexer::Kind::Number
-            | crate::sql::lexer::Kind::String
-            | crate::sql::lexer::Kind::Word
-            | crate::sql::lexer::Kind::QuotedIdent => true,
+            crate::sql::lexer::Kind::Number | crate::sql::lexer::Kind::String | crate::sql::lexer::Kind::Word | crate::sql::lexer::Kind::QuotedIdent => true,
             crate::sql::lexer::Kind::Punct => slice[0].text == "*",
             _ => false,
         };
     }
     let field = slice.len() % 2 == 1
-        && slice.iter().step_by(2).all(|token| {
-            matches!(
-                token.kind,
-                crate::sql::lexer::Kind::Word | crate::sql::lexer::Kind::QuotedIdent
-            )
-        })
         && slice
             .iter()
-            .skip(1)
             .step_by(2)
-            .all(|token| token.kind == crate::sql::lexer::Kind::Punct && token.text == ".");
+            .all(|token| matches!(token.kind, crate::sql::lexer::Kind::Word | crate::sql::lexer::Kind::QuotedIdent))
+        && slice.iter().skip(1).step_by(2).all(|token| token.kind == crate::sql::lexer::Kind::Punct && token.text == ".");
     if field {
         return true;
     }
-    matches!(
-        slice[0].kind,
-        crate::sql::lexer::Kind::Word | crate::sql::lexer::Kind::QuotedIdent
-    ) && slice.get(1).is_some_and(|token| token.text == "(")
-        && simple_call(slice)
+    matches!(slice[0].kind, crate::sql::lexer::Kind::Word | crate::sql::lexer::Kind::QuotedIdent) && slice.get(1).is_some_and(|token| token.text == "(") && simple_call(slice)
 }
 
 /// 是否含窗口函数 `over(...)`。
@@ -462,11 +385,7 @@ fn has_oversized_in_list(text: &str) -> bool {
                     }
                 }
                 crate::sql::lexer::Kind::Punct if next.text == "," && depth == 1 => commas += 1,
-                crate::sql::lexer::Kind::Word
-                    if depth == 1
-                        && (next.text.eq_ignore_ascii_case("select")
-                            || next.text.eq_ignore_ascii_case("with")) =>
-                {
+                crate::sql::lexer::Kind::Word if depth == 1 && (next.text.eq_ignore_ascii_case("select") || next.text.eq_ignore_ascii_case("with")) => {
                     is_subquery = true;
                 }
                 crate::sql::lexer::Kind::Whitespace => {}
@@ -489,9 +408,7 @@ fn starts_with_word(text: &str, word: &str) -> bool {
     let Some(rest) = text.trim_start().strip_prefix(word) else {
         return false;
     };
-    rest.chars().next().is_none_or(|character| {
-        !(character.is_alphanumeric() || character == '_' || character == '$')
-    })
+    rest.chars().next().is_none_or(|character| !(character.is_alphanumeric() || character == '_' || character == '$'))
 }
 
 #[cfg(test)]
@@ -513,70 +430,25 @@ mod tests {
 
     #[test]
     fn select_thresholds() {
-        assert!(!crate::sql::decision::needs_break(
-            "select",
-            &elements(&["a", "b"])
-        ));
-        assert!(!crate::sql::decision::needs_break(
-            "select",
-            &elements(&["a", "b", "c"])
-        ));
-        assert!(crate::sql::decision::needs_break(
-            "select",
-            &elements(&["a as x", "b as y", "c as z"])
-        ));
-        assert!(crate::sql::decision::needs_break(
-            "select",
-            &elements(&["a", "b", "c", "d"])
-        ));
-        assert!(!crate::sql::decision::needs_break(
-            "select",
-            &elements(&["a", "sum(b)"])
-        ));
-        assert!(!crate::sql::decision::needs_break(
-            "select",
-            &elements(&["a", "count(*)"])
-        ));
-        assert!(!crate::sql::decision::needs_break(
-            "select",
-            &elements(&["a", "cast(b as int)"])
-        ));
-        assert!(!crate::sql::decision::needs_break(
-            "select",
-            &elements(&["a", "substring(b, 1, 2)"])
-        ));
-        assert!(!crate::sql::decision::needs_break(
-            "select",
-            &elements(&["a", "sum(b * c)"])
-        ));
-        assert!(crate::sql::decision::needs_break(
-            "select",
-            &elements(&["a", "rank() over(order by b)"])
-        ));
+        assert!(!crate::sql::decision::needs_break("select", &elements(&["a", "b"])));
+        assert!(!crate::sql::decision::needs_break("select", &elements(&["a", "b", "c"])));
+        assert!(crate::sql::decision::needs_break("select", &elements(&["a as x", "b as y", "c as z"])));
+        assert!(crate::sql::decision::needs_break("select", &elements(&["a", "b", "c", "d"])));
+        assert!(!crate::sql::decision::needs_break("select", &elements(&["a", "sum(b)"])));
+        assert!(!crate::sql::decision::needs_break("select", &elements(&["a", "count(*)"])));
+        assert!(!crate::sql::decision::needs_break("select", &elements(&["a", "cast(b as int)"])));
+        assert!(!crate::sql::decision::needs_break("select", &elements(&["a", "substring(b, 1, 2)"])));
+        assert!(!crate::sql::decision::needs_break("select", &elements(&["a", "sum(b * c)"])));
+        assert!(crate::sql::decision::needs_break("select", &elements(&["a", "rank() over(order by b)"])));
     }
 
     #[test]
     fn where_thresholds() {
-        assert!(!crate::sql::decision::needs_break(
-            "where",
-            &elements(&["a = 1", "b = 2", "c = 3"])
-        ));
-        assert!(crate::sql::decision::needs_break(
-            "where",
-            &elements(&["a = 1", "b = 2", "c = 3", "d = 4"])
-        ));
-        assert!(crate::sql::decision::needs_break(
-            "where",
-            &elements(&["a = 1", "substring(b, 1, 2) = 'x'"])
-        ));
-        assert!(crate::sql::decision::needs_break(
-            "where",
-            &elements(&["a = 1", "b in (1, 2, 3, 4)"])
-        ));
-        assert!(!crate::sql::decision::needs_break(
-            "where",
-            &elements(&["a = 1", "b in (1, 2, 3)"])
-        ));
+        assert!(!crate::sql::decision::needs_break("where", &elements(&["a = 1", "b = 2", "c = 3"])));
+        assert!(crate::sql::decision::needs_break("where", &elements(&["a = 1", "b = 2", "c = 3", "d = 4"])));
+        assert!(crate::sql::decision::needs_break("where", &elements(&["a = 1", "substring(b, 1, 2) = 'x'"])));
+        assert!(crate::sql::decision::needs_break("where", &elements(&["a = 1", "b in (1, 2, 3, 4)"])));
+        assert!(!crate::sql::decision::needs_break("where", &elements(&["a = 1", "b in (1, 2, 3)"])));
     }
 
     #[test]
@@ -589,26 +461,17 @@ mod tests {
     #[test]
     fn simple_statement() {
         assert!(crate::sql::decision::is_simple("select a, b from t"));
-        assert!(!crate::sql::decision::is_simple(
-            "select a, b from t union all select c, d from u"
-        ));
+        assert!(!crate::sql::decision::is_simple("select a, b from t union all select c, d from u"));
         assert!(!crate::sql::decision::is_simple("select a, b, c, d from t"));
-        assert!(!crate::sql::decision::is_simple(
-            "select a from t where x = 1 and y = 2"
-        ));
-        assert!(crate::sql::decision::is_simple(
-            "select count(*) from t where a = 1"
-        ));
+        assert!(!crate::sql::decision::is_simple("select a from t where x = 1 and y = 2"));
+        assert!(crate::sql::decision::is_simple("select count(*) from t where a = 1"));
         assert!(!crate::sql::decision::is_simple("select a from t1, t2"));
-        assert!(!crate::sql::decision::is_simple(
-            "with x as (select a from t) select a from x"
-        ));
+        assert!(!crate::sql::decision::is_simple("with x as (select a from t) select a from x"));
     }
 
     #[test]
     fn sentinels_do_not_count() {
-        let conditions =
-            crate::sql::splitter::split_elements("where", " 1 = 1 and a = 1 and b = 2 and c = 3 ");
+        let conditions = crate::sql::splitter::split_elements("where", " 1 = 1 and a = 1 and b = 2 and c = 3 ");
         assert_eq!(conditions.len(), 3);
         assert!(!crate::sql::decision::needs_break("where", &conditions));
     }
@@ -618,39 +481,24 @@ mod tests {
         assert!(!crate::sql::decision::is_complex("coalesce(a, 0)", "where"));
         assert!(!crate::sql::decision::is_complex("nullif(a, 0)", "where"));
         assert!(!crate::sql::decision::is_complex("current_date()", "where"));
-        assert!(!crate::sql::decision::is_complex(
-            "current_timestamp()",
-            "where"
-        ));
+        assert!(!crate::sql::decision::is_complex("current_timestamp()", "where"));
         assert!(!crate::sql::decision::is_complex("stddev(a)", "where"));
-        assert!(crate::sql::decision::is_complex(
-            "coalesce(substring(x, 1, 2), '')",
-            "where"
-        ));
+        assert!(crate::sql::decision::is_complex("coalesce(substring(x, 1, 2), '')", "where"));
         assert!(crate::sql::decision::is_complex("greatest(a, b)", "where"));
         assert!(crate::sql::decision::is_complex("least(a, b)", "where"));
     }
 
     #[test]
     fn strings_do_not_fake_complexity() {
-        assert!(!crate::sql::decision::is_complex(
-            "'a and b (c)' as x",
-            "select"
-        ));
+        assert!(!crate::sql::decision::is_complex("'a and b (c)' as x", "select"));
         assert!(!crate::sql::decision::is_complex("lower(a)", "select"));
         assert!(crate::sql::decision::is_complex("lower(a)", "where"));
         assert!(!crate::sql::decision::is_complex("count(*)", "select"));
-        assert!(!crate::sql::decision::is_complex(
-            "cast(a as decimal(15, 4))",
-            "select"
-        ));
+        assert!(!crate::sql::decision::is_complex("cast(a as decimal(15, 4))", "select"));
         assert!(!crate::sql::decision::is_complex("sum(a * b)", "select"));
         assert!(crate::sql::decision::is_complex("sum(a * b)", "where"));
         assert!(crate::sql::decision::is_complex("concat(a, b)", "where"));
         assert!(!crate::sql::decision::is_complex("concat(a, b)", "select"));
-        assert!(crate::sql::decision::is_complex(
-            "rank() over(order by b)",
-            "select"
-        ));
+        assert!(crate::sql::decision::is_complex("rank() over(order by b)", "select"));
     }
 }

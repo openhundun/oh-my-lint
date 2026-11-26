@@ -65,15 +65,36 @@ The following DDL/DML fixtures report zero findings under
 `create_table_as.sql`, `create_table_column_storage_compression.sql`,
 `delete.sql`, `explain.sql`.
 
-`oh-my-lint fix` still refuses most of these files end-to-end because their
-statements hit the parser gaps above; per R34 the unsupported statements are
-kept byte-for-byte, so `fix` only rewrites the statements a layout module can
-render.
+`oh-my-lint fix` applies token normalization to parseable DDL/DML even when no
+layout module can render the statement; unsupported statements hit the parser
+gaps above and are kept byte-for-byte per R34. The fixtures use R26 terminating
+semicolons; the formatter adds a missing final semicolon.
 
-`datetime_units.sql` also had the R35 typed-literal / interval-unit rewrite
-applied.
+A full pass over all 236 fixtures rewrites 160 files. All parseable statements,
+including those in comment-bearing files, receive R25–R39 token normalization;
+comments are preserved. Eleven structural findings remain in five files:
+`select.sql` (`ORDER BY`), `select_into.sql` (`SELECT INTO`), `set_operators.sql`
+and `table_command.sql` (parenthesized set-operation branches), and
+`table_functions.sql` (set operation inside `ARRAY(...)`).
+`postgres_postgis_operators.sql` is token-normalized but keeps its original
+layout around `(VALUES ...)` derived tables.
 
-The fixtures intentionally keep their final semicolons (R26 removes the
-semicolon only in fix output). `source/oh-my-lint-lib/src/sql/tests.rs` includes
-these seven fixtures with `include_str!` and asserts `check` is empty; it does
-not assert `format == fixture`.
+`source/oh-my-lint-lib/src/sql/tests.rs` includes the seven DDL/DML fixtures
+with `include_str!` and asserts `check` is empty; it does not assert
+`format == fixture`, because unsupported statements are preserved byte-for-byte.
+
+## Parser coverage snapshot
+
+A pass over the 236 fixtures found 1,532 statements that sqlparser accepts.
+Only 645 are in the six implemented layout families (`Query`, `Delete`,
+`Explain`, `CreateTable`, `CreateIndex`, `AlterTable`); the other 887 fall into
+82 `Other` AST variants, including `CreatePolicy` (7), `AlterPolicy` (8),
+`DropPolicy` (5), `CreateFunction` (23), `CreateView` (28), `Insert` (33),
+`Update` (13), `Merge` (15) and `Truncate` (15). These now receive token
+normalization only; their structural layout is unchanged.
+
+The same pass found 825 statements across 133 files that sqlparser rejects,
+e.g. `ALTER DATABASE`, `ALTER DOMAIN`, `ALTER EVENT TRIGGER`, `ALTER EXTENSION`
+and `ALTER INDEX ... SET TABLESPACE`; they remain byte-for-byte under R34.
+Comment-bearing statement blocks are token-normalized with comments preserved;
+they do not participate in structural layout (R31).

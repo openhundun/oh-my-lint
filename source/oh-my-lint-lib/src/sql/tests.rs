@@ -26,8 +26,7 @@ fn derived_table_breaks_from() {
 
 #[test]
 fn sentinel_shape_matches_corpus() {
-    let sql =
-        "select a\nfrom t\nwhere 1 = 1\n    and a = 1\n    and b = 2\n    and c = 3\n    and d = 4";
+    let sql = "select a\nfrom t\nwhere 1 = 1\n    and a = 1\n    and b = 2\n    and c = 3\n    and d = 4;";
     assert!(
         crate::sql::check(sql).is_empty(),
         "{:?}",
@@ -38,8 +37,8 @@ fn sentinel_shape_matches_corpus() {
 
 /// 阶段 3 语料：DDL/DML 夹具的 `check` 必须干净。
 ///
-/// 夹具刻意保留末尾分号（R26 只在修复时去掉），因此不断言
-/// `format == fixture`，只断言检查通过。
+/// 夹具已经过 formatter 处理；仍不断言 `format == fixture`，因为
+/// 不支持的语句会按 R34 保留原始字节，只断言检查通过。
 #[test]
 fn ddl_dml_corpus_is_clean() {
     const FIXTURES: [(&str, &str); 7] = [
@@ -150,8 +149,40 @@ fn mixed_file_keeps_unparseable_statement() {
         !formatted.contains("select a as x, b as y, c as z"),
         "{formatted}"
     );
-    assert!(formatted.ends_with("select a from u"), "{formatted}");
+    assert!(formatted.ends_with("select a from u;"), "{formatted}");
     assert_eq!(crate::sql::format(&formatted).expect("format"), formatted);
+}
+
+#[test]
+fn values_derived_table_is_not_a_subquery() {
+    let sql = "select *\nfrom (values (1), (2)) a(x),\n    (values (3)) b(y);";
+    let findings = crate::sql::check(sql);
+    assert!(findings.is_empty(), "{findings:?}");
+}
+
+#[test]
+fn unsupported_layout_still_normalizes_tokens() {
+    let sql = "ALTER FOREIGN TABLE t ADD COLUMN c INT;";
+    let fixed = crate::sql::format(sql).expect("format");
+    assert_eq!(fixed, "alter foreign table t add column c int;");
+    assert!(crate::sql::check(&fixed).is_empty());
+    assert_eq!(crate::sql::format(&fixed).expect("format"), fixed);
+}
+
+#[test]
+fn options_keyword_keeps_space() {
+    let sql = "ALTER FOREIGN TABLE t OPTIONS (ADD a 'b');";
+    let fixed = crate::sql::format(sql).expect("format");
+    assert_eq!(fixed, "alter foreign table t options (add a 'b');");
+}
+
+#[test]
+fn other_statements_are_token_normalized() {
+    let sql = "INSERT INTO t (a) VALUES (1)";
+    assert!(!crate::sql::check(sql).is_empty());
+    let fixed = crate::sql::format(sql).expect("format");
+    assert_eq!(fixed, "insert into t (a) values (1);");
+    assert!(crate::sql::check(&fixed).is_empty());
 }
 
 #[test]
@@ -159,13 +190,41 @@ fn final_semicolon_tracks_last_statement() {
     let all_processed = "select a from t;\nselect b from u;";
     assert_eq!(
         crate::sql::format(all_processed).expect("format"),
-        "select a from t;\nselect b from u"
+        all_processed
     );
     let last_skipped = "select a from t;\ninsert into t (a) values (1);";
     assert_eq!(
         crate::sql::format(last_skipped).expect("format"),
         last_skipped
     );
+    let missing_last = "select a from t;\nselect b from u";
+    assert_eq!(
+        crate::sql::format(missing_last).expect("format"),
+        "select a from t;\nselect b from u;"
+    );
+}
+
+#[test]
+fn comments_are_preserved_and_token_normalized() {
+    let sql = "-- head\nSELECT A FROM t;";
+    let fixed = crate::sql::format(sql).expect("format");
+    assert_eq!(fixed, "-- head\nselect a from t;");
+    assert!(crate::sql::check(&fixed).is_empty());
+}
+
+#[test]
+fn missing_final_semicolon_is_reported_and_fixed() {
+    let sql = "select a from t";
+    let findings = crate::sql::check(sql);
+    assert!(
+        findings
+            .iter()
+            .any(|finding| finding.message.contains("semicolon")),
+        "{findings:?}"
+    );
+    let fixed = crate::sql::format(sql).expect("format");
+    assert_eq!(fixed, "select a from t;");
+    assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
 }
 
 #[test]
@@ -176,7 +235,7 @@ fn fix_mode_accepts_unparseable_block() {
     let broken = block(BROKEN);
     assert!(rule.can_fix(&broken).is_ok());
     assert!(rule.fix(&broken).is_none());
-    assert!(rule.can_fix(&block("select a from t -- note")).is_err());
+    assert!(rule.can_fix(&block("select a from t -- note")).is_ok());
 
     let mixed = block(&format!("select a as x, b as y, c as z from t;\n{BROKEN};"));
     let fix = rule.fix(&mixed).expect("fix");

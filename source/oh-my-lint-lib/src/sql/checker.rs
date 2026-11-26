@@ -50,6 +50,7 @@ fn violations_inner(sql: &str, dialect: crate::sql::parse::Dialect) -> Vec<Viola
             if !is_root
                 && !crate::sql::splitter::has_top_level_newline(block)
                 && !crate::sql::decision::is_simple(block)
+                && is_query_block(block)
             {
                 let count = crate::sql::splitter::clause_spans(block).len();
                 found.push(Violation {
@@ -71,6 +72,23 @@ fn violations_inner(sql: &str, dialect: crate::sql::parse::Dialect) -> Vec<Viola
         }
     }
     found
+}
+
+/// 只把 `select` / `with` 开头的嵌套块视为子查询；`(1), (2)` 这类行构造器不报。
+fn is_query_block(text: &str) -> bool {
+    let mut tokens = crate::sql::lexer::tokens(text)
+        .into_iter()
+        .filter(|token| token.kind != crate::sql::lexer::Kind::Whitespace);
+    let mut first = tokens.next();
+    if first.is_some_and(|token| token.kind == crate::sql::lexer::Kind::Punct && token.text == "(")
+    {
+        first = tokens.next();
+    }
+    first.is_some_and(|token| {
+        token.kind == crate::sql::lexer::Kind::Word
+            && (token.text.eq_ignore_ascii_case("select")
+                || token.text.eq_ignore_ascii_case("with"))
+    })
 }
 
 /// 检查一个语句块：集合运算分支、`with` 框架与普通子句。

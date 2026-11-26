@@ -499,12 +499,22 @@ fn starts_with_word(text: &str, word: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    /// `fix::format` 只渲染语句，不补块级分号；检查前补上 R26 的终止符。
+    fn check_complete(sql: &str) -> bool {
+        let text = if sql.trim_end().ends_with(';') {
+            sql.to_owned()
+        } else {
+            format!("{sql};")
+        };
+        crate::sql::check(&text).is_empty()
+    }
+
     #[test]
     fn breaks_four_fields_and_is_idempotent() {
         let sql = "select a, b, c, d from t";
         let fixed = crate::sql::fix::format(sql).expect("format");
         assert!(fixed.contains("select\n    a,"));
-        assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+        assert!(check_complete(&fixed), "{fixed}");
         assert_eq!(crate::sql::fix::format(&fixed).expect("second"), fixed);
     }
 
@@ -514,9 +524,9 @@ mod tests {
         let fixed = crate::sql::format(sql).expect("format");
         assert_eq!(
             fixed.trim(),
-            "select a\nfrom t\nwhere a = 1 and b = 2 and c = 3"
+            "select a\nfrom t\nwhere a = 1 and b = 2 and c = 3;"
         );
-        assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+        assert!(check_complete(&fixed), "{fixed}");
     }
 
     #[test]
@@ -525,7 +535,7 @@ mod tests {
         let fixed = crate::sql::format(sql).expect("format");
         assert_eq!(
             fixed,
-            "select a\nfrom t\nwhere 1 = 1\n    and a = 1\n    and (\n        x between (\n            select 1\n            from u\n            where p = 1 and q = 2\n        ) and (select 2 from u)\n    )"
+            "select a\nfrom t\nwhere 1 = 1\n    and a = 1\n    and (\n        x between (\n            select 1\n            from u\n            where p = 1 and q = 2\n        ) and (select 2 from u)\n    );"
         );
         assert_eq!(crate::sql::format(&fixed).expect("second"), fixed);
     }
@@ -545,7 +555,7 @@ mod tests {
     fn breaks_inline_join() {
         let sql = "select a from t left join u on t.id = u.id";
         let fixed = crate::sql::format(sql).expect("format");
-        assert_eq!(fixed, "select a\nfrom t\nleft join u on t.id = u.id");
+        assert_eq!(fixed, "select a\nfrom t\nleft join u on t.id = u.id;");
         assert_eq!(crate::sql::format(&fixed).expect("second"), fixed);
     }
 
@@ -553,14 +563,14 @@ mod tests {
     fn breaks_join_after_from_newline() {
         let sql = "select a\nfrom\n    t left join u on t.id = u.id";
         let fixed = crate::sql::format(sql).expect("format");
-        assert_eq!(fixed, "select a\nfrom t\nleft join u on t.id = u.id");
+        assert_eq!(fixed, "select a\nfrom t\nleft join u on t.id = u.id;");
     }
 
     #[test]
     fn reindents_join() {
         let sql = "select a\nfrom t\n        left join u on t.id = u.id";
         let fixed = crate::sql::format(sql).expect("format");
-        assert_eq!(fixed, "select a\nfrom t\nleft join u on t.id = u.id");
+        assert_eq!(fixed, "select a\nfrom t\nleft join u on t.id = u.id;");
     }
 
     #[test]
@@ -569,7 +579,7 @@ mod tests {
         let fixed = crate::sql::fix::format(sql).expect("format");
         assert!(fixed.contains("where (\n    1 = 0\n"), "{fixed}");
         assert!(!fixed.contains("1 = 1"), "{fixed}");
-        assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+        assert!(check_complete(&fixed), "{fixed}");
     }
 
     #[test]
@@ -577,7 +587,7 @@ mod tests {
         let sql = "select a\nfrom t\nwhere 1 = 1\n    and (\n        1 = 0\n        or x = 1\n        or y = 2\n    )\n    and b = 2\n    and c = 3";
         let fixed = crate::sql::fix::format(sql).expect("format");
         assert!(fixed.contains("and (x = 1 or y = 2)"), "{fixed}");
-        assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+        assert!(check_complete(&fixed), "{fixed}");
     }
 
     #[test]
@@ -586,7 +596,7 @@ mod tests {
         let fixed = crate::sql::fix::format(sql).expect("format");
         assert!(fixed.contains("(case\n"), "{fixed}");
         assert!(fixed.contains("\nend) as v"), "{fixed}");
-        assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+        assert!(check_complete(&fixed), "{fixed}");
     }
 
     #[test]
@@ -594,7 +604,7 @@ mod tests {
         let sql = "select a from t where x in (select y from u where a = 1 and b = 2)";
         let fixed = crate::sql::fix::format(sql).expect("format");
         assert!(fixed.contains("x in (\n    select y\n"), "{fixed}");
-        assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+        assert!(check_complete(&fixed), "{fixed}");
         assert_eq!(crate::sql::fix::format(&fixed).expect("second"), fixed);
     }
 
@@ -606,7 +616,7 @@ mod tests {
             fixed.contains("select a from t1\nunion all\nselect b from t2"),
             "{fixed}"
         );
-        assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+        assert!(check_complete(&fixed), "{fixed}");
         assert_eq!(crate::sql::fix::format(&fixed).expect("second"), fixed);
     }
 
@@ -618,7 +628,7 @@ mod tests {
             fixed.contains("select a from t1\nexcept\nselect a from t2"),
             "{fixed}"
         );
-        assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+        assert!(check_complete(&fixed), "{fixed}");
     }
 
     #[test]
@@ -629,7 +639,7 @@ mod tests {
             fixed.contains("rollup(\n    a,\n    b,\n    c,\n    d\n)"),
             "{fixed}"
         );
-        assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+        assert!(check_complete(&fixed), "{fixed}");
     }
 
     #[test]
@@ -640,7 +650,7 @@ mod tests {
             fixed.contains("with\nx as (select a from t)\nselect a\nfrom x"),
             "{fixed}"
         );
-        assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+        assert!(check_complete(&fixed), "{fixed}");
         assert_eq!(crate::sql::fix::format(&fixed).expect("second"), fixed);
     }
 
@@ -649,7 +659,7 @@ mod tests {
         let sql = "with\nx as (\n    select a\n    from t\n    )\nselect a from x";
         let fixed = crate::sql::fix::format(sql).expect("format");
         assert!(fixed.contains("\n)\nselect a"), "{fixed}");
-        assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+        assert!(check_complete(&fixed), "{fixed}");
     }
 
     #[test]
@@ -657,6 +667,6 @@ mod tests {
         let sql = "select a\nfrom t1\nleft join t2 on t1.id = t2.id, t3";
         let fixed = crate::sql::fix::format(sql).expect("format");
         assert!(fixed.contains("cross join t3"), "{fixed}");
-        assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+        assert!(check_complete(&fixed), "{fixed}");
     }
 }

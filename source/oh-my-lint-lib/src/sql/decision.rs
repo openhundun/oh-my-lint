@@ -1,7 +1,7 @@
 //! 元素形态与断行判定：把 `complex` / `simple` / `decide` 固化成函数。
 
 /// 判定函数调用时必须排除的结构关键字：它们后面跟括号不是函数。
-const NON_FUNCTION_WORDS: [&str; 43] = [
+const NON_FUNCTION_WORDS: [&str; 44] = [
     "all",
     "and",
     "as",
@@ -33,6 +33,7 @@ const NON_FUNCTION_WORDS: [&str; 43] = [
     "not",
     "null",
     "on",
+    "options",
     "or",
     "order",
     "outer",
@@ -80,7 +81,9 @@ pub fn is_derived(element: &str) -> bool {
         return false;
     };
     word.kind == crate::sql::lexer::Kind::Word
-        && (word.text.eq_ignore_ascii_case("select") || word.text.eq_ignore_ascii_case("with"))
+        && (word.text.eq_ignore_ascii_case("select")
+            || word.text.eq_ignore_ascii_case("with")
+            || word.text.eq_ignore_ascii_case("values"))
 }
 
 /// 深度 0 是否含 `join`。

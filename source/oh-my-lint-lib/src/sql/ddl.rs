@@ -9,6 +9,7 @@ pub(crate) fn layout(sql: &str, dialect: Dialect) -> Option<String> {
     let _ = dialect;
     let normalized = token::normalize(sql);
     let text = normalized.trim();
+    let text = text.strip_suffix(';').unwrap_or(text).trim_end();
     if text.is_empty() || crate::sql::lexer::has_comment(text) {
         return None;
     }

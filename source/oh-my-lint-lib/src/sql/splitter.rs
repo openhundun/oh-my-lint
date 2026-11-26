@@ -236,7 +236,7 @@ fn starts_with_word(text: &str, word: &str) -> bool {
 }
 pub fn all_statements(text: &str) -> Vec<crate::span::Span> {
     let mut blocks = vec![crate::span::Span::new(0, text.len())];
-    let masked = crate::sql::lexer::mask(text);
+    let masked = split_mask(text);
     let mut starts: Vec<usize> = Vec::new();
     for (index, byte) in masked.bytes().enumerate() {
         if byte == b'(' {
@@ -257,7 +257,8 @@ pub fn all_statements(text: &str) -> Vec<crate::span::Span> {
 
 /// 按深度 0 的分号或「空行 + select/with」切出多条语句。
 pub fn statements(text: &str) -> Vec<crate::span::Span> {
-    let masked = crate::sql::lexer::mask(text);
+    let boundary = neutralize_pg_dump(text);
+    let masked = crate::sql::lexer::mask(&boundary);
     let bytes = masked.as_bytes();
     let mut bounds: Vec<(usize, usize)> = Vec::new();
     let mut depth: i32 = 0;
@@ -285,7 +286,7 @@ pub fn statements(text: &str) -> Vec<crate::span::Span> {
     bounds
         .into_iter()
         .filter_map(|(begin, end)| {
-            let chunk = &text[begin..end];
+            let chunk = &boundary[begin..end];
             let trimmed = chunk.trim();
             if trimmed.is_empty() {
                 return None;
@@ -297,6 +298,70 @@ pub fn statements(text: &str) -> Vec<crate::span::Span> {
             ))
         })
         .collect()
+}
+
+/// 切分前先抹掉 psql 元命令与 `COPY ... FROM stdin` 数据块，避免词法器整段回退。
+///
+/// `pg_dump` 输出里的反斜杠行不是 SQL；`COPY` 数据还可能包含分号。这里只做等长
+/// 空白替换，原文切片与 span 不受影响。
+fn split_mask(text: &str) -> String {
+    crate::sql::lexer::mask(&neutralize_pg_dump(text))
+}
+
+fn neutralize_pg_dump(text: &str) -> std::borrow::Cow<'_, str> {
+    let mut ranges: Vec<(usize, usize)> = Vec::new();
+    let mut offset = 0;
+    let mut in_copy = false;
+    while offset < text.len() {
+        let end = text[offset..]
+            .find('\n')
+            .map_or(text.len(), |index| offset + index + 1);
+        let line = &text[offset..end];
+        let trimmed = line.trim();
+        if in_copy {
+            ranges.push((offset, end));
+            if trimmed == "\\." {
+                in_copy = false;
+            }
+        } else if starts_copy_from_stdin(trimmed) {
+            // 连 COPY 头一起抹掉：词法器看到 `COPY ... FROM stdin` 会把余下文本
+            // 全部当成 CopyData，后续语句也会被吞掉。
+            ranges.push((offset, end));
+            in_copy = true;
+        } else if trimmed.starts_with('\\') {
+            ranges.push((offset, end));
+        }
+        offset = end;
+    }
+    if ranges.is_empty() {
+        return std::borrow::Cow::Borrowed(text);
+    }
+    let mut output = String::with_capacity(text.len());
+    let mut cursor = 0;
+    for (start, end) in ranges {
+        if start < cursor {
+            continue;
+        }
+        output.push_str(&text[cursor..start]);
+        output.extend(
+            text[start..end]
+                .bytes()
+                .map(|byte| if byte == b'\n' { '\n' } else { ' ' }),
+        );
+        cursor = end;
+    }
+    output.push_str(&text[cursor..]);
+    std::borrow::Cow::Owned(output)
+}
+
+fn starts_copy_from_stdin(line: &str) -> bool {
+    let bytes = line.as_bytes();
+    bytes.len() >= 5
+        && bytes[..4].eq_ignore_ascii_case(b"copy")
+        && bytes[4].is_ascii_whitespace()
+        && bytes
+            .windows(b" from stdin".len())
+            .any(|window| window.eq_ignore_ascii_case(b" from stdin"))
 }
 
 fn split_depth(body: &str) -> Vec<Element> {
@@ -608,5 +673,25 @@ mod tests {
     fn splits_statements_on_semicolon() {
         let spans = crate::sql::splitter::statements("select 1; select 2");
         assert_eq!(spans.len(), 2);
+    }
+
+    #[test]
+    fn skips_pg_dump_meta_and_copy_data() {
+        let sql = "\\restrict token\nSET X = 1;\nCOPY t (a) FROM stdin;\n1;2\n3\n\\.\nCREATE INDEX IDX ON T (A);\n\\unrestrict token\n";
+        let spans = crate::sql::splitter::statements(sql);
+        assert_eq!(spans.len(), 2);
+        assert_eq!(&sql[spans[0].start..spans[0].end], "SET X = 1");
+        assert_eq!(
+            &sql[spans[1].start..spans[1].end],
+            "CREATE INDEX IDX ON T (A)"
+        );
+
+        let formatted = crate::sql::format(sql).expect("format pg_dump");
+        assert!(formatted.contains("set x = 1;"));
+        assert!(formatted.contains("COPY t (a) FROM stdin;"));
+        assert!(formatted.contains("1;2\n3\n\\.\n"));
+        assert!(formatted.contains("create index idx on t (a);"));
+        assert!(formatted.starts_with("\\restrict token\n"));
+        assert!(formatted.ends_with("\\unrestrict token\n"));
     }
 }

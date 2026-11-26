@@ -57,6 +57,7 @@ pub(crate) fn layout(sql: &str, dialect: Dialect) -> Option<String> {
     }
     let normalized = crate::sql::token::normalize(sql);
     let statement = normalized.trim();
+    let statement = statement.strip_suffix(';').unwrap_or(statement).trim_end();
     if statement.is_empty() {
         return None;
     }

@@ -40,7 +40,9 @@ v0.1 只实现 **SQL 断行与 token 规范化**（规则 `sql-break`）：DQL �
 
 规则 `sql-break` 覆盖：DQL 的子句断行、布尔组断行与锚点、含子查询的单条件括号断行、独立 `case` 展开、内联子查询展开、`from` 的 join 版式与隐式 `cross join` 改写；DML 的 `delete` 子句版式与 `explain` 头部/查询分行；DDL 的 `create table`（列顺序、对齐、表约束、表属性）、`create index`、`alter table` 与 CTAS。token 层覆盖大小写、空格、`<>`/`outer`/`asc`、别名 `as`、`distinct`、`case` 括号与 `not` 改写，以及 R35–R39 的 PG 类型字面量、类型别名、命名参数、默认形式省略与关键字括号。
 
-所有块按 `--dialect`（`postgres`/`mysql`/`duckdb`/`hive`，默认 `postgres`）交给 sqlparser 做词法与语法分析；字符串、注释、引号按方言识别（`$$`、`E''`、`#` 注释、反引号）。R34 逐语句解析：解析失败的语句逐字节保留，不跑布局与 token 规则、不报 finding、不产出修复，且不影响同一块中其他可解析语句。R35 的 PG 类型字面量改写只在 `postgres` 方言生效。
+所有块按 `--dialect`（`postgres`/`mysql`/`duckdb`/`hive`，默认 `postgres`）交给 sqlparser 做词法与语法分析；字符串、注释、引号按方言识别（`$$`、`E''`、`#` 注释、反引号）。R34 逐语句解析：解析失败的语句逐字节保留，不跑布局与 token 规则、不报 finding、不产出修复，且不影响同一块中其他可解析语句。所有解析成功的语句（包括 `create policy`、`create function`、`grant` 等 `Other` 类型）都执行 R25–R39 token 规范化；只有 DQL/DML/DDL 的六类语句有结构版式。含注释的语句只做 token 规范化、保留注释和原结构；尾部注释不补分号。R35 的 PG 类型字面量改写只在 `postgres` 方言生效。
+
+`pg_dump` 输出按 R34a 处理：`\restrict`/`\unrestrict` 等 psql 元命令行原样保留；`COPY ... FROM stdin` 从头部到 `\.` 视为不透明数据块，数据中的分号、Tab 与反斜杠不参与切分，块前后的 SQL 继续格式化。schema-only、`--inserts`/`--column-inserts` 和含 `COPY` 数据块的完整 dump 都走这一入口。官方回归语料的白名单见 [`public/postgres-regress/WHITELIST.md`](public/postgres-regress/WHITELIST.md)，机器可读清单见 [`public/postgres-regress/corpus.json`](public/postgres-regress/corpus.json)。
 
 完整判据（术语、递归规则与版式）见 [`RULES.md`](RULES.md)。RULES.md 按危险程度组织为 DQL → DML → DDL；v0.1 代码已实现这三类版式与 R34 的逐语句跳过，DML/DDL 覆盖 `delete`、`explain`、`create table`、`create index`、`alter table` 与 CTAS。
 
@@ -50,9 +52,10 @@ v0.1 只实现 **SQL 断行与 token 规范化**（规则 `sql-break`）：DQL �
 - 只替换块内文本；块外字节保持不变，块之间互不影响。
 - 元素内部文本（字符串字面量、标识符）逐字节保留；修复会改换行、缩进、锚点、连接词、join 关键字，并把隐式 cross join 写成显式 `cross join`。
 - 格式化幂等：`format(format(x)) == format(x)`；合规输入不做任何改动。
-- 对 `fix` 接受的块，修复后重新 `check` 为空；被 `skipped` 的块保持原样，`check` 继续报告。
+- 文本末尾（最后一条被 formatter 处理的语句）必须有分号；缺时补一个，已有分号保留。末尾是注释时不补分号，避免写进注释。
+- 对布局模块支持的语句，修复后重新 `check` 为空；只走 token-only 回退的语句可能仍保留结构 finding（如 `VALUES` 派生表、集合运算、`SELECT INTO`），这类 finding 留待规则补齐；被 `skipped` 的块保持原样，`check` 继续报告。
 - 无法解析的语句按 R34 逐字节保留、不报告；`check` 不输出解析错误，也不猜结构。
-- 修复覆盖 DQL 的子句、布尔组、含子查询的单条件括号、独立 `case`、内联子查询、隐式 cross join、from join 换行、`with` 框架、集合运算与 `rollup` 参数；DML 的 `delete`/`explain`；DDL 的 `create table` 对齐与约束、`create index`、`alter table` 与 CTAS。token 层覆盖大小写、空格、`as`、`distinct`、`case` 括号、`between` 括号、`not` 改写与 R35–R39。
+- 修复覆盖 DQL 的子句、布尔组、含子查询的单条件括号、独立 `case`、内联子查询、隐式 cross join、from join 换行、`with` 框架、集合运算与 `rollup` 参数；DML 的 `delete`/`explain`；DDL 的 `create table` 对齐与约束、`create index`、`alter table` 与 CTAS。所有解析成功的其他语句只做 token 层修复：大小写、空格、`as`、`distinct`、`case` 括号、`between` 括号、`not` 改写与 R35–R39；注释块保留注释和原结构。
 
 ## 构建与测试
 

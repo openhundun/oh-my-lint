@@ -27,15 +27,26 @@ pub fn check_with(sql: &str, dialect: Dialect) -> Vec<crate::model::Finding> {
 }
 
 fn check_with_inner(sql: &str, dialect: Dialect) -> Vec<crate::model::Finding> {
-    if crate::sql::lexer::has_comment(sql) {
-        return Vec::new();
-    }
     let mut findings = Vec::new();
-    for span in crate::sql::splitter::statements(sql) {
+    let spans = crate::sql::splitter::statements(sql);
+    let mut last_kind = None;
+    for span in &spans {
         let statement = &sql[span.start..span.end];
-        let Ok(kind) = crate::sql::parse::classify_one(statement, dialect) else {
+        last_kind = crate::sql::parse::classify_one(statement, dialect).ok();
+        let Some(kind) = last_kind else {
             continue;
         };
+        if crate::sql::lexer::has_comment(statement) {
+            // 注释块不做结构判定；保留注释，只跑能安全落地的 token 规则。
+            if token_only(statement, dialect).is_some() {
+                findings.extend(
+                    crate::sql::token::issues(statement)
+                        .into_iter()
+                        .map(|issue| finding(issue.message, issue.span.shift(span.start))),
+                );
+            }
+            continue;
+        }
         match kind {
             StatementKind::Query => {
                 findings.extend(
@@ -45,30 +56,58 @@ fn check_with_inner(sql: &str, dialect: Dialect) -> Vec<crate::model::Finding> {
                             finding(violation.message, violation.span.shift(span.start))
                         }),
                 );
-                findings.extend(
-                    crate::sql::token::issues(statement)
-                        .into_iter()
-                        .map(|issue| finding(issue.message, issue.span.shift(span.start))),
-                );
+                findings.extend(token_findings(statement, *span, dialect));
             }
-            StatementKind::Other => {}
+            StatementKind::Other => {
+                findings.extend(token_findings(statement, *span, dialect));
+            }
             StatementKind::Delete
             | StatementKind::Explain
             | StatementKind::CreateTable
             | StatementKind::CreateIndex
             | StatementKind::AlterTable => {
-                findings.extend(
-                    crate::sql::token::issues(statement)
-                        .into_iter()
-                        .map(|issue| finding(issue.message, issue.span.shift(span.start))),
-                );
+                findings.extend(token_findings(statement, *span, dialect));
                 if layout(kind, statement, dialect).is_some_and(|output| output != statement) {
-                    findings.push(finding(format!("{} layout differs", label(kind)), span));
+                    findings.push(finding(format!("{} layout differs", label(kind)), *span));
                 }
             }
         }
     }
+    let last_has_comment = spans
+        .last()
+        .is_some_and(|span| crate::sql::lexer::has_comment(&sql[span.start..span.end]));
+    if let Some(last) = spans.last()
+        && last_kind.is_some()
+        && !last_has_comment
+        && !has_terminating_semicolon(sql, last.end)
+    {
+        findings.push(finding(
+            "statement must end with a semicolon".to_owned(),
+            crate::span::Span::empty(last.end),
+        ));
+    }
     findings
+}
+
+/// 语句之后（允许空白）是否紧接分号。
+fn has_terminating_semicolon(sql: &str, end: usize) -> bool {
+    sql.get(end..)
+        .is_some_and(|tail| tail.trim_start().starts_with(';'))
+}
+
+/// 只报告 token 规范化后仍能通过 sqlparser 的问题；否则修复必然被跳过。
+fn token_findings(
+    statement: &str,
+    span: crate::span::Span,
+    dialect: Dialect,
+) -> Vec<crate::model::Finding> {
+    if token_only(statement, dialect).is_none() {
+        return Vec::new();
+    }
+    crate::sql::token::issues(statement)
+        .into_iter()
+        .map(|issue| finding(issue.message, issue.span.shift(span.start)))
+        .collect()
 }
 
 /// 一条块内诊断；语句级 span 已加基址。
@@ -118,11 +157,6 @@ pub fn format_with(sql: &str, dialect: Dialect) -> crate::error::Result<String> 
 }
 
 fn format_with_inner(sql: &str, dialect: Dialect) -> crate::error::Result<String> {
-    if crate::sql::lexer::has_comment(sql) {
-        return Err(crate::error::Error::Rejected(
-            "comments are not supported in fix mode".to_owned(),
-        ));
-    }
     let spans = crate::sql::splitter::statements(sql);
     let mut output = sql.to_owned();
     let mut last_processed = false;
@@ -136,42 +170,72 @@ fn format_with_inner(sql: &str, dialect: Dialect) -> crate::error::Result<String
             last_processed = true;
         }
     }
-    if last_processed && let Some(last) = spans.last() {
+    if last_processed
+        && let Some(last) = spans.last()
+        && !crate::sql::lexer::has_comment(&sql[last.start..last.end])
+    {
         // 末尾字节不属于任何语句，替换后位置不变；据此换算最后一条语句的终点。
         let end = output.len() - (sql.len() - last.end);
-        output = drop_final_semicolon(output, end);
+        output = ensure_final_semicolon(output, end);
     }
     Ok(output)
 }
 
 /// 渲染一条语句；`None` 表示跳过该语句、逐字节保留原文。
 fn format_statement(statement: &str, dialect: Dialect) -> Option<String> {
+    if crate::sql::lexer::has_comment(statement) {
+        return token_only(statement, dialect).or_else(|| Some(statement.to_owned()));
+    }
     let kind = crate::sql::parse::classify_one(statement, dialect).ok()?;
     let output = match kind {
         StatementKind::Query => {
-            let normalized = crate::sql::token::normalize(statement);
-            let formatted = crate::sql::fix::format_with(&normalized, dialect).ok()?;
-            crate::sql::token::normalize(&formatted)
+            let mut current = crate::sql::token::normalize(statement);
+            // token 规范化可能让原本布局器拒绝的表达式变得可布局；继续跑到不动点。
+            for _ in 0..4 {
+                let Ok(formatted) = crate::sql::fix::format_with(&current, dialect) else {
+                    break;
+                };
+                let next = crate::sql::token::normalize(&formatted);
+                if next == current {
+                    break;
+                }
+                current = next;
+            }
+            current
         }
         StatementKind::Delete
         | StatementKind::Explain
         | StatementKind::CreateTable
         | StatementKind::CreateIndex
-        | StatementKind::AlterTable => layout(kind, statement, dialect)?,
-        StatementKind::Other => return None,
+        | StatementKind::AlterTable => layout(kind, statement, dialect)
+            .or_else(|| token_only(statement, dialect))
+            .unwrap_or_else(|| statement.to_owned()),
+        StatementKind::Other => {
+            token_only(statement, dialect).unwrap_or_else(|| statement.to_owned())
+        }
     };
-    crate::sql::parse::classify_one(&output, dialect).ok()?;
+    if crate::sql::parse::classify_one(&output, dialect).is_err() {
+        return token_only(statement, dialect);
+    }
     Some(output)
 }
 
-/// R26：最后一条语句被处理时，切掉语句之后的尾分号与其间、之后的空白。
-fn drop_final_semicolon(mut text: String, end: usize) -> String {
-    let has_semicolon = text
-        .get(end..)
-        .is_some_and(|tail| tail.trim_end().ends_with(';'));
-    if has_semicolon {
-        text.truncate(end);
+/// DQL 布局器不支持的语句仍执行 token 规范化；结构版式保持原样。
+fn token_only(statement: &str, dialect: Dialect) -> Option<String> {
+    let normalized = crate::sql::token::normalize(statement);
+    if normalized == statement {
+        return None;
     }
+    crate::sql::parse::classify_one(&normalized, dialect).ok()?;
+    Some(normalized)
+}
+
+/// R26：最后一条语句被处理时，确保语句之后有一个分号。
+fn ensure_final_semicolon(mut text: String, end: usize) -> String {
+    if has_terminating_semicolon(&text, end) {
+        return text;
+    }
+    text.insert(end, ';');
     text
 }
 
@@ -221,15 +285,8 @@ impl crate::model::Rule for SqlRule {
         })
     }
 
-    fn can_fix(&self, block: &crate::model::Block) -> crate::error::Result<()> {
-        crate::sql::lexer::with_dialect(self.dialect, || {
-            if crate::sql::lexer::has_comment(&block.text) {
-                return Err(crate::error::Error::Rejected(
-                    "comments are not supported in fix mode".to_owned(),
-                ));
-            }
-            Ok(())
-        })
+    fn can_fix(&self, _block: &crate::model::Block) -> crate::error::Result<()> {
+        Ok(())
     }
 }
 

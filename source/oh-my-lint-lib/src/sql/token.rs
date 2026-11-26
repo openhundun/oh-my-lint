@@ -105,7 +105,7 @@ fn edits(sql: &str) -> Vec<Edit> {
     edits
 }
 
-/// 关键字与裸标识符小写；`<>` 改写为 `!=`；去尾分号与行尾空白。
+/// 关键字与裸标识符小写；`<>` 改写为 `!=`；去行尾空白。
 fn lowercase_edits(tokens: &[Token], edits: &mut Vec<Edit>) {
     for token in tokens {
         if token.kind != Kind::Word {
@@ -131,14 +131,6 @@ fn symbol_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                 message: "use != instead of <>",
             });
         }
-    }
-    let trimmed_len = sql.trim_end().len();
-    if trimmed_len > 0 && sql.as_bytes()[trimmed_len - 1] == b';' {
-        edits.push(Edit {
-            span: Span::new(trimmed_len - 1, trimmed_len),
-            replacement: String::new(),
-            message: "drop the trailing semicolon",
-        });
     }
     let bytes = sql.as_bytes();
     let mut index = 0;
@@ -221,7 +213,7 @@ fn spacing_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                 }
             }
             "=" => {
-                if exclude_operator(tokens, index) {
+                if exclude_operator(tokens, index) || operator_definition(tokens, index) {
                     continue;
                 }
                 if named_argument(tokens, index) {
@@ -250,9 +242,14 @@ fn spacing_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                 }
             }
             "!=" | "<" | "<=" | ">" | ">=" | "/" => {
-                binary_gap(tokens, index, sql, edits);
+                if !operator_definition(tokens, index) {
+                    binary_gap(tokens, index, sql, edits);
+                }
             }
             "+" | "-" => {
+                if operator_definition(tokens, index) {
+                    continue;
+                }
                 if is_unary(tokens, index) {
                     if let Some(next) = next_non_ws(tokens, index) {
                         push_gap(
@@ -278,7 +275,7 @@ fn spacing_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                 }
                 let next = next_non_ws(tokens, index);
                 if next.is_some_and(|next| {
-                    tokens[next].kind == Kind::Punct && tokens[next].text == ")"
+                    tokens[next].kind == Kind::Punct && matches!(tokens[next].text, ")" | ",")
                 }) {
                     continue;
                 }
@@ -292,6 +289,22 @@ fn spacing_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
 /// D4：`exclude` 元素里的 `room with =` 是运算符名，不是二元运算。
 fn exclude_operator(tokens: &[Token], index: usize) -> bool {
     previous_non_ws(tokens, index).is_some_and(|previous| word_is(&tokens[previous], "with"))
+}
+
+/// `OPERATOR 1 <` / `COMMUTATOR =` 里的符号是定义名，不是二元运算。
+fn operator_definition(tokens: &[Token], index: usize) -> bool {
+    let Some(previous) = previous_non_ws(tokens, index) else {
+        return false;
+    };
+    if word_is(&tokens[previous], "operator")
+        || word_is(&tokens[previous], "commutator")
+        || word_is(&tokens[previous], "negator")
+        || word_is(&tokens[previous], "restrict")
+        || word_is(&tokens[previous], "join")
+    {
+        return true;
+    }
+    previous_non_ws(tokens, previous).is_some_and(|before| word_is(&tokens[before], "operator"))
 }
 
 fn binary_gap(tokens: &[Token], index: usize, sql: &str, edits: &mut Vec<Edit>) {
@@ -690,6 +703,11 @@ fn spaced_paren_word(lower: &str) -> bool {
             | "explain"
             | "default"
             | "to"
+            | "also"
+            | "instead"
+            | "conflict"
+            | "materialized"
+            | "overlaps"
     )
 }
 
@@ -724,10 +742,17 @@ fn relation_paren(
     let lower = tokens[before].text.to_ascii_lowercase();
     let flavor = flavor_at(flavors, tokens[name_index].start);
     match lower.as_str() {
-        "table" | "references" | "using" => true,
+        "table" | "references" | "using" | "into" => true,
         "exists" | "of" => flavor == StatementFlavor::CreateTable,
         "on" => flavor == StatementFlavor::CreateIndex,
         "by" => flavor == StatementFlavor::CreateTable,
+        "as" => {
+            let Some(table) = previous_non_ws(tokens, before) else {
+                return false;
+            };
+            ident(&tokens[table])
+                && previous_non_ws(tokens, table).is_some_and(|word| word_is(&tokens[word], "into"))
+        }
         _ => false,
     }
 }
@@ -1711,6 +1736,16 @@ fn field_alias_edits(body: &str, sql: &str, base: usize, edits: &mut Vec<Edit>) 
         {
             continue;
         }
+        // `IS JSON OBJECT` 的 OBJECT 是类型修饰，不是字段别名。
+        if tokens
+            .iter()
+            .any(|token| token.kind == Kind::Word && token.text.eq_ignore_ascii_case("is"))
+            && tokens
+                .iter()
+                .any(|token| token.kind == Kind::Word && token.text.eq_ignore_ascii_case("json"))
+        {
+            continue;
+        }
         let trailing_ddl = tokens.iter().any(|token| {
             token.kind == Kind::Word
                 && matches!(
@@ -2147,9 +2182,9 @@ mod tests {
     fn skips_into_targets_and_unknown_predicates() {
         assert_fixed(
             "SELECT foo, bar INTO baz FROM qux;",
-            "select foo, bar into baz from qux",
+            "select foo, bar into baz from qux;",
         );
-        assert_fixed("SELECT TRUE IS NOT UNKNOWN;", "select true is not unknown");
+        assert_fixed("SELECT TRUE IS NOT UNKNOWN;", "select true is not unknown;");
     }
 
     #[test]
@@ -2232,8 +2267,16 @@ mod tests {
             "select a,b from t where x<>y",
             "select a, b from t where x != y",
         );
-        assert_fixed("select a from t;", "select a from t");
-        assert_fixed("select a from t;   ", "select a from t");
+        assert_fixed("select a from t;", "select a from t;");
+        assert_fixed("select a from t;   ", "select a from t;");
+    }
+
+    #[test]
+    fn spaces_insert_target_and_conflict() {
+        assert_fixed(
+            "INSERT INTO t AS d(did, name) VALUES(1, 'x') ON CONFLICT(did) DO NOTHING",
+            "insert into t as d (did, name) values (1, 'x') on conflict (did) do nothing",
+        );
     }
 
     #[test]

@@ -17,18 +17,19 @@
 ### token
 
 - R25 关键字与裸标识符小写；单引号字面量、反引号/双引号标识符逐字节保留。
-- R26 去掉文本末尾的单个分号；语句之间的分隔符保留。
+- R26 文本末尾（最后一条被 formatter 处理的语句）必须有一个分号；语句之间的原有分隔符保留。尾部含注释时不强制补分号，避免把分号写进注释。
 - R27 二元运算符两侧空格（`= != < <= > >= + - * /`）、函数与类型括号紧贴、逗号前无空格后一个空格、行尾无空格；`<>` 改写为 `!=`；`left outer join`/`full outer join` 的 `outer` 按 R38 省略。
 - R28 字段别名必须有 `as`；表与派生表别名裸写；独立 `case` 表达式加圆括号（函数实参内不加）；条件位置的 `between` 写成 `(x between a and b)`，`select` 值表达式不加；`distinct(x)` 改写为 `distinct x`；`over (`/`rollup (` 紧贴为 `over(`/`rollup(`；`nulls first` 位于排序方向之后；`not x is null` 改写为 `x is not null`，`not x = 1` 改写为 `x != 1`；`order by` 位置序号不改写。
 - R35 PG 类型字面量改为强转：`date '…'`/`time '…'`/`timestamp '…'`/`timestamptz '…'`/`interval '…'` 写成 `'…'::date` 等；interval 内容里的单位词小写单数（`'8 HOURS'`→`'8 hour'`、`'3S'`→`'3 second'`、`'1 HOUR 2 MINUTES'`→`'1 hour 2 minute'`），数字与其余字面量内容保留。只对 postgres 方言生效。
 - R36 类型别名归一到受限子集：`int`（`integer`/`int4`）、`bigint`（`int8`）、`smallint`（`int2`）、`boolean`（`bool`）、`varchar`（`character varying`/`char varying`）、`char`（`character`）、`decimal`（`numeric`）、`float4`（`real`）、`float8`（`double precision`）、`timestamptz`（`timestamp with time zone`）、`serial`/`bigserial`/`smallserial`；`timestamp without time zone`→`timestamp`，`time without time zone`→`time`，`time with time zone`→`timetz`。`numeric` 只在类型位置改，`collate numeric` 这类排序规则名不动。
 - R37 命名参数等号两侧不加空格（`with (fillfactor=70)`、`set (parameter_1='value')`、`opclass (opt1=1)`）；表达式里的 `a = b` 仍有空格。
 - R38 默认形式省略：显式 `null`、`asc`、`nulls distinct`、ASC 下的 `nulls last`、DESC 下的 `nulls first`、`match simple`、`not deferrable initially immediate`、`on commit preserve rows`、列定义里的 `storage default`/`compression default`、`without oids`、`outer`。保留非默认形式；两种非默认形式并存时，右对齐区分后缀（`distinct`、`first`/`last`）。`alter … set storage default` 是 action，不省略。
-- R39 SQL 关键字构造与括号之间留一个空格：`primary key (`、`unique (`、`check (`、`foreign key (`、`references t (`、`exclude using gist (`、`include (`、`with (`、`set (`、`using gin (`；类型和函数调用紧贴：`varchar(40)`、`now()`、`nextval(…)`、`char_length(…)`。
+- R39 SQL 关键字构造与括号之间留一个空格：`primary key (`、`unique (`、`check (`、`foreign key (`、`references t (`、`exclude using gist (`、`include (`、`with (`、`set (`、`options (`、`using gin (`；类型和函数调用紧贴：`varchar(40)`、`now()`、`nextval(…)`、`char_length(…)`。
 
 ### 解析门禁
 
 - R34 语句块先按 `--dialect`（`postgres`/`mysql`/`duckdb`/`hive`，默认 `postgres`）解析。解析成功才跑布局与 token 规则，输出需再次解析通过；解析失败则跳过该块、逐字节保留原样，不报 finding、不产出修复，并记录上游不支持的构造。跳过策略也让 handlebars 之类的非 SQL 片段原样通过。
+- R34a `pg_dump` 输出先识别不透明区间：以 `\` 开头的 psql 元命令行（`\restrict`/`\unrestrict`/`\connect` 等）和 `COPY ... FROM stdin` 到行首 `\.` 的数据块不参与解析、token 与结构规则，逐字节保留；这些区间前后的 SQL 仍按 R34 处理。数据块内的分号、Tab、反斜杠不参与语句切分；`COPY` 头也保持原样。
 
 ## DQL
 
@@ -42,7 +43,7 @@
 
 ### 子句
 
-- R6 `from` 断行：元素 ≥4，或任一元素含 `join`，或元素 ≥2 且含派生表。
+- R6 `from` 断行：元素 ≥4，或任一元素含 `join`，或元素 ≥2 且含派生表（`(select`/`(with`/`(values`）。
 - R7 `select` 断行：元素 ≥4，或含复杂表达式，或元素恰为 3 且全部以 `as <标识符>` 结尾（标识符含裸名、双引号名、反引号名）。
 - R8 `where`/`on`/`having`/`order by` 断行：元素 ≥4 或含复杂表达式。
 - R9 `group by` 断行：元素 ≥4。
@@ -89,5 +90,5 @@
 
 - R29 断行不看行长，不按文件或语句另设字符阈值；表属性内联只看 D5 的结构条件。
 - R30 幂等：格式化结果再次格式化逐字节不变；合规文本零改动；块外字节与块内未列入 R25–R28、R35–R39 的字符逐字节保留；R34 跳过的块逐字节保留。
-- R31 含注释的语句块不参与判定，修复时整体跳过。
-- R32 范围：DQL、DML、DDL；宿主语言不处理。
+- R31 含注释的语句块不参与结构判定；token 规则仍运行并逐字节保留注释，结构版式保持原样。
+- R32 范围：所有 sqlparser 能解析的语句。DQL、DML、DDL 有结构版式；其余语句只做 token 规范化。宿主语言不处理。

@@ -30,15 +30,16 @@ pub(crate) fn layout(sql: &str, dialect: Dialect) -> Option<String> {
 
 fn layout_inner(sql: &str, dialect: Dialect) -> Option<String> {
     let normalized = token::normalize(sql.trim());
+    let normalized = normalized.trim_end_matches(';').trim_end();
     if normalized.is_empty() {
         return None;
     }
-    let statements = parse::parse(&normalized, dialect).ok()?;
+    let statements = parse::parse(normalized, dialect).ok()?;
     let output = match statements.as_slice() {
-        [Statement::Delete(delete)] => layout_delete(&normalized, delete)?,
-        [Statement::Explain { statement, .. }] => layout_explain(&normalized, statement, dialect)?,
+        [Statement::Delete(delete)] => layout_delete(normalized, delete)?,
+        [Statement::Explain { statement, .. }] => layout_explain(normalized, statement, dialect)?,
         [Statement::Query(query)] => match query.body.as_ref() {
-            SetExpr::Delete(Statement::Delete(delete)) => layout_delete(&normalized, delete)?,
+            SetExpr::Delete(Statement::Delete(delete)) => layout_delete(normalized, delete)?,
             _ => return None,
         },
         _ => return None,

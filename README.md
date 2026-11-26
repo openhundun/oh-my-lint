@@ -40,7 +40,7 @@ v0.1 只实现 **SQL 断行决策**（规则 `sql-break`）：根据子句复杂
 
 规则 `sql-break` 覆盖：子句断行、布尔组断行与锚点、含子查询的单条件括号断行、独立 `case` 展开、内联子查询展开、`from` 的 join 版式与隐式 `cross join` 改写。token 层覆盖大小写、空格、`<>`/`outer`/`asc`、别名 `as`、`distinct`、`case` 括号与 `not` 改写。
 
-所有块先按 `--dialect` 解析（`generic`/`postgres`/`mysql`/`sqlite`/`hive`/`snowflake`/`bigquery`，默认 `generic`）；解析失败只报 `sql does not parse`，不跑布局规则、不产出修复。
+所有块先按 `--dialect`（`postgres`/`mysql`/`duckdb`/`hive`，默认 `postgres`）交给 sqlparser 做词法与语法分析；字符串、注释、引号按方言识别（`$$`、`E''`、`#` 注释、反引号）。解析失败只报 `sql does not parse`，不跑布局规则、不产出修复。
 
 完整判据（术语、递归规则与版式）见 [`RULES.md`](RULES.md)。
 

@@ -5,7 +5,6 @@
 use std::ops::ControlFlow;
 
 use sqlparser::ast::{Query, Spanned as _, Visit, Visitor};
-use sqlparser::tokenizer::{Location, Span as AstSpan};
 
 use crate::span::Span;
 use crate::sql::parse::Dialect;
@@ -16,12 +15,13 @@ use crate::sql::parse::Dialect;
 /// 所以这些区间只当“查询正文”使用，不拿来当语句边界。
 pub struct Structure {
     pub queries: Vec<Span>,
+    dialect: Dialect,
 }
 
 /// 解析并映射；解析失败返回 `None`，调用方回退到文本扫描。
 pub fn structure(sql: &str, dialect: Dialect) -> Option<Structure> {
     let statements = crate::sql::parse::parse(sql, dialect).ok()?;
-    let index = LineIndex::new(sql);
+    let index = crate::sql::lexer::LineIndex::new(sql);
     let mut collector = QueryCollector {
         sql,
         index: &index,
@@ -33,7 +33,7 @@ pub fn structure(sql: &str, dialect: Dialect) -> Option<Structure> {
     let mut queries = collector.spans;
     queries.sort();
     queries.dedup();
-    Some(Structure { queries })
+    Some(Structure { queries, dialect })
 }
 
 impl Structure {
@@ -52,7 +52,9 @@ impl Structure {
         if root.start != statement.start {
             return None;
         }
-        let lexical = crate::sql::splitter::all_statements(statement_text);
+        let lexical = crate::sql::lexer::with_dialect(self.dialect, || {
+            crate::sql::splitter::all_statements(statement_text)
+        });
         let mut blocks: Vec<Span> = queries
             .into_iter()
             .filter(|query| query.start > root.start)
@@ -75,44 +77,6 @@ impl Structure {
     }
 }
 
-/// 行首字节偏移；用于把 `Location` 的行列位置换成字节偏移。
-struct LineIndex {
-    starts: Vec<usize>,
-}
-
-impl LineIndex {
-    fn new(text: &str) -> Self {
-        let mut starts = vec![0];
-        starts.extend(text.match_indices('\n').map(|(index, _)| index + 1));
-        Self { starts }
-    }
-
-    fn offset(&self, text: &str, location: Location) -> Option<usize> {
-        let line = usize::try_from(location.line).ok()?.checked_sub(1)?;
-        let start = *self.starts.get(line)?;
-        let end = self
-            .starts
-            .get(line + 1)
-            .map_or(text.len(), |next| next - 1);
-        let column = usize::try_from(location.column).ok()?.checked_sub(1)?;
-        let line_text = &text[start..end];
-        let byte = line_text
-            .char_indices()
-            .nth(column)
-            .map_or(line_text.len(), |(index, _)| index);
-        Some(start + byte)
-    }
-
-    fn span(&self, text: &str, span: AstSpan) -> Option<Span> {
-        if span.start.line == 0 {
-            return None;
-        }
-        let start = self.offset(text, span.start)?;
-        let end = self.offset(text, span.end)?;
-        (start <= end && end <= text.len()).then(|| Span::new(start, end))
-    }
-}
-
 /// 查询正文之后若只剩空白再遇 `)`，把区间扩到 `)` 之前，和文本扫描器的块边界一致。
 fn trailing_paren(text: &str, end: usize) -> usize {
     let bytes = text.as_bytes();
@@ -129,7 +93,7 @@ fn trailing_paren(text: &str, end: usize) -> usize {
 
 struct QueryCollector<'a> {
     sql: &'a str,
-    index: &'a LineIndex,
+    index: &'a crate::sql::lexer::LineIndex,
     spans: Vec<Span>,
 }
 
@@ -149,7 +113,7 @@ mod tests {
     use super::*;
 
     fn structure_of(sql: &str) -> Structure {
-        structure(sql, Dialect::Generic).expect("structure")
+        structure(sql, Dialect::Postgres).expect("structure")
     }
 
     #[test]

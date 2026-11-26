@@ -38,26 +38,20 @@ enum Command {
 /// 解析方言。
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
 enum DialectArg {
-    Generic,
     Postgres,
     Mysql,
-    Sqlite,
+    #[value(name = "duckdb")]
+    DuckDb,
     Hive,
-    Snowflake,
-    #[value(name = "bigquery")]
-    BigQuery,
 }
 
 impl From<DialectArg> for oh_my_lint_lib::sql::Dialect {
     fn from(value: DialectArg) -> Self {
         match value {
-            DialectArg::Generic => Self::Generic,
             DialectArg::Postgres => Self::Postgres,
             DialectArg::Mysql => Self::Mysql,
-            DialectArg::Sqlite => Self::Sqlite,
+            DialectArg::DuckDb => Self::DuckDb,
             DialectArg::Hive => Self::Hive,
-            DialectArg::Snowflake => Self::Snowflake,
-            DialectArg::BigQuery => Self::BigQuery,
         }
     }
 }
@@ -68,7 +62,7 @@ struct CheckArgs {
     #[arg(default_value = ".")]
     paths: Vec<std::path::PathBuf>,
     /// 解析方言。
-    #[arg(long, value_enum, default_value = "generic")]
+    #[arg(long, value_enum, default_value = "postgres")]
     dialect: DialectArg,
     /// 输出 JSON。
     #[arg(long)]
@@ -87,7 +81,7 @@ struct FixArgs {
     #[arg(default_value = ".")]
     paths: Vec<std::path::PathBuf>,
     /// 解析方言。
-    #[arg(long, value_enum, default_value = "generic")]
+    #[arg(long, value_enum, default_value = "postgres")]
     dialect: DialectArg,
     /// 指定单个文件，配合 --range。
     #[arg(long, conflicts_with = "stdin")]

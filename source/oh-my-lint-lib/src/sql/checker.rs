@@ -32,11 +32,15 @@ const BREAK_KINDS: [&str; 6] = ["select", "from", "where", "having", "group by",
 
 /// 检查整段 SQL；根语句与任意深度子查询逐子句对照。
 pub fn violations(sql: &str) -> Vec<Violation> {
-    violations_with(sql, crate::sql::parse::Dialect::Generic)
+    violations_with(sql, crate::sql::parse::Dialect::Postgres)
 }
 
 /// 按指定方言检查；结构优先来自 AST，解析失败时回退到文本扫描。
 pub fn violations_with(sql: &str, dialect: crate::sql::parse::Dialect) -> Vec<Violation> {
+    crate::sql::lexer::with_dialect(dialect, || violations_inner(sql, dialect))
+}
+
+fn violations_inner(sql: &str, dialect: crate::sql::parse::Dialect) -> Vec<Violation> {
     let structure = crate::sql::astmap::structure(sql, dialect);
     let mut found = Vec::new();
     for statement in crate::sql::splitter::statements(sql) {

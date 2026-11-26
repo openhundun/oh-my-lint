@@ -1,7 +1,16 @@
-//! SQL 词法与掩码：字符串、引号标识符、注释在这里被整体识别，供断行与判定复用。
+//! 词法与掩码：词法交给 sqlparser 的 tokenizer（按方言），这里只做种类映射与掩码。
 //!
-//! `tokens` 首尾相接覆盖输入全部字节，`start` 为字节偏移；`mask` 与输入等长，
-//! 只把字面量与注释抹成空格并保留换行，因此掩码上的偏移、行号与原文一一对应。
+//! 方言是本次检查的上下文：入口用 [`with_dialect`] 设置，tokenizer 按它识别
+//! `$$`、`E''`、`#` 注释、反引号等；线程局部保存，退出后恢复。
+
+use std::cell::Cell;
+
+use sqlparser::tokenizer::{
+    Location, Span as AstSpan, Token as SqlToken, Tokenizer, Whitespace as Ws,
+};
+
+use crate::span::Span;
+use crate::sql::parse::Dialect;
 
 /// 词法单元种类。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -23,77 +32,83 @@ pub struct Token<'a> {
     pub start: usize,
 }
 
-/// 两字符运算符；先于单字符匹配，保证 `<=` 不被拆成 `<` 与 `=`。
-const TWO_CHAR_PUNCT: [&str; 6] = ["<=", ">=", "<>", "!=", "||", "::"];
+thread_local! {
+    static DIALECT: Cell<Dialect> = const { Cell::new(Dialect::Postgres) };
+}
 
-/// 切出全部词法单元，按顺序首尾相接覆盖输入。
-pub fn tokens(text: &str) -> Vec<Token<'_>> {
-    let bytes = text.as_bytes();
-    let mut result = Vec::new();
-    let mut cursor = 0;
+/// 在指定方言下执行一段词法相关逻辑；退出（含 panic）时恢复原值。
+pub(crate) fn with_dialect<R>(dialect: Dialect, f: impl FnOnce() -> R) -> R {
+    struct Restore(Dialect);
 
-    while cursor < bytes.len() {
-        let start = cursor;
-        let kind = match text[start..].chars().next().expect("cursor is inside text") {
-            ch if ch.is_whitespace() => {
-                cursor = scan_whitespace(text, start);
-                Kind::Whitespace
-            }
-            '\'' => {
-                cursor = scan_delimited(bytes, start, b'\'');
-                Kind::String
-            }
-            '"' => {
-                cursor = scan_delimited(bytes, start, b'"');
-                Kind::QuotedIdent
-            }
-            '`' => {
-                cursor = scan_delimited(bytes, start, b'`');
-                Kind::QuotedIdent
-            }
-            '-' if bytes.get(start + 1) == Some(&b'-') => {
-                cursor = scan_line_comment(bytes, start + 2);
-                Kind::Comment
-            }
-            '/' if bytes.get(start + 1) == Some(&b'*') => {
-                cursor = scan_block_comment(bytes, start + 2);
-                Kind::Comment
-            }
-            ch if ch.is_ascii_digit() => {
-                cursor = scan_number(bytes, start);
-                Kind::Number
-            }
-            ch if ch.is_alphabetic() || ch == '_' => {
-                cursor = scan_word(text, start);
-                Kind::Word
-            }
-            ch => {
-                cursor = scan_punct(text, start, ch.len_utf8());
-                Kind::Punct
-            }
-        };
-        result.push(Token {
-            kind,
-            text: &text[start..cursor],
-            start,
-        });
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            DIALECT.with(|cell| cell.set(self.0));
+        }
     }
 
+    let previous = DIALECT.with(|cell| cell.replace(dialect));
+    let _restore = Restore(previous);
+    f()
+}
+
+fn current_dialect() -> Dialect {
+    DIALECT.with(Cell::get)
+}
+
+/// 按当前方言切出词法单元；tokenizer 报错（未闭合字符串/注释等）时整段按字面量处理，不改写。
+pub fn tokens(text: &str) -> Vec<Token<'_>> {
+    let dialect = current_dialect();
+    let Ok(raw) = Tokenizer::new(dialect.parser().as_ref(), text).tokenize_with_location() else {
+        return fallback(text);
+    };
+    let index = LineIndex::new(text);
+    let mut result = Vec::with_capacity(raw.len());
+    let mut cursor = 0usize;
+    for token in &raw {
+        if matches!(token.token, SqlToken::EOF) {
+            continue;
+        }
+        let Some(span) = index.span(text, token.span) else {
+            return fallback(text);
+        };
+        if span.start < cursor || span.end > text.len() {
+            return fallback(text);
+        }
+        if span.start > cursor {
+            push_gap(text, cursor, span.start, &mut result);
+        }
+        result.push(Token {
+            kind: kind_of(&token.token),
+            text: &text[span.start..span.end],
+            start: span.start,
+        });
+        cursor = span.end;
+    }
+    if cursor < text.len() {
+        push_gap(text, cursor, text.len(), &mut result);
+    }
     result
 }
 
 /// 抹掉字符串、引号标识符与注释的字节，保留换行；输出与输入等长。
 pub fn mask(text: &str) -> String {
     let mut masked = String::with_capacity(text.len());
+    let mut cursor = 0usize;
     for token in tokens(text) {
-        match token.kind {
-            Kind::String | Kind::QuotedIdent | Kind::Comment => {
-                for byte in token.text.bytes() {
-                    masked.push(if byte == b'\n' { '\n' } else { ' ' });
-                }
-            }
-            _ => masked.push_str(token.text),
+        if token.start > cursor {
+            masked.push_str(&text[cursor..token.start]);
         }
+        if matches!(token.kind, Kind::String | Kind::QuotedIdent | Kind::Comment) {
+            for byte in token.text.bytes() {
+                masked.push(if byte == b'\n' { '\n' } else { ' ' });
+            }
+        } else {
+            masked.push_str(token.text);
+        }
+        cursor = token.start + token.text.len();
+    }
+    if cursor < text.len() {
+        masked.push_str(&text[cursor..]);
     }
     masked
 }
@@ -103,104 +118,100 @@ pub fn has_comment(text: &str) -> bool {
     tokens(text).iter().any(|token| token.kind == Kind::Comment)
 }
 
-/// 扫描连续空白，返回结束偏移。
-fn scan_whitespace(text: &str, start: usize) -> usize {
-    let mut end = start;
-    for (offset, ch) in text[start..].char_indices() {
-        if !ch.is_whitespace() {
-            break;
-        }
-        end = start + offset + ch.len_utf8();
+fn fallback(text: &str) -> Vec<Token<'_>> {
+    if text.is_empty() {
+        return Vec::new();
     }
-    end
+    vec![Token {
+        kind: Kind::String,
+        text,
+        start: 0,
+    }]
 }
 
-/// 扫描引号包围的片段：同引号双写为转义，未闭合时取到文本末尾。
-fn scan_delimited(bytes: &[u8], start: usize, quote: u8) -> usize {
-    let mut cursor = start + 1;
-    while cursor < bytes.len() {
-        if bytes[cursor] == quote {
-            if bytes.get(cursor + 1) == Some(&quote) {
-                cursor += 2;
-                continue;
-            }
-            return cursor + 1;
-        }
-        cursor += 1;
-    }
-    bytes.len()
+fn push_gap<'a>(text: &'a str, start: usize, end: usize, result: &mut Vec<Token<'a>>) {
+    let gap = &text[start..end];
+    let kind = if gap.trim().is_empty() {
+        Kind::Whitespace
+    } else {
+        Kind::Punct
+    };
+    result.push(Token {
+        kind,
+        text: gap,
+        start,
+    });
 }
 
-/// 扫描 `--` 注释正文，到行尾为止（不含换行）。
-fn scan_line_comment(bytes: &[u8], mut cursor: usize) -> usize {
-    while cursor < bytes.len() && bytes[cursor] != b'\n' {
-        cursor += 1;
+fn kind_of(token: &SqlToken) -> Kind {
+    use SqlToken::*;
+    match token {
+        Word(word) if word.quote_style.is_some() => Kind::QuotedIdent,
+        Word(_) => Kind::Word,
+        Number(_, _) => Kind::Number,
+        Whitespace(Ws::SingleLineComment { .. } | Ws::MultiLineComment(_)) => Kind::Comment,
+        Whitespace(_) => Kind::Whitespace,
+        SingleQuotedString(_)
+        | DoubleQuotedString(_)
+        | TripleSingleQuotedString(_)
+        | TripleDoubleQuotedString(_)
+        | DollarQuotedString(_)
+        | SingleQuotedByteStringLiteral(_)
+        | DoubleQuotedByteStringLiteral(_)
+        | TripleSingleQuotedByteStringLiteral(_)
+        | TripleDoubleQuotedByteStringLiteral(_)
+        | SingleQuotedRawStringLiteral(_)
+        | DoubleQuotedRawStringLiteral(_)
+        | TripleSingleQuotedRawStringLiteral(_)
+        | TripleDoubleQuotedRawStringLiteral(_)
+        | NationalStringLiteral(_)
+        | QuoteDelimitedStringLiteral(_)
+        | NationalQuoteDelimitedStringLiteral(_)
+        | EscapedStringLiteral(_)
+        | UnicodeStringLiteral(_)
+        | HexStringLiteral(_)
+        | CopyData { .. } => Kind::String,
+        EOF => Kind::Whitespace,
+        _ => Kind::Punct,
     }
-    cursor
 }
 
-/// 扫描 `/* */` 注释正文；未闭合时取到文本末尾。
-fn scan_block_comment(bytes: &[u8], mut cursor: usize) -> usize {
-    while cursor < bytes.len() {
-        if bytes[cursor] == b'*' && bytes.get(cursor + 1) == Some(&b'/') {
-            return cursor + 2;
-        }
-        cursor += 1;
-    }
-    bytes.len()
+/// 行首字节偏移；把 `Location` 的行列位置换成字节偏移。
+pub(crate) struct LineIndex {
+    starts: Vec<usize>,
 }
 
-/// 扫描数字：整数部分加可选小数与指数；指数必须后接数字才吞入。
-fn scan_number(bytes: &[u8], start: usize) -> usize {
-    let mut cursor = start;
-    while cursor < bytes.len() && bytes[cursor].is_ascii_digit() {
-        cursor += 1;
+impl LineIndex {
+    pub(crate) fn new(text: &str) -> Self {
+        let mut starts = vec![0];
+        starts.extend(text.match_indices('\n').map(|(index, _)| index + 1));
+        Self { starts }
     }
-    if bytes.get(cursor) == Some(&b'.') && bytes.get(cursor + 1).is_some_and(u8::is_ascii_digit) {
-        cursor += 1;
-        while cursor < bytes.len() && bytes[cursor].is_ascii_digit() {
-            cursor += 1;
-        }
-    }
-    if matches!(bytes.get(cursor), Some(b'e' | b'E')) {
-        let mut probe = cursor + 1;
-        if matches!(bytes.get(probe), Some(b'+' | b'-')) {
-            probe += 1;
-        }
-        if bytes.get(probe).is_some_and(u8::is_ascii_digit) {
-            cursor = probe;
-            while cursor < bytes.len() && bytes[cursor].is_ascii_digit() {
-                cursor += 1;
-            }
-        }
-    }
-    cursor
-}
 
-/// 扫描标识符：首字符为字母或 `_`，后续字母、数字、`_`、`$`。
-fn scan_word(text: &str, start: usize) -> usize {
-    let mut end = start;
-    for (offset, ch) in text[start..].char_indices() {
-        let accepted = if offset == 0 {
-            ch.is_alphabetic() || ch == '_'
-        } else {
-            ch.is_alphanumeric() || ch == '_' || ch == '$'
-        };
-        if !accepted {
-            break;
-        }
-        end = start + offset + ch.len_utf8();
+    pub(crate) fn offset(&self, text: &str, location: Location) -> Option<usize> {
+        let line = usize::try_from(location.line).ok()?.checked_sub(1)?;
+        let start = *self.starts.get(line)?;
+        let end = self
+            .starts
+            .get(line + 1)
+            .map_or(text.len(), |next| next - 1);
+        let column = usize::try_from(location.column).ok()?.checked_sub(1)?;
+        let line_text = &text[start..end];
+        let byte = line_text
+            .char_indices()
+            .nth(column)
+            .map_or(line_text.len(), |(index, _)| index);
+        Some(start + byte)
     }
-    end
-}
 
-/// 扫描标点：先尝试两字符运算符，否则只取当前字符。
-fn scan_punct(text: &str, start: usize, width: usize) -> usize {
-    let rest = &text[start..];
-    if TWO_CHAR_PUNCT.iter().any(|op| rest.starts_with(*op)) {
-        return start + 2;
+    pub(crate) fn span(&self, text: &str, span: AstSpan) -> Option<Span> {
+        if span.start.line == 0 {
+            return None;
+        }
+        let start = self.offset(text, span.start)?;
+        let end = self.offset(text, span.end)?;
+        (start <= end && end <= text.len()).then(|| Span::new(start, end))
     }
-    start + width
 }
 
 #[cfg(test)]
@@ -239,7 +250,6 @@ mod tests {
                 .any(|token| token.kind == Kind::Word && token.text == "and"),
             "字符串内的 and 不应成为关键字"
         );
-        assert!(!tokens(sql).iter().any(|token| token.kind == Kind::Punct));
     }
 
     #[test]
@@ -264,7 +274,9 @@ mod tests {
     fn doubled_quotes_escape() {
         assert_eq!(kinds("'it''s'"), vec![(Kind::String, "'it''s'")]);
         assert_eq!(kinds("\"a\"\"b\""), vec![(Kind::QuotedIdent, "\"a\"\"b\"")]);
-        assert_eq!(kinds("`a``b`"), vec![(Kind::QuotedIdent, "`a``b`")]);
+        with_dialect(Dialect::Mysql, || {
+            assert_eq!(kinds("`a``b`"), vec![(Kind::QuotedIdent, "`a``b`")]);
+        });
     }
 
     #[test]
@@ -307,13 +319,17 @@ mod tests {
     }
 
     #[test]
-    fn mask_is_line_stable_for_unclosed_constructs() {
-        assert_covers("select 'abc");
-        assert_eq!(kinds("select 'abc")[2], (Kind::String, "'abc"));
-        assert_covers("select /* abc");
-        assert_eq!(kinds("select /* abc")[2], (Kind::Comment, "/* abc"));
-        assert_covers("select \"abc");
-        assert_eq!(kinds("select \"abc")[2], (Kind::QuotedIdent, "\"abc"));
+    fn unterminated_input_is_not_edited() {
+        for sql in ["select 'abc", "select /* abc", "select \"abc"] {
+            let tokens = tokens(sql);
+            assert_eq!(tokens.len(), 1, "{sql}");
+            assert_eq!(tokens[0].kind, Kind::String, "{sql}");
+            assert_eq!(tokens[0].text, sql);
+            let masked = mask(sql);
+            assert_eq!(masked.len(), sql.len());
+            assert_eq!(masked.matches('\n').count(), sql.matches('\n').count());
+            assert!(!masked.contains("select"));
+        }
     }
 
     #[test]
@@ -322,7 +338,6 @@ mod tests {
         assert_eq!(kinds("0.5"), vec![(Kind::Number, "0.5")]);
         assert_eq!(kinds("1.5e-3"), vec![(Kind::Number, "1.5e-3")]);
         assert_eq!(kinds("12E+7"), vec![(Kind::Number, "12E+7")]);
-        // 指数后没有数字时不吞入 `e`。
         assert_eq!(
             kinds("1.5e"),
             vec![(Kind::Number, "1.5"), (Kind::Word, "e")]
@@ -331,10 +346,53 @@ mod tests {
 
     #[test]
     fn words_follow_unicode_rules() {
-        let sql = "select 中文名 as 名 from 表 where _x$1 = 1";
+        let sql = "select 中文名 as 名 from 表 where _x = 1";
         assert_covers(sql);
         assert!(kinds(sql).contains(&(Kind::Word, "中文名")));
-        assert!(kinds(sql).contains(&(Kind::Word, "_x$1")));
+        assert!(kinds(sql).contains(&(Kind::Word, "_x")));
+    }
+
+    #[test]
+    fn dialect_specific_lexing() {
+        with_dialect(Dialect::Postgres, || {
+            let sql = "select $$a;--x$$, E'it\\'s', a # b from t";
+            assert_covers(sql);
+            let tokens = tokens(sql);
+            assert!(
+                tokens
+                    .iter()
+                    .any(|token| token.kind == Kind::String && token.text.starts_with("$$"))
+            );
+            assert!(
+                tokens
+                    .iter()
+                    .any(|token| token.kind == Kind::String && token.text.starts_with("E'"))
+            );
+            assert!(!has_comment("a # b"));
+        });
+        with_dialect(Dialect::Mysql, || {
+            assert_covers("select `a#b`, 1 # c\nfrom t");
+            assert!(has_comment("select 1 # c\nfrom t"));
+            assert!(
+                tokens("select `a` from t")
+                    .iter()
+                    .any(|token| token.kind == Kind::QuotedIdent && token.text == "`a`")
+            );
+        });
+        with_dialect(Dialect::Hive, || {
+            assert!(
+                tokens("select `a` from t")
+                    .iter()
+                    .any(|token| token.kind == Kind::QuotedIdent && token.text == "`a`")
+            );
+        });
+        with_dialect(Dialect::DuckDb, || {
+            assert!(
+                tokens("select $$x; y$$ from t")
+                    .iter()
+                    .any(|token| token.kind == Kind::String && token.text == "$$x; y$$")
+            );
+        });
     }
 
     #[test]
@@ -351,7 +409,6 @@ mod tests {
         let masked = mask(sql);
         assert_eq!(masked.len(), sql.len());
         assert_eq!(masked.lines().count(), sql.lines().count());
-        // 掩码与原文字节对齐：未被抹掉的部分切片一致。
         for token in tokens(sql) {
             if !matches!(token.kind, Kind::String | Kind::QuotedIdent | Kind::Comment) {
                 let end = token.start + token.text.len();

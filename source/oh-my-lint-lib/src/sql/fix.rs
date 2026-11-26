@@ -22,14 +22,21 @@ const SUPPORTED_FIXES: [&str; 18] = [
     "with-query",
 ];
 
-/// 把一段 SQL 修成房规版式；测试用 Generic 快捷入口。
+/// 把一段 SQL 修成房规版式；测试用 Postgres 快捷入口。
 #[cfg(test)]
 pub fn format(sql: &str) -> crate::error::Result<String> {
-    format_with(sql, crate::sql::parse::Dialect::Generic)
+    format_with(sql, crate::sql::parse::Dialect::Postgres)
 }
 
 /// 按指定方言修复；每轮重算结构。
 pub fn format_with(sql: &str, dialect: crate::sql::parse::Dialect) -> crate::error::Result<String> {
+    crate::sql::lexer::with_dialect(dialect, || format_with_inner(sql, dialect))
+}
+
+fn format_with_inner(
+    sql: &str,
+    dialect: crate::sql::parse::Dialect,
+) -> crate::error::Result<String> {
     if crate::sql::lexer::has_comment(sql) {
         return Err(crate::error::Error::Rejected(
             "comments are not supported in fix mode".to_owned(),

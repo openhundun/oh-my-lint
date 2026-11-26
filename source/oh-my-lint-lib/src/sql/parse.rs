@@ -1,50 +1,40 @@
 //! 解析门禁：块先通过 sqlparser，再进入布局与 token 规则。
 //!
-//! 解析失败时只报告错误，不猜测结构、不产出修复；方言由调用方选择。
+//! 只暴露四个正式方言；`postgres` 是默认值。
 
 use sqlparser::ast::Statement;
 use sqlparser::dialect::{
-    BigQueryDialect, Dialect as ParserDialect, GenericDialect, HiveDialect, MySqlDialect,
-    PostgreSqlDialect, SQLiteDialect, SnowflakeDialect,
+    Dialect as ParserDialect, DuckDbDialect, HiveDialect, MySqlDialect, PostgreSqlDialect,
 };
 use sqlparser::parser::Parser;
 
-/// 支持的解析方言；默认 `Generic`。
+/// 支持的解析方言；默认 `Postgres`。
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum Dialect {
     #[default]
-    Generic,
     Postgres,
     Mysql,
-    Sqlite,
+    DuckDb,
     Hive,
-    Snowflake,
-    BigQuery,
 }
 
 impl Dialect {
     /// 命令行与诊断输出使用的名字。
     pub fn as_str(self) -> &'static str {
         match self {
-            Self::Generic => "generic",
             Self::Postgres => "postgres",
             Self::Mysql => "mysql",
-            Self::Sqlite => "sqlite",
+            Self::DuckDb => "duckdb",
             Self::Hive => "hive",
-            Self::Snowflake => "snowflake",
-            Self::BigQuery => "bigquery",
         }
     }
 
-    fn parser(self) -> Box<dyn ParserDialect> {
+    pub(crate) fn parser(self) -> Box<dyn ParserDialect> {
         match self {
-            Self::Generic => Box::new(GenericDialect {}),
             Self::Postgres => Box::new(PostgreSqlDialect {}),
             Self::Mysql => Box::new(MySqlDialect {}),
-            Self::Sqlite => Box::new(SQLiteDialect {}),
+            Self::DuckDb => Box::new(DuckDbDialect {}),
             Self::Hive => Box::new(HiveDialect {}),
-            Self::Snowflake => Box::new(SnowflakeDialect {}),
-            Self::BigQuery => Box::new(BigQueryDialect {}),
         }
     }
 }
@@ -67,16 +57,17 @@ mod tests {
 
     #[test]
     fn accepts_dql_and_ddl() {
-        assert!(validate("select a from t", Dialect::Generic).is_ok());
-        assert!(validate("create table t (a int primary key)", Dialect::Generic).is_ok());
-        assert!(validate("insert into t (a) values (1)", Dialect::Generic).is_ok());
-        assert!(validate("update t set a = 1 where b = 2", Dialect::Generic).is_ok());
+        assert!(validate("select a from t", Dialect::Postgres).is_ok());
+        assert!(validate("create table t (a int primary key)", Dialect::Postgres).is_ok());
+        assert!(validate("insert into t (a) values (1)", Dialect::Postgres).is_ok());
+        assert!(validate("update t set a = 1 where b = 2", Dialect::Postgres).is_ok());
+        assert!(validate("select a from t", Dialect::DuckDb).is_ok());
     }
 
     #[test]
     fn rejects_broken_between() {
         let broken = "select a from t where (x between (select 1 from u)) and (select 2 from u)";
-        assert!(validate(broken, Dialect::Generic).is_err());
+        assert!(validate(broken, Dialect::Postgres).is_err());
     }
 
     #[test]

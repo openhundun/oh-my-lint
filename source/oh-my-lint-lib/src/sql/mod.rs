@@ -11,13 +11,17 @@ mod token;
 
 pub use parse::Dialect;
 
-/// 检查一段 SQL（Generic 方言），返回块内坐标的诊断。
+/// 检查一段 SQL（Postgres 方言），返回块内坐标的诊断。
 pub fn check(sql: &str) -> Vec<crate::model::Finding> {
-    check_with(sql, Dialect::Generic)
+    check_with(sql, Dialect::Postgres)
 }
 
 /// 按指定方言检查；解析失败只报错误，不跑布局规则。
 pub fn check_with(sql: &str, dialect: Dialect) -> Vec<crate::model::Finding> {
+    crate::sql::lexer::with_dialect(dialect, || check_with_inner(sql, dialect))
+}
+
+fn check_with_inner(sql: &str, dialect: Dialect) -> Vec<crate::model::Finding> {
     if crate::sql::lexer::has_comment(sql) {
         return Vec::new();
     }
@@ -52,13 +56,17 @@ pub fn check_with(sql: &str, dialect: Dialect) -> Vec<crate::model::Finding> {
     findings
 }
 
-/// 把一段 SQL 修成房规版式（Generic 方言）；合规输入原样返回。
+/// 把一段 SQL 修成房规版式（Postgres 方言）；合规输入原样返回。
 pub fn format(sql: &str) -> crate::error::Result<String> {
-    format_with(sql, Dialect::Generic)
+    format_with(sql, Dialect::Postgres)
 }
 
 /// 按指定方言格式化；解析失败拒绝修复。
 pub fn format_with(sql: &str, dialect: Dialect) -> crate::error::Result<String> {
+    crate::sql::lexer::with_dialect(dialect, || format_with_inner(sql, dialect))
+}
+
+fn format_with_inner(sql: &str, dialect: Dialect) -> crate::error::Result<String> {
     if crate::sql::lexer::has_comment(sql) {
         return Err(crate::error::Error::Rejected(
             "comments are not supported in fix mode".to_owned(),
@@ -89,7 +97,7 @@ impl SqlRule {
 
 impl Default for SqlRule {
     fn default() -> Self {
-        Self::new(Dialect::Generic)
+        Self::new(Dialect::Postgres)
     }
 }
 
@@ -122,15 +130,17 @@ impl crate::model::Rule for SqlRule {
     }
 
     fn can_fix(&self, block: &crate::model::Block) -> crate::error::Result<()> {
-        if crate::sql::lexer::has_comment(&block.text) {
-            return Err(crate::error::Error::Rejected(
-                "comments are not supported in fix mode".to_owned(),
-            ));
-        }
-        crate::sql::parse::validate(&block.text, self.dialect).map_err(|error| {
-            crate::error::Error::Rejected(format!("sql does not parse: {error}"))
-        })?;
-        Ok(())
+        crate::sql::lexer::with_dialect(self.dialect, || {
+            if crate::sql::lexer::has_comment(&block.text) {
+                return Err(crate::error::Error::Rejected(
+                    "comments are not supported in fix mode".to_owned(),
+                ));
+            }
+            crate::sql::parse::validate(&block.text, self.dialect).map_err(|error| {
+                crate::error::Error::Rejected(format!("sql does not parse: {error}"))
+            })?;
+            Ok(())
+        })
     }
 }
 

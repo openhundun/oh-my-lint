@@ -2,7 +2,7 @@
 
 按房规检查并修复代码的命令行工具。核心约束是**最小 diff**：检查与修复都以语法块为单位，块外的字节一个也不动；修复结果附带统一 patch，便于人工复核或交给 agent。
 
-v0.1 只实现 **SQL 断行决策**（规则 `sql-break`）：根据子句复杂度决定内联还是逐元素换行。SQL 是第一个切片，不是完整产品；其它语言的适配器见路线图。
+v0.1 只实现 **SQL 断行与 token 规范化**（规则 `sql-break`）：DQL 按子句复杂度决定内联或逐元素换行；DML（`delete`/`explain`）与 DDL（`create table`、`create index`、`alter table`、CTAS）按各自版式渲染，token 层覆盖大小写、空格、类型别名与默认形式省略。SQL 是第一个切片，不是完整产品；其它语言的适配器见路线图。
 
 ## 结构
 
@@ -38,11 +38,11 @@ v0.1 只实现 **SQL 断行决策**（规则 `sql-break`）：根据子句复杂
 | Python 模块级 `SQL = """..."""` | 按常量抽取 SQL 块；函数内的同名局部量不算                     |
 | 其它语言                        | 尚未接入                                                      |
 
-规则 `sql-break` 覆盖：子句断行、布尔组断行与锚点、含子查询的单条件括号断行、独立 `case` 展开、内联子查询展开、`from` 的 join 版式与隐式 `cross join` 改写。token 层覆盖大小写、空格、`<>`/`outer`/`asc`、别名 `as`、`distinct`、`case` 括号与 `not` 改写。
+规则 `sql-break` 覆盖：DQL 的子句断行、布尔组断行与锚点、含子查询的单条件括号断行、独立 `case` 展开、内联子查询展开、`from` 的 join 版式与隐式 `cross join` 改写；DML 的 `delete` 子句版式与 `explain` 头部/查询分行；DDL 的 `create table`（列顺序、对齐、表约束、表属性）、`create index`、`alter table` 与 CTAS。token 层覆盖大小写、空格、`<>`/`outer`/`asc`、别名 `as`、`distinct`、`case` 括号与 `not` 改写，以及 R35–R39 的 PG 类型字面量、类型别名、命名参数、默认形式省略与关键字括号。
 
-所有块先按 `--dialect`（`postgres`/`mysql`/`duckdb`/`hive`，默认 `postgres`）交给 sqlparser 做词法与语法分析；字符串、注释、引号按方言识别（`$$`、`E''`、`#` 注释、反引号）。解析失败只报 `sql does not parse`，不跑布局规则、不产出修复。
+所有块按 `--dialect`（`postgres`/`mysql`/`duckdb`/`hive`，默认 `postgres`）交给 sqlparser 做词法与语法分析；字符串、注释、引号按方言识别（`$$`、`E''`、`#` 注释、反引号）。R34 逐语句解析：解析失败的语句逐字节保留，不跑布局与 token 规则、不报 finding、不产出修复，且不影响同一块中其他可解析语句。R35 的 PG 类型字面量改写只在 `postgres` 方言生效。
 
-完整判据（术语、递归规则与版式）见 [`RULES.md`](RULES.md)。RULES.md 按危险程度组织为 DQL → DML → DDL；v0.1 代码目前只实现 DQL，DML/DDL 以及 R34 的“解析失败跳过并原样保留”是目标契约，待迁移。
+完整判据（术语、递归规则与版式）见 [`RULES.md`](RULES.md)。RULES.md 按危险程度组织为 DQL → DML → DDL；v0.1 代码已实现这三类版式与 R34 的逐语句跳过，DML/DDL 覆盖 `delete`、`explain`、`create table`、`create index`、`alter table` 与 CTAS。
 
 ## 最小 diff 契约
 
@@ -51,8 +51,8 @@ v0.1 只实现 **SQL 断行决策**（规则 `sql-break`）：根据子句复杂
 - 元素内部文本（字符串字面量、标识符）逐字节保留；修复会改换行、缩进、锚点、连接词、join 关键字，并把隐式 cross join 写成显式 `cross join`。
 - 格式化幂等：`format(format(x)) == format(x)`；合规输入不做任何改动。
 - 对 `fix` 接受的块，修复后重新 `check` 为空；被 `skipped` 的块保持原样，`check` 继续报告。
-- 块无法按选定方言解析时不修复；`check` 只输出解析错误，不猜结构。
-- 修复覆盖子句、布尔组、含子查询的单条件括号、独立 `case`、内联子查询、隐式 cross join、from join 换行、`with` 框架、集合运算与 `rollup` 参数；token 层覆盖大小写、空格、`as`、`distinct`、`case` 括号、`between` 括号与 `not` 改写。
+- 无法解析的语句按 R34 逐字节保留、不报告；`check` 不输出解析错误，也不猜结构。
+- 修复覆盖 DQL 的子句、布尔组、含子查询的单条件括号、独立 `case`、内联子查询、隐式 cross join、from join 换行、`with` 框架、集合运算与 `rollup` 参数；DML 的 `delete`/`explain`；DDL 的 `create table` 对齐与约束、`create index`、`alter table` 与 CTAS。token 层覆盖大小写、空格、`as`、`distinct`、`case` 括号、`between` 括号、`not` 改写与 R35–R39。
 
 ## 构建与测试
 

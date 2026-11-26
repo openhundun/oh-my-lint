@@ -1,7 +1,7 @@
 //! 元素形态与断行判定：把 `complex` / `simple` / `decide` 固化成函数。
 
 /// 判定函数调用时必须排除的结构关键字：它们后面跟括号不是函数。
-const NON_FUNCTION_WORDS: [&str; 42] = [
+const NON_FUNCTION_WORDS: [&str; 43] = [
     "all",
     "and",
     "as",
@@ -21,6 +21,7 @@ const NON_FUNCTION_WORDS: [&str; 42] = [
     "full",
     "group",
     "having",
+    "identity",
     "in",
     "inner",
     "intersect",

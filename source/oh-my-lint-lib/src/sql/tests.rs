@@ -36,6 +36,50 @@ fn sentinel_shape_matches_corpus() {
     assert_eq!(crate::sql::format(sql).expect("format"), sql);
 }
 
+/// 阶段 3 语料：DDL/DML 夹具的 `check` 必须干净。
+///
+/// 夹具刻意保留末尾分号（R26 只在修复时去掉），因此不断言
+/// `format == fixture`，只断言检查通过。
+#[test]
+fn ddl_dml_corpus_is_clean() {
+    const FIXTURES: [(&str, &str); 7] = [
+        (
+            "alter_table.sql",
+            include_str!("../../../../public/sqlfluff/postgres/alter_table.sql"),
+        ),
+        (
+            "create_index.sql",
+            include_str!("../../../../public/sqlfluff/postgres/create_index.sql"),
+        ),
+        (
+            "create_table.sql",
+            include_str!("../../../../public/sqlfluff/postgres/create_table.sql"),
+        ),
+        (
+            "create_table_as.sql",
+            include_str!("../../../../public/sqlfluff/postgres/create_table_as.sql"),
+        ),
+        (
+            "create_table_column_storage_compression.sql",
+            include_str!(
+                "../../../../public/sqlfluff/postgres/create_table_column_storage_compression.sql"
+            ),
+        ),
+        (
+            "delete.sql",
+            include_str!("../../../../public/sqlfluff/postgres/delete.sql"),
+        ),
+        (
+            "explain.sql",
+            include_str!("../../../../public/sqlfluff/postgres/explain.sql"),
+        ),
+    ];
+    for (name, sql) in FIXTURES {
+        let findings = crate::sql::check(sql);
+        assert!(findings.is_empty(), "{name}: {findings:?}");
+    }
+}
+
 #[test]
 fn inline_subquery_is_expanded() {
     let sql = "select a from t where x in (select y from u group by y having count(*) > 1 and max(z) > 0 and min(z) < 9 and sum(z) > 1)";
@@ -48,29 +92,98 @@ fn inline_subquery_is_expanded() {
     assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
 }
 
-#[test]
-fn rejects_unparseable_sql() {
-    let broken = "select a from t where (x between (select 1 from u)) and (select 2 from u)";
-    let findings = crate::sql::check(broken);
-    assert_eq!(findings.len(), 1, "{findings:?}");
-    assert!(findings[0].message.contains("sql does not parse"));
-    assert!(crate::sql::format(broken).is_err());
+const BROKEN: &str = "select a from t where (x between (select 1 from u)) and (select 2 from u)";
+
+fn block(text: &str) -> crate::model::Block {
+    crate::model::Block {
+        span: crate::span::Span::default(),
+        text: text.to_owned(),
+        language: crate::model::Language::Sql,
+    }
 }
 
 #[test]
-fn dialect_controls_parse_gate() {
+fn skips_unparseable_statement() {
+    let findings = crate::sql::check(BROKEN);
+    assert!(findings.is_empty(), "{findings:?}");
+    assert_eq!(crate::sql::format(BROKEN).expect("format"), BROKEN);
+}
+
+#[test]
+fn dialect_controls_statement_handling() {
     let sql = "select a from t distribute by a";
-    let hive = crate::sql::check_with(sql, crate::sql::Dialect::Hive);
-    assert!(
-        !hive
-            .iter()
-            .any(|finding| finding.message.contains("does not parse"))
+    for dialect in [crate::sql::Dialect::Postgres, crate::sql::Dialect::Hive] {
+        let findings = crate::sql::check_with(sql, dialect);
+        assert!(
+            findings
+                .iter()
+                .all(|finding| !finding.message.contains("does not parse")),
+            "{dialect:?}: {findings:?}"
+        );
+    }
+    assert_eq!(
+        crate::sql::format_with(sql, crate::sql::Dialect::Postgres).expect("format"),
+        sql
     );
-    let postgres = crate::sql::check_with(sql, crate::sql::Dialect::Postgres);
+}
+
+#[test]
+fn mixed_file_keeps_unparseable_statement() {
+    let prefix = "select a as x, b as y, c as z from t;\n";
+    let sql = format!("{prefix}{BROKEN};\nselect a from u;");
+    let findings = crate::sql::check(&sql);
+    assert!(!findings.is_empty(), "{findings:?}");
     assert!(
-        postgres
+        findings
             .iter()
-            .any(|finding| finding.message.contains("does not parse"))
+            .all(|finding| !finding.message.contains("does not parse")),
+        "{findings:?}"
     );
-    assert!(crate::sql::format_with(sql, crate::sql::Dialect::Postgres).is_err());
+    let bad = crate::span::Span::new(prefix.len(), prefix.len() + BROKEN.len());
+    assert!(
+        findings.iter().all(|finding| !finding.span.intersects(bad)),
+        "{findings:?}"
+    );
+    let formatted = crate::sql::format(&sql).expect("format");
+    assert!(formatted.contains(BROKEN), "{formatted}");
+    assert!(
+        !formatted.contains("select a as x, b as y, c as z"),
+        "{formatted}"
+    );
+    assert!(formatted.ends_with("select a from u"), "{formatted}");
+    assert_eq!(crate::sql::format(&formatted).expect("format"), formatted);
+}
+
+#[test]
+fn final_semicolon_tracks_last_statement() {
+    let all_processed = "select a from t;\nselect b from u;";
+    assert_eq!(
+        crate::sql::format(all_processed).expect("format"),
+        "select a from t;\nselect b from u"
+    );
+    let last_skipped = "select a from t;\ninsert into t (a) values (1);";
+    assert_eq!(
+        crate::sql::format(last_skipped).expect("format"),
+        last_skipped
+    );
+}
+
+#[test]
+fn fix_mode_accepts_unparseable_block() {
+    use crate::model::Rule;
+
+    let rule = crate::sql::SqlRule::default();
+    let broken = block(BROKEN);
+    assert!(rule.can_fix(&broken).is_ok());
+    assert!(rule.fix(&broken).is_none());
+    assert!(rule.can_fix(&block("select a from t -- note")).is_err());
+
+    let mixed = block(&format!("select a as x, b as y, c as z from t;\n{BROKEN};"));
+    let fix = rule.fix(&mixed).expect("fix");
+    let replacement = &fix.edits[0].replacement;
+    assert!(replacement.contains(BROKEN), "{replacement}");
+    assert!(
+        replacement.ends_with(&format!("{BROKEN};")),
+        "{replacement}"
+    );
 }

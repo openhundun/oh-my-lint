@@ -51,7 +51,8 @@ pub(crate) fn with_dialect<R>(dialect: Dialect, f: impl FnOnce() -> R) -> R {
     f()
 }
 
-fn current_dialect() -> Dialect {
+/// 当前词法方言；R35 等只对 PostgreSQL 生效的规则据此收窄。
+pub(crate) fn current_dialect() -> Dialect {
     DIALECT.with(Cell::get)
 }
 

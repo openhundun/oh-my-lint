@@ -18,7 +18,7 @@ create index gin_idx on documents_table using gin (locations) with (fastupdate='
 
 create index code_idx on films (code) tablespace indexspace;
 
-create index pointloc on points using gist (box(location,location));
+create index pointloc on points using gist (box(location, location));
 
 create index concurrently sales_quantity_index on sales_table (quantity);
 

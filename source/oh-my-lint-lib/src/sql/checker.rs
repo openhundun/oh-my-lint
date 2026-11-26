@@ -30,11 +30,6 @@ pub struct Violation {
 
 const BREAK_KINDS: [&str; 6] = ["select", "from", "where", "having", "group by", "order by"];
 
-/// 检查整段 SQL；根语句与任意深度子查询逐子句对照。
-pub fn violations(sql: &str) -> Vec<Violation> {
-    violations_with(sql, crate::sql::parse::Dialect::Postgres)
-}
-
 /// 按指定方言检查；结构优先来自 AST，解析失败时回退到文本扫描。
 pub fn violations_with(sql: &str, dialect: crate::sql::parse::Dialect) -> Vec<Violation> {
     crate::sql::lexer::with_dialect(dialect, || violations_inner(sql, dialect))
@@ -875,9 +870,16 @@ fn trailing_indent(body: &str) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
+    use crate::sql::checker::Violation;
+    use crate::sql::parse::Dialect;
+
+    fn violations(sql: &str) -> Vec<Violation> {
+        crate::sql::checker::violations_with(sql, Dialect::Postgres)
+    }
+
     #[test]
     fn flags_four_field_select() {
-        let found = crate::sql::checker::violations("select a, b, c, d from t");
+        let found = violations("select a, b, c, d from t");
         assert!(found.iter().any(|violation| {
             violation.kind == "select" && violation.expected == crate::sql::checker::Mode::Break
         }));
@@ -886,7 +888,7 @@ mod tests {
     #[test]
     fn allows_three_conditions_inline_body() {
         assert!(
-            crate::sql::checker::violations("select a\nfrom t\nwhere a = 1 and b = 2 and c = 3")
+            violations("select a\nfrom t\nwhere a = 1 and b = 2 and c = 3")
                 .iter()
                 .all(|violation| violation.kind != "where")
         );
@@ -894,7 +896,7 @@ mod tests {
 
     #[test]
     fn flags_inline_subquery() {
-        let found = crate::sql::checker::violations(
+        let found = violations(
             "select a from t where x in (select y from u group by y having count(*) > 1 and max(z) > 0 and min(z) < 9 and sum(z) > 1)",
         );
         assert!(found.iter().any(|violation| violation.kind == "subquery"));
@@ -903,7 +905,7 @@ mod tests {
     #[test]
     fn handles_later_statement_after_utf8_comment() {
         let sql = "-- 用户同步修复\nbegin;\nselect a, b, c, d from t;\ncommit;";
-        let found = crate::sql::checker::violations(sql);
+        let found = violations(sql);
         assert!(found.iter().any(|violation| {
             violation.kind == "select" && violation.expected == crate::sql::checker::Mode::Break
         }));
@@ -911,15 +913,14 @@ mod tests {
 
     #[test]
     fn flags_breaking_group_inline() {
-        let found = crate::sql::checker::violations(
-            "select a\nfrom t\nwhere 1 = 1\n    and (x = 1 or y = 2 or z = 3 or w = 4)",
-        );
+        let found =
+            violations("select a\nfrom t\nwhere 1 = 1\n    and (x = 1 or y = 2 or z = 3 or w = 4)");
         assert!(found.iter().any(|violation| violation.kind == "group"));
     }
 
     #[test]
     fn allows_inline_simple_group() {
-        let found = crate::sql::checker::violations(
+        let found = violations(
             "select a\nfrom t\nwhere 1 = 1\n    and (x = 1 or y = 2 or z = 3)\n    and b = 2\n    and c = 3",
         );
         assert!(found.iter().all(|violation| violation.kind != "group"));

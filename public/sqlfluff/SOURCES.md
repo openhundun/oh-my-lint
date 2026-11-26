@@ -14,7 +14,7 @@ Parsed with `sqlparser 0.64.0` (`PostgreSqlDialect`) before formatting:
 | Class | Files | Handling |
 | --- | --- | --- |
 | DQL (`select`/`with` only) | 36 | formatted with `oh-my-lint fix --dialect postgres` |
-| Other (DDL/DML/utility) | 70 | untouched; phase-3 input |
+| Other (DDL/DML/utility) | 70 | phase-3 input; 7 DDL/DML fixtures normalized by hand |
 | Parse failures | 130 | kept; listed in `parse-failures.tsv` |
 
 The parse failures are mostly PostgreSQL DDL outside the current parser subset
@@ -27,8 +27,8 @@ files still report findings after formatting:
 
 | File | Findings | Note |
 | --- | --- | --- |
-| `postgres_postgis_operators.sql` | 198 | `fix` refused (render/parse error); needs investigation |
-| `table_functions.sql` | 21 | `fix` refused |
+| `postgres_postgis_operators.sql` | 197 | `fix` refused (render/parse error); needs investigation |
+| `table_functions.sql` | 20 | `fix` refused |
 | `set_operators.sql` | 8 | branch/select layout still disagrees with the checker |
 | `select_into.sql` | 1 | `SELECT ... INTO` is not a clause in the rule set |
 
@@ -56,17 +56,24 @@ Observed `sqlparser 0.64.0` gaps, to report upstream:
 | `DELETE ... WHERE CURRENT OF` | `delete from tasks where current of c_tasks;` | `Expected: end of statement, found: of` |
 | table constraint `UNIQUE ... WITH (...)` | `unique (name) with (fillfactor=70)` | `Expected: ',' or ')' after column definition, found: with` |
 
-## Phase-3 trial
+## Phase-3 corpus
 
-The following files were manually normalized against the DQL/DML/DDL rules and
-are not auto-formatted yet (most hit the parser gaps above):
+The following DDL/DML fixtures report zero findings under
+`oh-my-lint check --dialect postgres`:
 
 `alter_table.sql`, `create_index.sql`, `create_table.sql`,
 `create_table_as.sql`, `create_table_column_storage_compression.sql`,
 `delete.sql`, `explain.sql`.
 
+`oh-my-lint fix` still refuses most of these files end-to-end because their
+statements hit the parser gaps above; per R34 the unsupported statements are
+kept byte-for-byte, so `fix` only rewrites the statements a layout module can
+render.
+
 `datetime_units.sql` also had the R35 typed-literal / interval-unit rewrite
 applied.
 
-This corpus is phase-3 input, not a golden no-op corpus; it is intentionally not
-wired into `job__check` (the smoke uses an inline fixture).
+The fixtures intentionally keep their final semicolons (R26 removes the
+semicolon only in fix output). `source/oh-my-lint-lib/src/sql/tests.rs` includes
+these seven fixtures with `include_str!` and asserts `check` is empty; it does
+not assert `format == fixture`.

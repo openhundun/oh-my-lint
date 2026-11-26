@@ -1,0 +1,131 @@
+file	error
+alter_conversion.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: CONVERSION at Line: 1, Column: 7
+alter_database.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: DATABASE at Line: 1, Column: 7
+alter_domain.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: DOMAIN at Line: 1, Column: 7
+alter_event_trigger.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: EVENT at Line: 1, Column: 7
+alter_extension.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: EXTENSION at Line: 1, Column: 7
+alter_foreign_data_wrapper.sql	sql parser error: Expected: TABLE, found: DATA at Line: 1, Column: 15
+alter_foreign_table.sql	sql parser error: Expected: identifier, found: $$(select my_column from my_table)$$ at Line: 9, Column: 45
+alter_group.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: GROUP at Line: 1, Column: 7
+alter_index.sql	sql parser error: Expected: RENAME after ALTER INDEX, found: SET at Line: 3, Column: 26
+alter_language.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: LANGUAGE at Line: 1, Column: 7
+alter_large_object.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: LARGE at Line: 1, Column: 7
+alter_materialized_view.sql	sql parser error: Expected: SET DEFAULT or DROP DEFAULT after ALTER COLUMN, found: SET at Line: 1, Column: 47
+alter_operator.sql	sql parser error: Expected: (, found: ^ at Line: 1, Column: 17
+alter_procedure.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: PROCEDURE at Line: 1, Column: 7
+alter_publication.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: PUBLICATION at Line: 3, Column: 7
+alter_role.sql	sql parser error: Expected: end of statement, found: , at Line: 26, Column: 51
+alter_routine.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: ROUTINE at Line: 1, Column: 7
+alter_rule.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: RULE at Line: 1, Column: 7
+alter_sequence.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: SEQUENCE at Line: 1, Column: 7
+alter_server.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: SERVER at Line: 1, Column: 7
+alter_statistics.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: STATISTICS at Line: 1, Column: 7
+alter_subscription.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: SUBSCRIPTION at Line: 1, Column: 7
+alter_system.sql	sql parser error: Expected: one of VIEW or MATERIALIZED VIEW or TYPE or COLLATION or TABLE or INDEX or FUNCTION or AGGREGATE or ROLE or POLICY or TRIGGER or CONNECTOR or ICEBERG or FOREIGN TABLE or SCHEMA or USER or OPERATOR, found: SYSTEM at Line: 2, Column: 7
+alter_table.sql	sql parser error: Expected: (, found: TABLESPACE at Line: 86, Column: 30
+alter_table_set_access_method.sql	sql parser error: Expected: (, found: ACCESS at Line: 5, Column: 26
+alter_table_set_expression.sql	sql parser error: Expected: SET/DROP NOT NULL, SET DEFAULT, SET DATA TYPE, ADD GENERATED, or OPTIONS after ALTER COLUMN, found: SET at Line: 6, Column: 1
+alter_text_search_configuration.sql	sql parser error: Expected: RENAME TO, OWNER TO, SET SCHEMA, or (...) after ALTER TEXT SEARCH, found: ADD at Line: 1, Column: 43
+alter_type.sql	sql parser error: Expected: {RENAME TO | { RENAME | ADD } VALUE}, found: OWNER at Line: 3, Column: 16
+alter_user_mapping.sql	sql parser error: Expected: option, found: FOR at Line: 1, Column: 20
+alter_view.sql	sql parser error: Expected: ), found: . at Line: 46, Column: 36
+analyze.sql	sql parser error: Expected: an SQL statement, found: ANALYSE at Line: 3, Column: 1
+array.sql	sql parser error: Expected: =, found: [ at Line: 34, Column: 34
+checkpoint.sql	sql parser error: Expected: an SQL statement, found: CHECKPOINT at Line: 1, Column: 1
+cluster.sql	sql parser error: Expected: an SQL statement, found: CLUSTER at Line: 1, Column: 1
+comment_on.sql	sql parser error: Expected: comment object_type, found: ACCESS at Line: 6, Column: 12
+composite_value_expansion.sql	sql parser error: Expected: an identifier or a '*' after '.', found: FROM at Line: 1, Column: 34
+constraint_enforced.sql	sql parser error: Expected: SET/DROP NOT NULL, SET DEFAULT, SET DATA TYPE, ADD GENERATED, or OPTIONS after ALTER COLUMN, found: shipments_order_fk at Line: 36, Column: 40
+copy.sql	sql parser error: Expected: a list of columns in parentheses, found: * at Line: 6, Column: 92
+create_access_method.sql	sql parser error: Expected: an object type after CREATE, found: ACCESS at Line: 1, Column: 8
+create_cast.sql	sql parser error: Expected: an object type after CREATE, found: CAST at Line: 1, Column: 8
+create_conversion.sql	sql parser error: Expected: an object type after CREATE, found: CONVERSION at Line: 1, Column: 8
+create_database.sql	sql parser error: Expected: end of statement, found: OWNER at Line: 2, Column: 20
+create_domain.sql	sql parser error: Expected: end of statement, found: NOT at Line: 14, Column: 40
+create_event_trigger.sql	sql parser error: Expected: an object type after CREATE, found: EVENT at Line: 1, Column: 8
+create_extension.sql	sql parser error: Expected: end of statement, found: FROM at Line: 4, Column: 5
+create_function.sql	sql parser error: Expected: end of statement, found: WINDOW at Line: 22, Column: 20
+create_index.sql	sql parser error: Expected: end of statement, found: TABLESPACE at Line: 19, Column: 39
+create_language.sql	sql parser error: Expected: an object type after CREATE, found: LANGUAGE at Line: 1, Column: 8
+create_materialized_view.sql	sql parser error: Expected: end of statement, found: WITH at Line: 18, Column: 1
+create_operator.sql	sql parser error: Expected: (, found: = at Line: 8, Column: 19
+create_procedure.sql	sql parser error: Expected: [EXTERNAL] TABLE or [MATERIALIZED] VIEW or FUNCTION or AGGREGATE or SCHEMA or WAREHOUSE after CREATE OR REPLACE, found: PROCEDURE at Line: 1, Column: 19
+create_publication.sql	sql parser error: Expected: an object type after CREATE, found: PUBLICATION at Line: 1, Column: 8
+create_role.sql	sql parser error: Expected: end of statement, found: SUPERUSER at Line: 1, Column: 27
+create_statistics.sql	sql parser error: Expected: an object type after CREATE, found: STATISTICS at Line: 1, Column: 8
+create_subscription.sql	sql parser error: Expected: an object type after CREATE, found: SUBSCRIPTION at Line: 1, Column: 8
+create_table.sql	sql parser error: Expected: ',' or ')' after column definition, found: WITH at Line: 92, Column: 18
+create_table_as.sql	sql parser error: Expected: end of statement, found: USING at Line: 87, Column: 17
+create_table_column_storage_compression.sql	sql parser error: Expected: ',' or ')' after column definition, found: STORAGE at Line: 5, Column: 12
+create_transform.sql	sql parser error: Expected: an object type after CREATE, found: TRANSFORM at Line: 2, Column: 8
+create_type.sql	sql parser error: Expected: a data type name, found: = at Line: 6, Column: 30
+create_view.sql	sql parser error: Expected: end of statement, found: WITH at Line: 18, Column: 5
+cte_in_materialized_view.sql	sql parser error: Expected: AS, found: TABLESPACE at Line: 2, Column: 1
+declare.sql	sql parser error: Expected: CURSOR, found: BINARY at Line: 12, Column: 19
+delete.sql	sql parser error: Expected: end of statement, found: OF at Line: 28, Column: 33
+do.sql	sql parser error: Expected: an SQL statement, found: DO at Line: 5, Column: 1
+drop_access_method.sql	sql parser error: Expected: COLLATION, CONNECTOR, DATABASE, EXTENSION, FOREIGN TABLE, FUNCTION, GROUP, INDEX, OPERATOR, POLICY, PROCEDURE, ROLE, RULE, SCHEMA, SECRET, SEQUENCE, STAGE, TABLE, TRIGGER, TYPE, VIEW, MATERIALIZED VIEW, USER or WAREHOUSE after DROP, found: ACCESS at Line: 1, Column: 6
+drop_aggregate.sql	sql parser error: Expected: COLLATION, CONNECTOR, DATABASE, EXTENSION, FOREIGN TABLE, FUNCTION, GROUP, INDEX, OPERATOR, POLICY, PROCEDURE, ROLE, RULE, SCHEMA, SECRET, SEQUENCE, STAGE, TABLE, TRIGGER, TYPE, VIEW, MATERIALIZED VIEW, USER or WAREHOUSE after DROP, found: AGGREGATE at Line: 1, Column: 6
+drop_cast.sql	sql parser error: Expected: COLLATION, CONNECTOR, DATABASE, EXTENSION, FOREIGN TABLE, FUNCTION, GROUP, INDEX, OPERATOR, POLICY, PROCEDURE, ROLE, RULE, SCHEMA, SECRET, SEQUENCE, STAGE, TABLE, TRIGGER, TYPE, VIEW, MATERIALIZED VIEW, USER or WAREHOUSE after DROP, found: CAST at Line: 3, Column: 6
+drop_conversion.sql	sql parser error: Expected: COLLATION, CONNECTOR, DATABASE, EXTENSION, FOREIGN TABLE, FUNCTION, GROUP, INDEX, OPERATOR, POLICY, PROCEDURE, ROLE, RULE, SCHEMA, SECRET, SEQUENCE, STAGE, TABLE, TRIGGER, TYPE, VIEW, MATERIALIZED VIEW, USER or WAREHOUSE after DROP, found: CONVERSION at Line: 1, Column: 6
+drop_database.sql	sql parser error: Expected: end of statement, found: ( at Line: 2, Column: 18
+drop_event_trigger.sql	sql parser error: Expected: COLLATION, CONNECTOR, DATABASE, EXTENSION, FOREIGN TABLE, FUNCTION, GROUP, INDEX, OPERATOR, POLICY, PROCEDURE, ROLE, RULE, SCHEMA, SECRET, SEQUENCE, STAGE, TABLE, TRIGGER, TYPE, VIEW, MATERIALIZED VIEW, USER or WAREHOUSE after DROP, found: EVENT at Line: 1, Column: 6
+drop_foreign_data_wrapper.sql	sql parser error: Expected: COLLATION, CONNECTOR, DATABASE, EXTENSION, FOREIGN TABLE, FUNCTION, GROUP, INDEX, OPERATOR, POLICY, PROCEDURE, ROLE, RULE, SCHEMA, SECRET, SEQUENCE, STAGE, TABLE, TRIGGER, TYPE, VIEW, MATERIALIZED VIEW, USER or WAREHOUSE after DROP, found: FOREIGN at Line: 1, Column: 6
+drop_index.sql	sql parser error: Expected: end of statement, found: abc at Line: 27, Column: 25
+drop_language.sql	sql parser error: Expected: COLLATION, CONNECTOR, DATABASE, EXTENSION, FOREIGN TABLE, FUNCTION, GROUP, INDEX, OPERATOR, POLICY, PROCEDURE, ROLE, RULE, SCHEMA, SECRET, SEQUENCE, STAGE, TABLE, TRIGGER, TYPE, VIEW, MATERIALIZED VIEW, USER or WAREHOUSE after DROP, found: LANGUAGE at Line: 1, Column: 6
+drop_operator.sql	sql parser error: Expected: (, found: ^ at Line: 1, Column: 16
+drop_owned.sql	sql parser error: Expected: COLLATION, CONNECTOR, DATABASE, EXTENSION, FOREIGN TABLE, FUNCTION, GROUP, INDEX, OPERATOR, POLICY, PROCEDURE, ROLE, RULE, SCHEMA, SECRET, SEQUENCE, STAGE, TABLE, TRIGGER, TYPE, VIEW, MATERIALIZED VIEW, USER or WAREHOUSE after DROP, found: OWNED at Line: 1, Column: 6
+drop_publication.sql	sql parser error: Expected: COLLATION, CONNECTOR, DATABASE, EXTENSION, FOREIGN TABLE, FUNCTION, GROUP, INDEX, OPERATOR, POLICY, PROCEDURE, ROLE, RULE, SCHEMA, SECRET, SEQUENCE, STAGE, TABLE, TRIGGER, TYPE, VIEW, MATERIALIZED VIEW, USER or WAREHOUSE after DROP, found: PUBLICATION at Line: 5, Column: 6
+drop_routine.sql	sql parser error: Expected: COLLATION, CONNECTOR, DATABASE, EXTENSION, FOREIGN TABLE, FUNCTION, GROUP, INDEX, OPERATOR, POLICY, PROCEDURE, ROLE, RULE, SCHEMA, SECRET, SEQUENCE, STAGE, TABLE, TRIGGER, TYPE, VIEW, MATERIALIZED VIEW, USER or WAREHOUSE after DROP, found: ROUTINE at Line: 1, Column: 6
+drop_server.sql	sql parser error: Expected: COLLATION, CONNECTOR, DATABASE, EXTENSION, FOREIGN TABLE, FUNCTION, GROUP, INDEX, OPERATOR, POLICY, PROCEDURE, ROLE, RULE, SCHEMA, SECRET, SEQUENCE, STAGE, TABLE, TRIGGER, TYPE, VIEW, MATERIALIZED VIEW, USER or WAREHOUSE after DROP, found: SERVER at Line: 1, Column: 6
+drop_statistics.sql	sql parser error: Expected: COLLATION, CONNECTOR, DATABASE, EXTENSION, FOREIGN TABLE, FUNCTION, GROUP, INDEX, OPERATOR, POLICY, PROCEDURE, ROLE, RULE, SCHEMA, SECRET, SEQUENCE, STAGE, TABLE, TRIGGER, TYPE, VIEW, MATERIALIZED VIEW, USER or WAREHOUSE after DROP, found: STATISTICS at Line: 1, Column: 6
+drop_subscription.sql	sql parser error: Expected: COLLATION, CONNECTOR, DATABASE, EXTENSION, FOREIGN TABLE, FUNCTION, GROUP, INDEX, OPERATOR, POLICY, PROCEDURE, ROLE, RULE, SCHEMA, SECRET, SEQUENCE, STAGE, TABLE, TRIGGER, TYPE, VIEW, MATERIALIZED VIEW, USER or WAREHOUSE after DROP, found: SUBSCRIPTION at Line: 1, Column: 6
+drop_text_search_configuration.sql	sql parser error: Expected: COLLATION, CONNECTOR, DATABASE, EXTENSION, FOREIGN TABLE, FUNCTION, GROUP, INDEX, OPERATOR, POLICY, PROCEDURE, ROLE, RULE, SCHEMA, SECRET, SEQUENCE, STAGE, TABLE, TRIGGER, TYPE, VIEW, MATERIALIZED VIEW, USER or WAREHOUSE after DROP, found: TEXT at Line: 1, Column: 6
+drop_text_search_object.sql	sql parser error: Expected: COLLATION, CONNECTOR, DATABASE, EXTENSION, FOREIGN TABLE, FUNCTION, GROUP, INDEX, OPERATOR, POLICY, PROCEDURE, ROLE, RULE, SCHEMA, SECRET, SEQUENCE, STAGE, TABLE, TRIGGER, TYPE, VIEW, MATERIALIZED VIEW, USER or WAREHOUSE after DROP, found: TEXT at Line: 1, Column: 6
+drop_transform.sql	sql parser error: Expected: COLLATION, CONNECTOR, DATABASE, EXTENSION, FOREIGN TABLE, FUNCTION, GROUP, INDEX, OPERATOR, POLICY, PROCEDURE, ROLE, RULE, SCHEMA, SECRET, SEQUENCE, STAGE, TABLE, TRIGGER, TYPE, VIEW, MATERIALIZED VIEW, USER or WAREHOUSE after DROP, found: TRANSFORM at Line: 1, Column: 6
+drop_user_mapping.sql	sql parser error: Expected: end of statement, found: IF at Line: 1, Column: 19
+explain.sql	sql parser error: Expected: end of statement, found: verbose at Line: 42, Column: 17
+fetch.sql	sql parser error: Expected: a concrete value, found: c1 at Line: 1, Column: 7
+grant_privileges.sql	sql parser error: Expected: a privilege keyword, found: TEMP at Line: 4, Column: 24
+group_by.sql	sql parser error: Expected: end of statement, found: ROLLUP at Line: 34, Column: 19
+import_foreign_schema.sql	sql parser error: Expected: an SQL statement, found: IMPORT at Line: 1, Column: 1
+insert.sql	sql parser error: Expected: SELECT, VALUES, or a subquery in the query body, found: DEFAULT at Line: 15, Column: 23
+json_table.sql	sql parser error: Expected: PATH, found: , at Line: 26, Column: 19
+merge_insert_overriding_default_values.sql	sql parser error: Expected: VALUES, found: DEFAULT at Line: 3, Column: 30
+meta_commands_query_buffer.sql	sql parser error: Expected: end of statement, found: \ at Line: 5, Column: 1
+move.sql	sql parser error: Expected: an SQL statement, found: MOVE at Line: 1, Column: 1
+null_filters.sql	sql parser error: Expected: end of statement, found: as at Line: 4, Column: 27
+operator_qualified.sql	sql parser error: Expected: ), found: = at Line: 74, Column: 33
+postgis.sql	sql parser error: Expected: type modifiers, found: ( at Line: 7, Column: 31
+postgres_pgvector_operators.sql	sql parser error: Expected: an expression, found: > at Line: 5, Column: 42
+prepare_transaction.sql	sql parser error: Expected: AS, found: 'foobar' at Line: 3, Column: 21
+psql_copy_meta_command.sql	sql parser error: Expected: an SQL statement, found: \ at Line: 1, Column: 1
+psql_meta_command.sql	sql parser error: Expected: an SQL statement, found: \ at Line: 1, Column: 1
+psql_set_meta_command.sql	sql parser error: Expected: an SQL statement, found: \ at Line: 1, Column: 1
+psql_variable.sql	sql parser error: Expected: an SQL statement, found: \ at Line: 1, Column: 1
+psql_variable_bare.sql	sql parser error: Expected: placeholder, found: 'status' at Line: 10, Column: 17
+reassign_owned.sql	sql parser error: Expected: an SQL statement, found: REASSIGN at Line: 1, Column: 1
+reindex.sql	sql parser error: Expected: an SQL statement, found: REINDEX at Line: 1, Column: 1
+returning_old_new_aliases.sql	sql parser error: Expected: end of statement, found: . at Line: 10, Column: 28
+returning_star_list.sql	sql parser error: Expected: end of statement, found: . at Line: 21, Column: 28
+revoke.sql	sql parser error: Expected: a privilege keyword, found: MAINTAIN at Line: 2, Column: 8
+security_label.sql	sql parser error: Expected: an SQL statement, found: SECURITY at Line: 1, Column: 1
+select.sql	sql parser error: Expected: end of statement, found: , at Line: 82, Column: 22
+select_frame_clause.sql	sql parser error: Expected: ), found: ignore at Line: 5, Column: 27
+set.sql	sql parser error: Expected: equals sign or TO, found: 'my_schema' at Line: 11, Column: 13
+set_constraints.sql	sql parser error: Expected: equals sign or TO, found: ALL at Line: 1, Column: 17
+set_session_authorization.sql	sql parser error: Expected: equals sign or TO, found: AUTHORIZATION at Line: 4, Column: 21
+set_transaction.sql	sql parser error: Expected: transaction mode, found: DEFERRABLE at Line: 7, Column: 28
+single_quote.sql	sql parser error: Expected: end of statement, found: 'bar' at Line: 18, Column: 1
+substring.sql	sql parser error: Expected: ), found: from at Line: 1, Column: 34
+table_command.sql	sql parser error: Expected: an SQL statement, found: TABLE at Line: 2, Column: 1
+tablespace.sql	sql parser error: Expected: an object type after CREATE, found: TABLESPACE at Line: 1, Column: 8
+temporal_foreign_keys.sql	sql parser error: Expected: ), found: valid_at at Line: 5, Column: 34
+transactions.sql	sql parser error: Expected: transaction mode, found: DEFERRABLE at Line: 7, Column: 63
+unicode_double_quote.sql	sql parser error: Expected: end of statement, found: '!' at Line: 3, Column: 25
+unicode_single_quote.sql	sql parser error: Expected: end of statement, found: '!' at Line: 14, Column: 21
+update_table.sql	sql parser error: Expected: end of statement, found: OF at Line: 32, Column: 50
+vacuum.sql	sql parser error: Expected: end of statement, found: VERBOSE at Line: 9, Column: 20
+variadic.sql	sql parser error: Expected: ), found: ARRAY at Line: 5, Column: 24
+with.sql	sql parser error: Expected: SELECT, VALUES, or a subquery in the query body, found: SEARCH at Line: 20, Column: 3
+without_overlaps.sql	sql parser error: Expected: ), found: OVERLAPS at Line: 6, Column: 42

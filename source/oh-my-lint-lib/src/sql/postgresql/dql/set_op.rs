@@ -13,7 +13,26 @@ pub(super) fn check(statement_start: usize, statement_text: &str, block: crate::
         let relative = block.start + operator.keyword_start;
         let line_start = statement_text[..relative].rfind('\n').map_or(0, |index| index + 1);
         let prefix = &statement_text[line_start..relative];
-        if prefix.chars().all(|character| character == ' ' || character == '\t') && prefix.len() == block_indent {
+        if prefix.chars().all(|character| character == ' ' || character == '\t') {
+            let mut start = line_start;
+            let bytes = statement_text.as_bytes();
+            while start > 0 && matches!(bytes[start - 1], b' ' | b'\t' | b'\r' | b'\n') {
+                start -= 1;
+            }
+            let blank = statement_text[start..line_start].matches('\n').count() > 1;
+            if prefix.len() == block_indent && !blank {
+                continue;
+            }
+            // 运算符已经在独立一行；把前导空白一起替换，既修正缩进也清掉多余空行。
+            found.push(Violation {
+                kind: "set-op",
+                element_count: 0,
+                expected: Mode::Break,
+                span: crate::span::Span::new(statement_start + start, statement_start + relative + operator.kind.len()),
+                indent: block_indent,
+                next_indent: None,
+                message: format!("{} should start a new line", operator.kind),
+            });
             continue;
         }
         let mut start = relative;

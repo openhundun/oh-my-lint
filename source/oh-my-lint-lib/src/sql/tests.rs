@@ -104,6 +104,31 @@ fn ctas_keeps_break_where_block() {
 }
 
 #[test]
+fn condition_block_before_set_op_has_no_blank_line() {
+    let sql = "with recursive t (n) as (select 1 where a = 1 and b = 2 and c = 3 and d = 4 union all select 2) select * from t;";
+    let expected = "with\n\
+                    recursive t (n) as (\n\
+                    \u{20}   select 1\n\
+                    \u{20}   where (\n\
+                    \u{20}       1 = 1\n\
+                    \u{20}       and a = 1\n\
+                    \u{20}       and b = 2\n\
+                    \u{20}       and c = 3\n\
+                    \u{20}       and d = 4\n\
+                    \u{20}   )\n\
+                    \u{20}   union all\n\
+                    \u{20}   select 2\n\
+                    )\n\
+                    select *\n\
+                    from t;";
+    assert_eq!(crate::sql::format(sql).expect("format"), expected);
+    assert!(crate::sql::check(expected).is_empty(), "{:?}", crate::sql::check(expected));
+    let blank = expected.replace(")\n    union all", ")\n\n    union all");
+    assert_eq!(crate::sql::format(&blank).expect("format blank"), expected);
+    assert!(!crate::sql::check(&blank).is_empty(), "check should report the blank line");
+}
+
+#[test]
 fn wraps_break_where_and_having_before_next_clauses() {
     let sql = "select a, count(*) from t where a = 1 and b = 2 and c = 3 and d = 4 group by a having count(*) > 1 and sum(b) > 2 and min(c) > 3 and max(d) > 4 order by a;";
     let fixed = crate::sql::format(sql).expect("format");

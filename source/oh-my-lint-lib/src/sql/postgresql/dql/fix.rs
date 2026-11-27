@@ -139,10 +139,13 @@ fn render_condition_body(text: &str, violation: &crate::sql::checker::Violation)
     let next = text.get(violation.span.end..).and_then(|tail| tail.trim_start().chars().next());
     let next_is_comma = next == Some(',');
     let next_is_semicolon = next == Some(';');
+    let next_starts_newline = text
+        .get(violation.span.end..)
+        .is_some_and(|tail| tail.chars().take_while(|character| character.is_whitespace()).any(|character| character == '\n'));
     let multiline = !crate::sql::decision::is_simple(text);
     match crate::sql::postgresql::dql::r#where::mode(&condition.elements) {
         crate::sql::postgresql::dql::Mode::Inline => {
-            let suffix = if !has_next || next_is_comma || next_is_semicolon {
+            let suffix = if !has_next || next_is_comma || next_is_semicolon || next_starts_newline {
                 String::new()
             } else if multiline && next != Some(')') {
                 format!("\n{}", " ".repeat(next_indent))
@@ -154,7 +157,7 @@ fn render_condition_body(text: &str, violation: &crate::sql::checker::Violation)
         crate::sql::postgresql::dql::Mode::Break => Some(render_block(
             &crate::sql::postgresql::dql::r#where::block_lines(&condition.elements),
             violation.indent,
-            has_next && !next_is_comma,
+            has_next && !next_is_comma && !next_starts_newline,
             next_indent,
         )),
     }

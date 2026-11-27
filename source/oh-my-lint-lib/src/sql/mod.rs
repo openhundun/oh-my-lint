@@ -54,6 +54,11 @@ fn check_with_inner(sql: &str, dialect: Dialect) -> Vec<crate::model::Finding> {
             findings.extend(diff_findings(statement, kind, *span, dialect));
         }
     }
+    let realigned = realign::format_comment_blocks(sql, dialect);
+    if realigned != sql {
+        let offset = sql.bytes().zip(realigned.bytes()).position(|(left, right)| left != right).unwrap_or(sql.len().min(realigned.len()));
+        findings.push(finding("comment block layout differs".to_owned(), crate::span::Span::empty(offset)));
+    }
     let last_has_comment = spans.last().is_some_and(|span| crate::sql::lexer::has_comment(&sql[span.start..span.end]));
     if let Some(last) = spans.last()
         && last_kind.is_some()

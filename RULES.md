@@ -75,7 +75,7 @@
 
 - M1 `DELETE`：子句为 `with`、`delete from`、`using`、`where`、`returning`。简单判定同 R11：`returning` 元素 ≤3 且不触发 R7，其他子句元素 ≤1，`using` 无 join，CTE 各体简单；简单语句整行。非简单时每个子句独占一行、0 缩进；`where` 按 R8/R19，`returning` 按 R7，`using` 按 R6/R23；显式 join 的缩进等于 `using`；`returning` 别名必须有 `as`。`where` 超过一个条件即不算简单，但条件本身仍只在 ≥4 或复杂时逐元素断行。`with` 各部分都简单时允许整行；一旦 `with` 或主语句断行，`with`、CTE 定义、主语句必须分行。
 - M2 `EXPLAIN`：`explain` 头与被执行语句必然分行，被执行语句在下一行、0 缩进。头部只占一行，选项以 `, ` 连接，不因数量折行；布尔值统一 `true`/`false`（`on`/`off`、`1`/`0` 只在布尔选项位置改写），裸选项保持裸写，`format text|xml|json|yaml` 与 `serialize none|text|binary` 保留；`analyse`/`analyze` 不互相归一。被执行语句按 DQL 处理。
-- M3 `VALUES` 行构造器：`insert into <table> (<字段>)` 的字段列表始终与 `insert into` 同行；单个值元组时 `values` 与 `insert into` 头同行；超过 1 个值元组时 `values` 另起一行、与 `insert into` 头同缩进，元组逐行且与 `values` 同缩进、不额外缩进，每个元组自身不折行。多行元组按列左对齐，列宽按显示宽度计算（ASCII 1、CJK 2），末列补空格使右括号对齐。派生表 `(values ...)` 的 `values` 在左括号下一行，闭合 `)` 回到左括号所在缩进。`on conflict` 子句另起一行、与语句同缩进。
+- M3 `VALUES` 行构造器：`insert into <table> (<字段>)` 的字段列表始终与 `insert into` 同行；单个值元组时 `values` 与 `insert into` 头同行；超过 1 个值元组时 `values` 另起一行、与 `insert into` 头同缩进，元组逐行且与 `values` 同缩进、不额外缩进，每个元组自身不折行。多行元组按列左对齐，列宽按显示宽度计算（ASCII 1、CJK 2），末列补空格使右括号对齐。派生表 `(values ...)` 的 `values` 在左括号下一行，闭合 `)` 回到左括号所在缩进。`on conflict` 子句另起一行、与语句同缩进；`do update set` 与 `do update` 同行，赋值逐行 +4，`where`/`returning` 回语句缩进。
 - M4 `UPDATE`：`set` 按 `select` 元素规则（≤3 个简单赋值同行，≥4 或含复杂表达式时 `set` 独行、每项 +4）；其他子句元素 ≤1 时整句单行，否则 `update`/`set`/`from`/`where`/`returning` 各占一行；`where` 超过一个条件即不算简单，但条件本身仍只在 ≥4 或复杂时按 R8/R19 断行；`from` 的 join 按 R23；`with` 按 R14，CTE 与主语句分行。
 
 ## DDL
@@ -89,6 +89,7 @@
 - D7 `ALTER TABLE`：顶层 action 1–2 个时整条一行；≥3 个时 `alter table <name>` 首行，每个 action 一行、+4，逗号留行尾，最后一行带 `;`。action 内部：列定义按 D2，约束按 D4，`exclude` 列表按 D4，`set (...)`/`reset (...)` 同行，`attach partition ... for values ...` 同行，`using <expr>` 同行。暂不把 `add column ... primary key` 拆成多个 action。
 - D8 `CREATE TABLE AS`：header（`create ... table ...` 及其 `on commit`/`using`/`without oids`/`tablespace`/`with (...)`）保持一行，`as (` 留在 header；查询体简单时整条一行，不简单时 body +4、`)` 回 0。查询体统一加括号，`as select …` 改为 `as (select …)`；`with no data` 接在 `)` 后同行，默认的 `with data` 按 R38 省略。查询体按 DQL。
 - D9 同表 DDL 分组：`create table` → `comment on table/column` → `create unique index` → `create index` → `alter table`/`alter sequence` 连续排列，组内语句之间不保留空行；组与组之间仍遵守 R40。`comment on column` 的顺序与 `create table` 字段顺序一致；`alter sequence` 跟随其所属建表组。
+- D10 `comment on <对象>`（table/column/index 等）：`is` 与注释值同一行；连续的 `comment on` 块按前缀对齐 `is`。
 
 ## 不变量
 

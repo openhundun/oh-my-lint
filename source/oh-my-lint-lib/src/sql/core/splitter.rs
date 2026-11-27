@@ -586,6 +586,18 @@ mod tests {
     }
 
     #[test]
+    fn splits_do_block_and_following_statements() {
+        let sql = "DO $$\nBEGIN\n    ALTER TABLE t ADD c int;\nEND $$;\nCREATE TABLE u (id int);";
+        let spans = crate::sql::splitter::statements(sql);
+        assert_eq!(spans.len(), 2);
+        assert!(sql[spans[0].start..spans[0].end].starts_with("DO $$"));
+        assert_eq!(&sql[spans[1].start..spans[1].end], "CREATE TABLE u (id int)");
+        let formatted = crate::sql::format(sql).expect("format do block");
+        assert!(formatted.contains("END $$;"), "{formatted}");
+        assert!(formatted.contains("create table u (id int);"), "{formatted}");
+    }
+
+    #[test]
     fn statements_skip_leading_comments() {
         let text = "-- head\ninsert into t (a) values (1);";
         let spans = crate::sql::splitter::statements(text);

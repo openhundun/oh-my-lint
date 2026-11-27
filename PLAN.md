@@ -200,7 +200,7 @@ git diff --check
 | P5 DDL | done | — | create_table/misc/realign；白名单 2 findings（基线 57） |
 | P6 file | done | — | reorder/comments/realign；fix 无 changes |
 | P7 清理 | done | — | check=render-diff；旧 check 分支删除；215 tests |
-| P8 条件块 | done | — | Break 整块加括号；where/having/on/DML 共用；245 tests；公司 0；PG 2 |
+| P8 条件块 | done | — | Break 整块加括号；where/having/on/DML 共用；254 tests；公司 0；PG 2 |
 
 ## P8 条件块
 
@@ -224,3 +224,6 @@ git diff --check
 - DML `from`/`using` 的单元素派生表若子查询非简单，按 DQL 子查询版式展开；不再把 `select ... order by ...` 压回表别名一行。
 - 多行 `insert ... values` 的 `values` 独立成行、与 `insert into` 头同缩进，元组与 `values` 同缩进；单行仍保持 `insert ... values (...)` 同行。
 - 多行 `values` 元组按列左对齐，列宽用 Unicode display width（ASCII 1、CJK 2）；末列补空格，右括号对齐。
+- `on conflict ... do update set` 保持同一行，赋值逐行 +4；`where`/`returning` 回语句缩进。单个 `values` 元组的元组换行会并回 `values` 行。
+- `comment on` 的 `is` 与值并回一行，连续块按前缀对齐；`check` 现在也覆盖 comment 块对齐；支持 `table`/`column`/`index` 等对象。
+- tokenizer 遇到 `DO $$ ... $$` 等正文会整段回退；fallback mask 现在扫描字符串、美元引用和注释，只保留 SQL 分号，DO 块不再吞掉后续语句。

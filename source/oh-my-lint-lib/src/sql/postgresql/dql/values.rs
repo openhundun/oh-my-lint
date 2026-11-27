@@ -247,6 +247,14 @@ fn format_statement_values(text: &str) -> String {
             edits.push((span.start, span.end, replacement.clone()));
         }
 
+        if insert && tuples.len() == 1 {
+            let (start, _) = tuples[0];
+            let values_end = token_end(token);
+            if text[values_end..start].contains('\n') {
+                edits.push((values_end, start, " ".to_owned()));
+            }
+        }
+
         if let ValuesOutput::Exline { span, .. } = output {
             let suffix = next_non_ws(&tokens, tuple_end_index(&tokens, span.end) + 1);
             if let Some(suffix) = suffix {
@@ -562,6 +570,12 @@ mod tests {
     #[test]
     fn joins_single_row_values_to_insert_header() {
         let sql = "insert into t (a)\nvalues (1);";
+        assert_eq!(format(sql), "insert into t (a) values (1);");
+    }
+
+    #[test]
+    fn joins_single_row_tuple_to_values_line() {
+        let sql = "insert into t (a)\nvalues\n(1);";
         assert_eq!(format(sql), "insert into t (a) values (1);");
     }
 

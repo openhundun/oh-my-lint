@@ -87,9 +87,13 @@ pub fn tokens(text: &str) -> Vec<Token<'_>> {
 
 /// 抹掉字符串、引号标识符与注释的字节，保留换行；输出与输入等长。
 pub fn mask(text: &str) -> String {
+    let tokens = tokens(text);
+    if tokens.len() == 1 && tokens[0].kind == Kind::String && tokens[0].start == 0 && tokens[0].text.len() == text.len() {
+        return fallback_mask(text);
+    }
     let mut masked = String::with_capacity(text.len());
     let mut cursor = 0usize;
-    for token in tokens(text) {
+    for token in tokens {
         if token.start > cursor {
             masked.push_str(&text[cursor..token.start]);
         }
@@ -106,6 +110,123 @@ pub fn mask(text: &str) -> String {
         masked.push_str(&text[cursor..]);
     }
     masked
+}
+
+/// tokenizer 遇到 `DO $$ ... $$` 等非 SQL 正文会整段回退；这里用最小扫描器
+/// 掩掉字符串、美元引用与注释，保留分号供语句切分。
+fn fallback_mask(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut masked = bytes.to_vec();
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index] == b'-' && bytes.get(index + 1) == Some(&b'-') {
+            let mut end = index + 2;
+            while end < bytes.len() && bytes[end] != b'\n' {
+                end += 1;
+            }
+            mask_range(&mut masked, index, end);
+            index = end;
+        } else if bytes[index] == b'/' && bytes.get(index + 1) == Some(&b'*') {
+            let mut end = index + 2;
+            while end + 1 < bytes.len() && !(bytes[end] == b'*' && bytes[end + 1] == b'/') {
+                end += 1;
+            }
+            if end + 1 >= bytes.len() {
+                return blank_all(bytes);
+            }
+            let end = end + 2;
+            mask_range(&mut masked, index, end);
+            index = end;
+        } else if bytes[index] == b'\'' {
+            let mut end = index + 1;
+            let mut terminated = false;
+            while end < bytes.len() {
+                if bytes[end] == b'\\' {
+                    end = (end + 2).min(bytes.len());
+                } else if bytes[end] == b'\'' {
+                    end += 1;
+                    if bytes.get(end) == Some(&b'\'') {
+                        end += 1;
+                    } else {
+                        terminated = true;
+                        break;
+                    }
+                } else {
+                    end += 1;
+                }
+            }
+            if !terminated {
+                return blank_all(bytes);
+            }
+            mask_range(&mut masked, index, end);
+            index = end;
+        } else if bytes[index] == b'"' {
+            let mut end = index + 1;
+            let mut terminated = false;
+            while end < bytes.len() {
+                if bytes[end] == b'"' {
+                    end += 1;
+                    if bytes.get(end) == Some(&b'"') {
+                        end += 1;
+                    } else {
+                        terminated = true;
+                        break;
+                    }
+                } else {
+                    end += 1;
+                }
+            }
+            if !terminated {
+                return blank_all(bytes);
+            }
+            mask_range(&mut masked, index, end);
+            index = end;
+        } else if bytes[index] == b'$' {
+            let Some((end, terminated)) = dollar_quote_end(bytes, index) else {
+                index += 1;
+                continue;
+            };
+            if !terminated {
+                return blank_all(bytes);
+            }
+            mask_range(&mut masked, index, end);
+            index = end;
+        } else {
+            index += 1;
+        }
+    }
+    String::from_utf8(masked).expect("mask keeps utf8")
+}
+
+fn blank_all(bytes: &[u8]) -> String {
+    String::from_utf8(bytes.iter().map(|byte| if *byte == b'\n' { b'\n' } else { b' ' }).collect()).expect("mask keeps utf8")
+}
+
+fn mask_range(masked: &mut [u8], start: usize, end: usize) {
+    for byte in &mut masked[start..end] {
+        if *byte != b'\n' {
+            *byte = b' ';
+        }
+    }
+}
+
+fn dollar_quote_end(bytes: &[u8], start: usize) -> Option<(usize, bool)> {
+    let mut tag_end = start + 1;
+    while tag_end < bytes.len() && (bytes[tag_end].is_ascii_alphanumeric() || bytes[tag_end] == b'_') {
+        tag_end += 1;
+    }
+    if bytes.get(tag_end) != Some(&b'$') {
+        return None;
+    }
+    let delimiter = &bytes[start..=tag_end];
+    let mut index = tag_end + 1;
+    while index + delimiter.len() <= bytes.len() {
+        if &bytes[index..index + delimiter.len()] == delimiter {
+            return Some((index + delimiter.len(), true));
+        }
+        index += 1;
+    }
+    Some((bytes.len(), false))
 }
 
 /// 文本中是否存在注释。

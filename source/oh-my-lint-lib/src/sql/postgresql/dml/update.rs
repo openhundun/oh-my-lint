@@ -1,7 +1,7 @@
 //! `UPDATE`：`set` 按 select 元素规则，其他子句超过 1 个元素即整句分行。
 
 use crate::sql::parse::{self, Dialect};
-use crate::sql::postgresql::dml::{collapse, format_cte_prefix, returning_lines, table_lines, top_words, where_lines};
+use crate::sql::postgresql::dml::{Word, collapse, format_cte_prefix, returning_lines, table_lines, top_words, where_lines};
 use crate::sql::{decision, splitter};
 
 /// `UPDATE`：`set` 按 select 元素规则，其他子句超过 1 个元素即整句分行。
@@ -9,7 +9,12 @@ pub(super) fn layout_update(text: &str, dialect: Dialect) -> Option<String> {
     let words = top_words(text);
     let update = words.iter().position(|word| word.text == "update")?;
     let set = words.iter().enumerate().skip(update + 1).find(|(_, word)| word.text == "set").map(|(index, _)| index)?;
-    let from = words.iter().enumerate().skip(set + 1).find(|(_, word)| word.text == "from").map(|(index, _)| index);
+    let from = words
+        .iter()
+        .enumerate()
+        .skip(set + 1)
+        .find(|(index, word)| word.text == "from" && !is_distinct_from(&words, *index))
+        .map(|(index, _)| index);
     let after_from = from.map_or(set + 1, |index| index + 1);
     let where_clause = words.iter().enumerate().skip(after_from).find(|(_, word)| word.text == "where").map(|(index, _)| index);
     let after_where = where_clause.map_or(after_from, |index| index + 1);
@@ -77,6 +82,11 @@ pub(super) fn layout_update(text: &str, dialect: Dialect) -> Option<String> {
     };
     parse::parse(&output, dialect).ok()?;
     Some(output)
+}
+
+/// `is [not] distinct from` 里的 `from` 不是 FROM 子句。
+fn is_distinct_from(words: &[Word], index: usize) -> bool {
+    index > 0 && words[index - 1].text == "distinct"
 }
 
 /// `set` 赋值：≤3 个简单表达式同行，否则 `set` 独占一行、每项一行。

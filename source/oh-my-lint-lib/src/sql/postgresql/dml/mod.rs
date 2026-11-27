@@ -46,19 +46,35 @@ fn layout_inner(sql: &str, dialect: Dialect) -> Option<String> {
 }
 
 /// `with` 框架单独排版后拼回 DML：借用 `select 1` 让 DQL 只处理 CTE 部分。
+///
+/// DQL 无法稳定渲染的 CTE（例如递归 `values` 体）保留原正文，
+/// 但至少把 `with` 与它引领的 CTE 定义分到两行。
 pub(super) fn format_cte_prefix(prefix: &str, dialect: Dialect) -> Option<String> {
     let synthetic = format!("{}\nselect 1", prefix.trim_end());
-    let formatted = crate::sql::fix::format_with(&synthetic, dialect).ok()?;
-    let trimmed = formatted.trim_end();
-    let cut = trimmed.rfind("\nselect 1")?;
-    let cte = trimmed[..cut].trim_end();
-    (!cte.is_empty()).then(|| cte.to_owned())
+    if let Ok(formatted) = crate::sql::fix::format_with(&synthetic, dialect) {
+        let trimmed = formatted.trim_end();
+        if let Some(cut) = trimmed.rfind("\nselect 1") {
+            let cte = trimmed[..cut].trim_end();
+            if !cte.is_empty() && parse::parse(&format!("{cte}\nselect 1"), dialect).is_ok() {
+                return Some(cte.to_owned());
+            }
+        }
+    }
+    let trimmed = prefix.trim();
+    let rest = trimmed.strip_prefix("with").or_else(|| trimmed.strip_prefix("WITH"))?.trim_start();
+    (!rest.is_empty()).then(|| format!("with\n{rest}"))
 }
 
 /// `from`/`using` 的表列表；join 独行，首表留在关键字行。
 pub(super) fn table_lines(body: &str, keyword: &str) -> Vec<String> {
     let starts = join_starts(body);
     if starts.is_empty() {
+        let elements = splitter::split_elements("from", body);
+        if elements.len() == 1
+            && let Some(line) = render_derived_table(&elements[0].text, keyword)
+        {
+            return vec![line];
+        }
         return vec![format!("{keyword} {}", collapse(body))];
     }
     let first = collapse(&body[..starts[0]]);
@@ -68,6 +84,49 @@ pub(super) fn table_lines(body: &str, keyword: &str) -> Vec<String> {
         lines.push(collapse(&body[*start..end]));
     }
     lines
+}
+
+/// 单元素派生表且子查询非简单时按 DQL 子查询版式展开。
+fn render_derived_table(element: &str, keyword: &str) -> Option<String> {
+    let tokens = lexer::tokens(element);
+    let open = tokens.iter().find(|token| !matches!(token.kind, Kind::Whitespace | Kind::Comment))?;
+    if open.kind != Kind::Punct || open.text != "(" {
+        return None;
+    }
+    let mut depth = 0i32;
+    let mut close = None;
+    for token in &tokens {
+        if token.kind != Kind::Punct {
+            continue;
+        }
+        match token.text {
+            "(" => depth += 1,
+            ")" => {
+                depth -= 1;
+                if depth == 0 {
+                    close = Some(token);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let close = close?;
+    let first = tokens.iter().find(|token| token.start > open.start && !matches!(token.kind, Kind::Whitespace | Kind::Comment))?;
+    if first.kind != Kind::Word || !(first.text.eq_ignore_ascii_case("select") || first.text.eq_ignore_ascii_case("with")) {
+        return None;
+    }
+    let inner = &element[open.start + 1..close.start];
+    if decision::is_simple(inner) {
+        return None;
+    }
+    let alias = element[close.start + 1..].trim();
+    let nested = crate::sql::postgresql::dql::subquery::format_nested(inner, 0, lexer::current_dialect())?;
+    Some(if alias.is_empty() {
+        format!("{keyword} ({nested})")
+    } else {
+        format!("{keyword} ({nested}) {alias}")
+    })
 }
 
 /// 一个深度 0 的单词。
@@ -350,9 +409,35 @@ mod tests {
     }
 
     #[test]
-    fn refuses_complex_cte() {
+    fn splits_with_from_complex_cte() {
         let sql = "with recursive t(n) as (values (1) union all select n + 1 from t where n < 100) delete from films";
-        assert_eq!(layout(sql, Dialect::Postgres), None);
+        assert_eq!(render(sql), "with\nrecursive t (n) as (values (1) union all select n + 1 from t where n < 100)\ndelete from films");
+    }
+
+    #[test]
+    fn splits_with_from_non_simple_delete() {
+        assert_eq!(
+            render("with test as (select foo from bar) delete from films where a = 1 and b = 2"),
+            "with\ntest as (select foo from bar)\ndelete from films\nwhere a = 1 and b = 2"
+        );
+    }
+
+    #[test]
+    fn breaks_insert_select_where_before_on_conflict() {
+        assert_eq!(
+            render("insert into t (a, b) select a, b from s where 1 = 1 and a = 1 and b = 2 and c = 3 and d = 4 on conflict (a) do nothing"),
+            "insert into t (a, b)\n\
+             select a, b\n\
+             from s\n\
+             where (\n\
+             \u{20}   1 = 1\n\
+             \u{20}   and a = 1\n\
+             \u{20}   and b = 2\n\
+             \u{20}   and c = 3\n\
+             \u{20}   and d = 4\n\
+             )\n\
+             on conflict (a) do nothing"
+        );
     }
 
     #[test]
@@ -427,6 +512,33 @@ mod tests {
     #[test]
     fn keeps_a_simple_update_on_one_line() {
         assert_eq!(render("update t set a = 1 where b = 2"), "update t set a = 1 where b = 2");
+    }
+
+    #[test]
+    fn breaks_non_simple_derived_table_in_update_from() {
+        let sql = "update ontology_meta om set data_mapping = latest_mapping.mappings, updated_at = current_timestamp from (select distinct on (ontology_meta_id) as ontology_meta_id, mappings from data_source_mapping where mappings is not null order by ontology_meta_id, created_at desc nulls last, id desc) latest_mapping where om.id = latest_mapping.ontology_meta_id and om.data_mapping is null";
+        assert_eq!(
+            render(sql),
+            "update ontology_meta om\n\
+             set data_mapping = latest_mapping.mappings, updated_at = current_timestamp\n\
+             from (\n\
+             \u{20}   select distinct on (ontology_meta_id) as ontology_meta_id, mappings\n\
+             \u{20}   from data_source_mapping\n\
+             \u{20}   where mappings is not null\n\
+             \u{20}   order by ontology_meta_id, created_at desc nulls last, id desc\n\
+             ) latest_mapping\n\
+             where om.id = latest_mapping.ontology_meta_id and om.data_mapping is null"
+        );
+    }
+
+    #[test]
+    fn treats_distinct_from_as_expression_not_from_clause() {
+        assert_eq!(
+            render("update sys_menu set menu_name = 'x', update_time = now() where deleted = 0 and menu_name is distinct from 'x'"),
+            "update sys_menu\n\
+             set menu_name = 'x', update_time = now()\n\
+             where deleted = 0 and (menu_name is distinct from 'x')"
+        );
     }
 
     #[test]

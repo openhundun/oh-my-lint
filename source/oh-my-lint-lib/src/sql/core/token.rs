@@ -65,16 +65,16 @@ pub fn normalize(sql: &str) -> String {
 /// 收集当前文本上的全部编辑。
 fn edits(sql: &str) -> Vec<Edit> {
     let mut edits = Vec::new();
-    for wrap in between_wraps(sql) {
+    for wrap in condition_wraps(sql) {
         edits.push(Edit {
             span: Span::empty(wrap.start),
             replacement: "(".to_owned(),
-            message: "between condition should be parenthesized",
+            message: "ambiguous condition should be parenthesized",
         });
         edits.push(Edit {
             span: Span::empty(wrap.end),
             replacement: ")".to_owned(),
-            message: "between condition should be parenthesized",
+            message: "ambiguous condition should be parenthesized",
         });
     }
     let tokens = tokens(sql);
@@ -1728,7 +1728,7 @@ fn push_trimmed(body: &str, start: usize, end: usize, spans: &mut Vec<Span>) {
 }
 
 /// 需要加括号的条件区间。
-fn between_wraps(sql: &str) -> Vec<Wrap> {
+fn condition_wraps(sql: &str) -> Vec<Wrap> {
     let mut wraps = Vec::new();
     for statement in splitter::statements(sql) {
         let statement_text = &sql[statement.start..statement.end];
@@ -1762,7 +1762,7 @@ fn collect_list(body: &str, base: usize, wraps: &mut Vec<Wrap>) {
         for group in splitter::boolean_group_spans(text) {
             collect_list(&text[group.start..group.end], base + condition.start + group.start, wraps);
         }
-        if has_top_level_between(text) && !is_wrapped(text) {
+        if (has_top_level_between(text) || has_top_level_distinct_from(text)) && !is_wrapped(text) {
             wraps.push(Wrap { start: base + condition.start, end: base + condition.end });
         }
     }
@@ -1874,6 +1874,26 @@ fn has_top_level_between(condition: &str) -> bool {
     false
 }
 
+/// 条件里是否有深度 0 的 `is [not] distinct from`。
+fn has_top_level_distinct_from(condition: &str) -> bool {
+    let tokens = tokens(condition);
+    let mut depth = 0i32;
+    for (index, token) in tokens.iter().enumerate() {
+        match token.kind {
+            Kind::Punct if token.text == "(" => depth += 1,
+            Kind::Punct if token.text == ")" => depth -= 1,
+            Kind::Word if depth == 0 && token.text.eq_ignore_ascii_case("from") => {
+                let previous = tokens[..index].iter().rev().find(|previous| !matches!(previous.kind, Kind::Whitespace | Kind::Comment));
+                if previous.is_some_and(|previous| previous.kind == Kind::Word && previous.text.eq_ignore_ascii_case("distinct")) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 /// 条件是否已经被一对完整括号包住。
 fn is_wrapped(condition: &str) -> bool {
     let trimmed = condition.trim();
@@ -1931,6 +1951,12 @@ mod tests {
             "select a from t where d between (select x from u where p = 1 and q = 2) and (select y from u)",
             "select a from t where (d between (select x from u where p = 1 and q = 2) and (select y from u))",
         );
+    }
+
+    #[test]
+    fn wraps_distinct_from_condition() {
+        assert_fixed("select a from t where a = 1 and b is distinct from 'x'", "select a from t where a = 1 and (b is distinct from 'x')");
+        assert_fixed("select a from t where b is not distinct from 'x'", "select a from t where (b is not distinct from 'x')");
     }
 
     #[test]

@@ -258,8 +258,35 @@ fn mixed_file_keeps_unparseable_statement() {
 }
 
 #[test]
+fn separates_cte_definitions() {
+    let sql = "with\na as (select 1), b as (select 2)\nselect *\nfrom a;";
+    let expected = "with\na as (select 1),\nb as (select 2)\nselect *\nfrom a;";
+    assert!(!crate::sql::check(sql).is_empty());
+    assert_eq!(crate::sql::format(sql).expect("format"), expected);
+    assert!(crate::sql::check(expected).is_empty(), "{:?}", crate::sql::check(expected));
+}
+
+#[test]
+fn ctas_realigns_aligned_select_to_block() {
+    let sql = "create table t as (\n    select m.id as main_meta_id,\n           m.version,\n           m.namespace,\n           m.callable_types,\n           m.gmt_create,\n           m.gmt_modified\n    from t\n);";
+    let expected = "create table t as (\n    select\n        m.id as main_meta_id,\n        m.version,\n        m.namespace,\n        m.callable_types,\n        m.gmt_create,\n        m.gmt_modified\n    from t\n);";
+    assert!(!crate::sql::check(sql).is_empty());
+    assert_eq!(crate::sql::format(sql).expect("format"), expected);
+    assert!(crate::sql::check(expected).is_empty(), "{:?}", crate::sql::check(expected));
+}
+
+#[test]
+fn distinct_from_condition_is_parenthesized_in_block() {
+    let sql = "select * from t where 1 = 1 and a = 1 and b = 2 and c = 3 and d is distinct from 'x';";
+    let expected = "select *\nfrom t\nwhere (\n    1 = 1\n    and a = 1\n    and b = 2\n    and c = 3\n    and (d is distinct from 'x')\n);";
+    assert_eq!(crate::sql::format(sql).expect("format"), expected);
+    assert!(!crate::sql::check(sql).is_empty());
+    assert!(crate::sql::check(expected).is_empty(), "{:?}", crate::sql::check(expected));
+}
+
+#[test]
 fn values_derived_table_is_not_a_subquery() {
-    let sql = "select *\nfrom (values (1), (2)) a (x),\n    (values (3)) b (y);";
+    let sql = "select *\nfrom (\n    values (1)\n) a (x);";
     let findings = crate::sql::check(sql);
     assert!(findings.is_empty(), "{findings:?}");
 }

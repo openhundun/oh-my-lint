@@ -55,7 +55,7 @@
 - R11 `简单语句块`：`select` 元素 ≤3、其他子句元素 ≤1、无 `with` 与集合运算、每个子句都不触发断行，且体内所有嵌套子查询体都简单。
 - R12 不简单的语句块每个子句关键字独占一行；简单的语句块整行或各子句分行都合规，工具不合并子句行。
 - R13 集合运算：运算符独占一行、与两侧分支同缩进；每个分支按语句块独立判定；分支不加括号。
-- R14 `with`：`with` 独占一行；`<名称> as (` 与 `with` 同列；CTE 之间以 `),` 结尾；`)` 与 `<名称>` 同列；含 `with` 的语句不单行。
+- R14 `with`：`with` 独占一行；`<名称> as (` 与 `with` 同列；CTE 之间以 `),` 结尾，下一个 CTE 名另起一行；`)` 与 `<名称>` 同列；含 `with` 的语句不单行。
 - R15 递归只发生在两层：子查询体按 R11、`case` 分支按 R4；其余构造不另设判定层。
 
 ### 版式
@@ -64,7 +64,7 @@
 - R17 内联：`select`/`from`/`group by`/`order by` 用 `, ` 连接；`where`/`on`/`having` 用 ` and `/` or ` 连接。
 - R18 断行：一元素一行；`select`/`from`/`group by`/`order by` 逗号留行尾、末元素不带逗号；跨行元素随所在行整体平移，内部相对缩进不变。
 - R19 `where`/`on`/`having` 逐元素断行首行写锚点：首个连接词是 `or` 写 `1 = 0`，否则写 `1 = 1`；其后每行以 `and`/`or` 开头；单元素子句的块内换行不加锚点。
-- R20 布尔组断行：`and (`/`or (` 起行，组内首行写 `1 = 1`（AND 组）或 `1 = 0`（OR 组），逐行 `and`/`or`，闭合 `)` 与组起始同缩进；组内联时丢弃锚点、以连接词连接。
+- R20 布尔组断行：`and (`/`or (` 起行，组内首行写 `1 = 1`（AND 组）或 `1 = 0`（OR 组），逐行 `and`/`or`，闭合 `)` 与组起始同缩进；组内联时丢弃锚点、以连接词连接。`between ... and ...` 与 `is [not] distinct from` 这类含子句关键字或歧义连接词的条件整体加括号。
 - R21 子查询展开：`(` 留在元素行尾，体内各子句 +4，闭合 `)` 与元素缩进同列。
 - R22 派生表：`from` 单元素时 `from (` 同行、`) <别名>` 与 `from` 同列；多元素时 `(` 独占元素位、`) <别名>` 与 `(` 同列。
 - R23 `from` 与 join：首个表与 `from` 同行；每个 `join`/`cross join` 独占一行、缩进等于 `from`；`on` 与 1–3 个条件同行（元素 ≥4 或含复杂表达式时断行，`on 1 = 1` 起行）；显式 join 之后的逗号表改写为 `cross join`，纯逗号表列表保留。
@@ -73,9 +73,9 @@
 
 ## DML
 
-- M1 `DELETE`：子句为 `with`、`delete from`、`using`、`where`、`returning`。简单判定同 R11：`returning` 元素 ≤3 且不触发 R7，其他子句元素 ≤1，`using` 无 join，CTE 各体简单；简单语句整行。非简单时每个子句独占一行、0 缩进；`where` 按 R8/R19，`returning` 按 R7，`using` 按 R6/R23；显式 join 的缩进等于 `using`；`returning` 别名必须有 `as`。`where` 超过一个条件即不算简单，但条件本身仍只在 ≥4 或复杂时逐元素断行。`with` 各部分都简单时允许整行。
+- M1 `DELETE`：子句为 `with`、`delete from`、`using`、`where`、`returning`。简单判定同 R11：`returning` 元素 ≤3 且不触发 R7，其他子句元素 ≤1，`using` 无 join，CTE 各体简单；简单语句整行。非简单时每个子句独占一行、0 缩进；`where` 按 R8/R19，`returning` 按 R7，`using` 按 R6/R23；显式 join 的缩进等于 `using`；`returning` 别名必须有 `as`。`where` 超过一个条件即不算简单，但条件本身仍只在 ≥4 或复杂时逐元素断行。`with` 各部分都简单时允许整行；一旦 `with` 或主语句断行，`with`、CTE 定义、主语句必须分行。
 - M2 `EXPLAIN`：`explain` 头与被执行语句必然分行，被执行语句在下一行、0 缩进。头部只占一行，选项以 `, ` 连接，不因数量折行；布尔值统一 `true`/`false`（`on`/`off`、`1`/`0` 只在布尔选项位置改写），裸选项保持裸写，`format text|xml|json|yaml` 与 `serialize none|text|binary` 保留；`analyse`/`analyze` 不互相归一。被执行语句按 DQL 处理。
-- M3 `VALUES` 行构造器：`insert into <table> (<字段>)` 的字段列表始终与 `insert into` 同行；超过 1 个值元组时逐元组一行，每个元组自身不折行，元组与 `values` 同缩进、不额外缩进。独立 `INSERT ... VALUES` 的 `values` 与 `insert into` 头同行；派生表 `(values ...)` 的 `values` 在左括号下一行，闭合 `)` 回到左括号所在缩进。`on conflict` 子句另起一行、与语句同缩进。
+- M3 `VALUES` 行构造器：`insert into <table> (<字段>)` 的字段列表始终与 `insert into` 同行；单个值元组时 `values` 与 `insert into` 头同行；超过 1 个值元组时 `values` 另起一行、与 `insert into` 头同缩进，元组逐行且与 `values` 同缩进、不额外缩进，每个元组自身不折行。派生表 `(values ...)` 的 `values` 在左括号下一行，闭合 `)` 回到左括号所在缩进。`on conflict` 子句另起一行、与语句同缩进。
 - M4 `UPDATE`：`set` 按 `select` 元素规则（≤3 个简单赋值同行，≥4 或含复杂表达式时 `set` 独行、每项 +4）；其他子句元素 ≤1 时整句单行，否则 `update`/`set`/`from`/`where`/`returning` 各占一行；`where` 超过一个条件即不算简单，但条件本身仍只在 ≥4 或复杂时按 R8/R19 断行；`from` 的 join 按 R23；`with` 按 R14，CTE 与主语句分行。
 
 ## DDL

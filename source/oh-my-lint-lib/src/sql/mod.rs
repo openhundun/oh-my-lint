@@ -68,9 +68,9 @@ fn check_with_inner(sql: &str, dialect: Dialect) -> Vec<crate::model::Finding> {
 /// 检查与修复共用同一条语句渲染管线；`check` 只比较渲染结果。
 fn check_statement(statement: &str, kind: StatementKind, dialect: Dialect) -> Option<String> {
     let output = format_statement(statement, dialect)?;
+    let output = values::format(&output, dialect);
     let output = match kind {
-        StatementKind::Insert => on_conflict::format(&values::format(&output, dialect), dialect),
-        StatementKind::Update => values::format(&output, dialect),
+        StatementKind::Insert => on_conflict::format(&output, dialect),
         _ => output,
     };
     Some(comments::trim_trailing_spaces(&output, dialect))

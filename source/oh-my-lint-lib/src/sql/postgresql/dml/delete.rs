@@ -36,8 +36,9 @@ pub(super) fn layout_delete(text: &str, delete: &Delete) -> Option<String> {
         return None;
     }
     let parts = delete_parts(text)?;
+    let simple = delete_simple(text, &parts);
     if let Some(with) = parts.iter().find(|part| part.kind == DeletePart::With)
-        && !cte_bodies_simple(with.body(text))
+        && (!cte_bodies_simple(with.body(text)) || !simple)
     {
         let words = top_words(text);
         let delete_word = words.iter().find(|word| word.text == "delete")?;
@@ -47,7 +48,7 @@ pub(super) fn layout_delete(text: &str, delete: &Delete) -> Option<String> {
         return Some(format!("{cte}\n{formatted}"));
     }
     let collected: Vec<Vec<String>> = parts.iter().map(|part| render_delete_part(text, *part)).collect();
-    if delete_simple(text, &parts) {
+    if simple {
         let mut pieces = Vec::new();
         for lines in collected {
             pieces.extend(lines);

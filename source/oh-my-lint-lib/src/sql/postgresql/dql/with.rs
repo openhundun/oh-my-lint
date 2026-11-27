@@ -43,11 +43,42 @@ pub(super) fn check(statement_start: usize, statement_text: &str, block: crate::
         if !before_paren.to_ascii_lowercase().ends_with("as") {
             continue;
         }
-        if !crate::sql::splitter::has_top_level_newline(&text[inner.start..inner.end]) {
-            continue;
-        }
         let close = inner.end;
         if close >= text.len() {
+            continue;
+        }
+        if text.as_bytes().get(close) == Some(&b')') {
+            let mut comma = close + 1;
+            while text.as_bytes().get(comma).is_some_and(|byte| *byte == b' ' || *byte == b'\t') {
+                comma += 1;
+            }
+            if text.as_bytes().get(comma) == Some(&b',') {
+                let mut next = comma + 1;
+                let mut same_line = true;
+                while let Some(byte) = text.as_bytes().get(next) {
+                    if *byte == b'\n' {
+                        same_line = false;
+                        break;
+                    }
+                    if *byte != b' ' && *byte != b'\t' {
+                        break;
+                    }
+                    next += 1;
+                }
+                if same_line {
+                    found.push(Violation {
+                        kind: "with-separator",
+                        element_count: 0,
+                        expected: Mode::Break,
+                        span: crate::span::Span::new(statement_start + block.start + comma + 1, statement_start + block.start + next),
+                        indent,
+                        next_indent: None,
+                        message: "cte should start a new line after comma".to_owned(),
+                    });
+                }
+            }
+        }
+        if !crate::sql::splitter::has_top_level_newline(&text[inner.start..inner.end]) {
             continue;
         }
         let line_start = text[..close].rfind('\n').map_or(0, |index| index + 1);
@@ -106,6 +137,9 @@ pub(super) fn render(text: &str, violation: &Violation) -> Option<String> {
         } else {
             format!("\n{pad})")
         });
+    }
+    if violation.kind == "with-separator" {
+        return Some(format!("\n{}", " ".repeat(violation.indent)));
     }
     if violation.kind == "with-query" {
         let keyword = text[violation.span.start..violation.span.end].trim();

@@ -20,9 +20,23 @@ pub(super) fn layout_insert(text: &str, dialect: Dialect) -> Option<String> {
     if query.trim().is_empty() {
         return None;
     }
+    let query_words = top_words(query);
+    let conflict = query_words
+        .iter()
+        .enumerate()
+        .find(|(index, word)| word.text == "on" && query_words.get(index + 1).is_some_and(|next| next.text == "conflict"))
+        .map(|(index, _)| index);
+    let (query, suffix) = conflict.map_or((query, ""), |index| {
+        let start = query_words[index].start;
+        (&query[..start], &query[start..])
+    });
     let flat = flatten_query(query)?;
     let formatted = crate::sql::fix::format_with(&flat, dialect).ok()?;
-    let body = format!("{header}\n{formatted}");
+    let body = if suffix.is_empty() {
+        format!("{header}\n{formatted}")
+    } else {
+        format!("{header}\n{formatted}\n{}", suffix.trim())
+    };
     let output = if insert.start > 0 {
         let cte = format_cte_prefix(&text[..insert.start], dialect)?;
         format!("{cte}\n{body}")

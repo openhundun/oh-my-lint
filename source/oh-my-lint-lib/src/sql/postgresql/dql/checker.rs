@@ -195,7 +195,11 @@ pub(super) fn check_clauses(statement_start: usize, statement_text: &str, base: 
                 });
             }
         } else if !has_join {
-            let actual = crate::sql::splitter::has_top_level_newline(body.trim_end());
+            let actual = if expected == Mode::Break {
+                body.starts_with('\n')
+            } else {
+                crate::sql::splitter::has_top_level_newline(body.trim_end())
+            };
             if (expected == Mode::Break) != actual {
                 found.push(Violation {
                     kind: clause.kind,

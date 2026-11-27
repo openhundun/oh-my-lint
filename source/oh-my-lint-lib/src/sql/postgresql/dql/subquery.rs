@@ -51,7 +51,7 @@ pub(super) fn render(text: &str, violation: &Violation, dialect: Dialect) -> Opt
 }
 
 /// 把子查询体压平后按 DQL 重排，并统一加一级缩进；检查与修复共用。
-pub(super) fn format_nested(block: &str, indent: usize, dialect: Dialect) -> Option<String> {
+pub(crate) fn format_nested(block: &str, indent: usize, dialect: Dialect) -> Option<String> {
     let flat = crate::sql::postgresql::dql::util::collapse_whitespace(block);
     if flat.trim().is_empty() {
         return None;

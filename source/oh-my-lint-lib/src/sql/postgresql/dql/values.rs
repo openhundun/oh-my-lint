@@ -28,7 +28,7 @@ pub(crate) fn format(text: &str, dialect: Dialect) -> String {
     format_values(&text, &protected)
 }
 
-/// `insert into t` 与字段列表、`values` 始终同一行；不可解析语句不动。
+/// `insert into t` 与字段列表始终同一行；`values` 是否另起一行由 `format_values` 决定。
 fn format_insert_headers(text: &str, protected: &[Span]) -> String {
     map_statements(text, protected, format_insert_headers_one)
 }
@@ -179,7 +179,36 @@ fn format_statement_values(text: &str) -> String {
         let Some(tuples) = tuple_spans(&tokens, index + 1) else {
             continue;
         };
+        if derived && inside_insert_values_tuple(&tokens, index) {
+            let Some(close) = matching_paren(&tokens, previous) else {
+                continue;
+            };
+            let Some((_, last_end)) = tuples.last().copied() else {
+                continue;
+            };
+            if next_non_ws(&tokens, tuple_end_index(&tokens, last_end) + 1) == Some(close) {
+                let rows = tuples.iter().map(|(start, end)| collapse_whitespace(&text[*start..*end])).collect::<Vec<_>>().join(", ");
+                edits.push((token_end(&tokens[previous]), tokens[close].start, format!("values {rows}")));
+            }
+            continue;
+        }
         if !insert && tuples.len() < 2 {
+            let Some((start, end)) = tuples.first().copied() else {
+                continue;
+            };
+            let Some(close) = matching_paren(&tokens, previous) else {
+                continue;
+            };
+            if next_non_ws(&tokens, tuple_end_index(&tokens, end) + 1) != Some(close) {
+                continue;
+            }
+            let close_indent = line_indent_of(text, tokens[previous].start);
+            let values_indent = format!("{close_indent}    ");
+            edits.push((
+                token_end(&tokens[previous]),
+                tokens[close].start,
+                format!("\n{values_indent}values {}\n{close_indent}", collapse_whitespace(&text[start..end])),
+            ));
             continue;
         }
 
@@ -187,16 +216,21 @@ fn format_statement_values(text: &str) -> String {
         let line_prefix = &text[line_start..token.start];
         let inline = !line_prefix.trim().is_empty();
         let line_indent = leading_whitespace(line_prefix);
+        let header_indent = if inline { line_indent.to_owned() } else { line_indent_of(text, tokens[previous].start) };
         let indent = if insert {
-            if inline { line_indent.to_owned() } else { line_indent_of(text, tokens[previous].start) }
+            header_indent.clone()
         } else if inline {
             format!("{line_indent}    ")
         } else {
             line_prefix.to_owned()
         };
 
-        if insert && !inline {
-            edits.push((token_end(&tokens[previous]), token.start, " ".to_owned()));
+        if insert {
+            if tuples.len() > 1 {
+                edits.push((token_end(&tokens[previous]), token.start, format!("\n{header_indent}")));
+            } else if !inline {
+                edits.push((token_end(&tokens[previous]), token.start, " ".to_owned()));
+            }
         }
         if derived && inline {
             edits.push((token_end(&tokens[previous]), token.start, format!("\n{indent}")));
@@ -230,6 +264,7 @@ fn format_statement_values(text: &str) -> String {
 }
 
 /// 把一个 `values` 块渲染为输入/输出枚举；单行元组保持单行，多行元组逐行。
+/// `indent` 在多行 INSERT 中与 `values` 对齐，在派生表中是括号内缩进。
 fn layout_values(input: ValuesInput, text: &str, values_end: usize, tuples: &[(usize, usize)], indent: &str) -> ValuesOutput {
     if tuples.len() == 1 {
         let (start, end) = tuples[0];
@@ -278,6 +313,31 @@ fn tuple_spans(tokens: &[Token<'_>], start: usize) -> Option<Vec<(usize, usize)>
         break;
     }
     (!tuples.is_empty()).then_some(tuples)
+}
+
+/// 派生 `values` 是否位于 `insert ... values (...)` 的顶层元组内。
+/// 元组本身按 M3 不折行，顶层 values 渲染会折叠其内容，这里不能再展开。
+fn inside_insert_values_tuple(tokens: &[Token<'_>], index: usize) -> bool {
+    let mut depth = 0usize;
+    let mut insert = false;
+    let mut values = false;
+    for token in tokens.iter().take(index) {
+        if token.kind == Kind::Punct {
+            match token.text {
+                "(" => depth += 1,
+                ")" => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+        }
+        if depth == 0 {
+            if word(token, "insert") {
+                insert = true;
+            } else if insert && word(token, "values") {
+                values = true;
+            }
+        }
+    }
+    insert && values && depth > 0
 }
 
 fn has_insert(tokens: &[Token<'_>], start: usize, end: usize) -> bool {
@@ -411,10 +471,23 @@ mod tests {
     }
 
     #[test]
-    fn breaks_multi_row_insert_values_on_the_header_line() {
+    fn breaks_multi_row_insert_values_after_the_header() {
         let sql = "insert into t (a, b) values (1, 2), (3, 4);";
-        let expected = "insert into t (a, b) values\n(1, 2),\n(3, 4);";
+        let expected = "insert into t (a, b)\nvalues\n(1, 2),\n(3, 4);";
+        assert!(!crate::sql::check(sql).is_empty(), "check should report values on the header line");
         assert_eq!(format(sql), expected);
+        assert_eq!(format(expected), expected);
+        assert!(crate::sql::check(expected).is_empty(), "{:?}", crate::sql::check(expected));
+    }
+
+    #[test]
+    fn breaks_single_row_derived_values() {
+        let sql = "select * from (values (1) ) t(c1);";
+        let expected = "select * from (\n    values (1)\n) t (c1);";
+        assert!(!crate::sql::check(sql).is_empty(), "check should report inline derived values");
+        assert_eq!(format(sql), expected);
+        assert_eq!(format(expected), expected);
+        assert!(crate::sql::check(expected).is_empty());
     }
 
     #[test]
@@ -422,6 +495,14 @@ mod tests {
         let sql = "select * from (values (1, 2), (3, 4)) t(a, b);";
         let expected = "select * from (\n    values\n    (1, 2),\n    (3, 4)\n) t (a, b);";
         assert_eq!(format(sql), expected);
+    }
+
+    #[test]
+    fn keeps_nested_values_in_insert_tuple_inline() {
+        let sql = "insert into t values (1, (select i from ( values (3) ) foo (i)));";
+        let expected = "insert into t values (1, (select i from (values (3)) foo (i)));";
+        assert_eq!(format(sql), expected);
+        assert_eq!(format(expected), expected);
     }
 
     #[test]

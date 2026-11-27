@@ -1,7 +1,7 @@
 //! 修复：只重写违规区间，块内其余字节原样保留。
 
 /// 目前能正确渲染的违规类型。
-const SUPPORTED_FIXES: [&str; 22] = [
+const SUPPORTED_FIXES: [&str; 23] = [
     "select",
     "from",
     "where",
@@ -23,6 +23,7 @@ const SUPPORTED_FIXES: [&str; 22] = [
     "rollup",
     "with",
     "with-close",
+    "with-separator",
     "with-query",
 ];
 
@@ -69,7 +70,7 @@ fn render(text: &str, violation: &crate::sql::checker::Violation, dialect: crate
     if violation.kind == "rollup" {
         return super::rollup::render(text, violation);
     }
-    if matches!(violation.kind, "with" | "with-close" | "with-query") {
+    if matches!(violation.kind, "with" | "with-close" | "with-separator" | "with-query") {
         return super::with::render(text, violation);
     }
     if violation.kind == "clause-start" {

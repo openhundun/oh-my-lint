@@ -16,7 +16,7 @@ mod order_by;
 mod rollup;
 mod select;
 mod set_op;
-mod subquery;
+pub(crate) mod subquery;
 mod util;
 pub(crate) mod values;
 pub(crate) mod r#where;

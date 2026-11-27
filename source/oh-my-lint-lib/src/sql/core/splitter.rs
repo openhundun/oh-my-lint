@@ -60,6 +60,9 @@ pub fn clause_spans(text: &str) -> Vec<Clause> {
         }
         if depth == 0 && (index == 0 || !is_word(bytes[index - 1])) {
             let matched = CLAUSE_KEYWORDS.iter().copied().find(|kind| {
+                if *kind == "from" && previous_word(&low, index).is_some_and(|word| word == "distinct") {
+                    return false;
+                }
                 low.get(index..)
                     .is_some_and(|rest| rest.starts_with(kind) && !rest.as_bytes().get(kind.len()).is_some_and(|byte| is_word(*byte)))
             });
@@ -283,6 +286,13 @@ fn trim_outer_comments(text: &str, mut start: usize, mut end: usize) -> (usize, 
             }
             continue;
         }
+        if text[start..end].starts_with('\\') {
+            match text[start..end].find('\n') {
+                Some(index) => start += index + 1,
+                None => start = end,
+            }
+            continue;
+        }
         if text[start..end].starts_with("/*") {
             match text[start + 2..end].find("*/") {
                 Some(index) => start += 2 + index + 2,
@@ -326,6 +336,12 @@ fn neutralize_pg_dump(text: &str) -> std::borrow::Cow<'_, str> {
             in_copy = true;
         } else if trimmed.starts_with('\\') {
             ranges.push((offset, end));
+        } else {
+            // `...; \gexec`：只抹掉反斜杠起的行尾，保留前面的 SQL 与分号。
+            let masked = crate::sql::lexer::mask(line);
+            if let Some(index) = masked.find('\\') {
+                ranges.push((offset + index, end));
+            }
         }
         offset = end;
     }
@@ -541,6 +557,20 @@ pub fn is_join_modifier(word: &str) -> bool {
     matches!(word.to_ascii_lowercase().as_str(), "left" | "right" | "full" | "inner" | "cross" | "natural" | "outer")
 }
 
+/// 关键字前最近的单词（小写文本）。
+fn previous_word(text: &str, index: usize) -> Option<&str> {
+    let bytes = text.as_bytes();
+    let mut end = index;
+    while end > 0 && bytes[end - 1].is_ascii_whitespace() {
+        end -= 1;
+    }
+    let mut start = end;
+    while start > 0 && is_word(bytes[start - 1]) {
+        start -= 1;
+    }
+    (start < end).then_some(&text[start..end])
+}
+
 fn is_word(byte: u8) -> bool {
     byte.is_ascii_alphanumeric() || byte == b'_'
 }
@@ -578,6 +608,15 @@ mod tests {
         let clauses = crate::sql::splitter::clause_spans("select a from (select b from t) x");
         assert_eq!(clauses.len(), 2);
         assert_eq!(clauses.iter().filter(|clause| clause.kind == "select").count(), 1);
+    }
+
+    #[test]
+    fn keeps_distinct_from_inside_where() {
+        let sql = "select a from t where b is distinct from 'x' and c is not distinct from 'y'";
+        let clauses = crate::sql::splitter::clause_spans(sql);
+        assert_eq!(clauses.len(), 3);
+        assert_eq!(clauses[2].kind, "where");
+        assert_eq!(&sql[clauses[2].body_start..clauses[2].body_end], " b is distinct from 'x' and c is not distinct from 'y'");
     }
 
     #[test]
@@ -641,6 +680,14 @@ mod tests {
     fn splits_statements_on_semicolon() {
         let spans = crate::sql::splitter::statements("select 1; select 2");
         assert_eq!(spans.len(), 2);
+    }
+
+    #[test]
+    fn skips_inline_psql_meta_and_leading_meta_line() {
+        let text = "select 1; \\gexec\n\n-- use database\n\\c db;\ncreate table t (a int);";
+        let spans = crate::sql::splitter::statements(text);
+        let statements: Vec<&str> = spans.iter().map(|span| &text[span.start..span.end]).collect();
+        assert_eq!(statements, ["select 1", "create table t (a int)"]);
     }
 
     #[test]

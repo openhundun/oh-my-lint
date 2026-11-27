@@ -200,7 +200,7 @@ git diff --check
 | P5 DDL | done | — | create_table/misc/realign；白名单 2 findings（基线 57） |
 | P6 file | done | — | reorder/comments/realign；fix 无 changes |
 | P7 清理 | done | — | check=render-diff；旧 check 分支删除；215 tests |
-| P8 条件块 | done | — | Break 整块加括号；where/having/on/DML 共用；231 tests；公司 0；PG 2 |
+| P8 条件块 | done | — | Break 整块加括号；where/having/on/DML 共用；243 tests；公司 0；PG 2 |
 
 ## P8 条件块
 
@@ -212,3 +212,14 @@ git diff --check
 - `over (...)` 内的 `case` 强制内联，窗口整体仍按简单表达式处理；窗口外的独立 `case` 继续按分支复杂度展开。
 - 子查询只按 `is_simple` 判定是否内联，不再额外按子句数量强制断行；`select` / `from` / `where` 三个简单子句也保持一行。
 - 任意嵌套查询或条件布尔组都会使父级退出 simple；条件里任意层级的布尔组都会触发外层断行，避免 q07/q85/q88 这类嵌套条件被压成一行。
+- `update ... set ... where ... is distinct from ...` 中的 `from` 不再被误判为 FROM 子句，`where` 能正常进入条件块。
+- 派生单行 `(values (...))` 也按 M3 展开：`values` 在左括号下一行，闭括号回左缩进；`check` 与 `fix` 共用同一 values 渲染。
+- `insert ... values (...)` 元组内的派生 `values` 保持单行，只规范括号内空白，避免与元组不折行规则互相振荡。
+- `insert ... select ... on conflict` 先渲染 select 查询体，再单独追加 `on conflict`，避免整条语句因 DQL 无法解析而回退原样。
+- `is [not] distinct from` 不再被 `clause_spans` 当作 FROM 子句；条件元素像 `between ... and` 一样整体加括号。
+- DML 的复杂 CTE 使用保留式回退：DQL 无法稳定渲染时，至少保证 `with`、CTE 定义和主语句分行。
+- psql 元命令支持行内 `; \gexec` 与语句前导 `\c`：切分时只抹掉元命令本身，后续 `create table` 不再被整段吞掉。
+- 断行模式下要求元素正文从换行开始；`select m.id ...` 这种把首元素留在关键字行、后续列对齐的旧版式会被识别并重排为 `select` 独行、元素 +4。
+- CTE 分隔符 `),` 后的下一个 CTE 名必须另起一行；`with` 检查新增 `with-separator` 违规与修复。
+- DML `from`/`using` 的单元素派生表若子查询非简单，按 DQL 子查询版式展开；不再把 `select ... order by ...` 压回表别名一行。
+- 多行 `insert ... values` 的 `values` 独立成行、与 `insert into` 头同缩进，元组与 `values` 同缩进；单行仍保持 `insert ... values (...)` 同行。

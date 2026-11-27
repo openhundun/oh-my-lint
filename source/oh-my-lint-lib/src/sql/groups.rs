@@ -97,7 +97,7 @@ fn member(statement: &str, dialect: Dialect) -> Option<Member> {
                 None
             }
         }
-        StatementKind::Query | StatementKind::Delete | StatementKind::Explain | StatementKind::Insert => None,
+        StatementKind::Query | StatementKind::Delete | StatementKind::Explain | StatementKind::Update | StatementKind::Insert => None,
     }
 }
 

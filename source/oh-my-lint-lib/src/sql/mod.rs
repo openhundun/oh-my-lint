@@ -58,11 +58,15 @@ fn check_with_inner(sql: &str, dialect: Dialect) -> Vec<crate::model::Finding> {
             StatementKind::Other => {
                 findings.extend(token_findings(statement, *span, dialect));
             }
-            StatementKind::Delete | StatementKind::Explain | StatementKind::CreateTable | StatementKind::CreateIndex | StatementKind::AlterTable | StatementKind::Insert => {
+            StatementKind::Delete | StatementKind::Explain | StatementKind::Update | StatementKind::CreateTable | StatementKind::CreateIndex | StatementKind::AlterTable | StatementKind::Insert => {
                 findings.extend(token_findings(statement, *span, dialect));
                 if layout(kind, statement, dialect).is_some_and(|output| {
                     let output = comments::trim_trailing_spaces(&output, dialect);
-                    let output = if kind == StatementKind::Insert { values::format(&output, dialect) } else { output };
+                    let output = if matches!(kind, StatementKind::Insert | StatementKind::Update) {
+                        values::format(&output, dialect)
+                    } else {
+                        output
+                    };
                     if kind == StatementKind::CreateIndex {
                         // 同组索引的 `on` 对齐会引入额外空格；结构错误仍由 token 规则报告。
                         comparable(&output) != comparable(statement)
@@ -115,7 +119,7 @@ fn finding(message: String, span: crate::span::Span) -> crate::model::Finding {
 /// 派发版式模块；`None` 表示该门类没有模块能渲染。
 fn layout(kind: StatementKind, sql: &str, dialect: Dialect) -> Option<String> {
     match kind {
-        StatementKind::Delete | StatementKind::Explain => crate::sql::dml::layout(sql, dialect),
+        StatementKind::Delete | StatementKind::Explain | StatementKind::Update => crate::sql::dml::layout(sql, dialect),
         StatementKind::CreateTable => crate::sql::ddl::layout(sql, dialect).or_else(|| crate::sql::ddl_misc::layout(sql, dialect)),
         StatementKind::CreateIndex | StatementKind::AlterTable => crate::sql::ddl_misc::layout(sql, dialect),
         StatementKind::Insert => crate::sql::dml::layout(sql, dialect),
@@ -128,6 +132,7 @@ fn label(kind: StatementKind) -> &'static str {
         StatementKind::Query => "query",
         StatementKind::Delete => "delete",
         StatementKind::Explain => "explain",
+        StatementKind::Update => "update",
         StatementKind::CreateTable => "create table",
         StatementKind::CreateIndex => "create index",
         StatementKind::AlterTable => "alter table",
@@ -198,7 +203,7 @@ fn format_statement(statement: &str, dialect: Dialect) -> Option<String> {
             }
             current
         }
-        StatementKind::Delete | StatementKind::Explain | StatementKind::CreateTable | StatementKind::CreateIndex | StatementKind::AlterTable | StatementKind::Insert => {
+        StatementKind::Delete | StatementKind::Explain | StatementKind::Update | StatementKind::CreateTable | StatementKind::CreateIndex | StatementKind::AlterTable | StatementKind::Insert => {
             layout(kind, statement, dialect).or_else(|| token_only(statement, dialect)).unwrap_or_else(|| statement.to_owned())
         }
         StatementKind::Other => token_only(statement, dialect).unwrap_or_else(|| statement.to_owned()),

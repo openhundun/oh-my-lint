@@ -1,7 +1,7 @@
 //! 修复：只重写违规区间，块内其余字节原样保留。
 
 /// 目前能正确渲染的违规类型。
-const SUPPORTED_FIXES: [&str; 19] = [
+const SUPPORTED_FIXES: [&str; 21] = [
     "select",
     "from",
     "where",
@@ -10,6 +10,8 @@ const SUPPORTED_FIXES: [&str; 19] = [
     "order by",
     "clause-start",
     "subquery",
+    "query-layout",
+    "function-args",
     "group",
     "case",
     "cross-join",
@@ -48,7 +50,7 @@ fn format_with_inner(sql: &str, dialect: crate::sql::parse::Dialect) -> crate::e
         let Some(violation) = found.iter().min_by_key(|violation| (violation.span.start, std::cmp::Reverse(violation.span.len()))) else {
             break;
         };
-        let Some(replacement) = render(&current, violation) else {
+        let Some(replacement) = render(&current, violation, dialect) else {
             return Err(crate::error::Error::Rejected(format!("{} layout cannot be rendered in this context", violation.kind)));
         };
         if replacement == current[violation.span.start..violation.span.end] {
@@ -59,7 +61,7 @@ fn format_with_inner(sql: &str, dialect: crate::sql::parse::Dialect) -> crate::e
     Ok(current)
 }
 
-fn render(text: &str, violation: &crate::sql::checker::Violation) -> Option<String> {
+fn render(text: &str, violation: &crate::sql::checker::Violation, dialect: crate::sql::parse::Dialect) -> Option<String> {
     if violation.kind == "set-op" {
         let operator = text[violation.span.start..violation.span.end].trim();
         return Some(format!("\n{}{operator}", " ".repeat(violation.indent)));
@@ -131,7 +133,13 @@ fn render(text: &str, violation: &crate::sql::checker::Violation) -> Option<Stri
         return render_case(text, violation);
     }
     if violation.kind == "subquery" {
-        return render_subquery(text, violation);
+        return render_subquery(text, violation, dialect);
+    }
+    if violation.kind == "query-layout" {
+        return format_nested(&text[violation.span.start..violation.span.end], violation.indent, dialect);
+    }
+    if violation.kind == "function-args" {
+        return render_function_args(text, violation);
     }
     if violation.kind == "cross-join" {
         return render_cross_join(text, violation);
@@ -335,30 +343,75 @@ fn case_parts(text: &str) -> Option<Vec<(&'static str, String)>> {
     None
 }
 
-/// 内联子查询体展开：每个子句独占一行，闭括号回到元素缩进。
-fn render_subquery(text: &str, violation: &crate::sql::checker::Violation) -> Option<String> {
-    let block = &text[violation.span.start..violation.span.end];
-    if starts_with_word(block, "with") {
+/// 把子查询体压平后按 DQL 重排，并统一加一级缩进；检查与修复共用。
+pub(crate) fn format_nested(block: &str, indent: usize, dialect: crate::sql::parse::Dialect) -> Option<String> {
+    let flat = collapse_whitespace(block);
+    if flat.trim().is_empty() {
         return None;
     }
-    let clauses = crate::sql::splitter::clause_spans(block);
-    if clauses.is_empty() || clauses.iter().any(|clause| crate::sql::splitter::SET_OPERATORS.contains(&clause.kind)) {
+    let body = format_with(&flat, dialect).ok()?;
+    let body = break_simple_clauses(&body);
+    Some(indent_block(&body, indent))
+}
+
+/// 三层及以上的简单子查询也逐子句成行，避免 select/from 与 where 混排。
+fn break_simple_clauses(body: &str) -> String {
+    if body.contains('\n') {
+        return body.to_owned();
+    }
+    let clauses = crate::sql::splitter::clause_spans(body);
+    if clauses.len() < 3 {
+        return body.to_owned();
+    }
+    clauses
+        .iter()
+        .map(|clause| {
+            let text = body[clause.body_start..clause.body_end].trim();
+            if text.is_empty() { clause.kind.to_owned() } else { format!("{} {text}", clause.kind) }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// 内联子查询体展开：按 DQL 递归渲染，每个子句独占一行，闭括号回到元素缩进。
+fn render_subquery(text: &str, violation: &crate::sql::checker::Violation, dialect: crate::sql::parse::Dialect) -> Option<String> {
+    let block = &text[violation.span.start..violation.span.end];
+    format_nested(block, violation.indent, dialect)
+}
+
+/// 子查询/函数实参展开后的缩进：正文 +4，闭括号回到起始缩进。
+fn indent_block(body: &str, indent: usize) -> String {
+    let padding = " ".repeat(indent + 4);
+    let pad = " ".repeat(indent);
+    let trimmed = body.trim_start();
+    let mut lines = trimmed.lines();
+    let Some(first) = lines.next() else {
+        return String::new();
+    };
+    let mut rendered = format!("\n{padding}{}", first.trim_end());
+    for line in lines {
+        rendered.push('\n');
+        if !line.trim().is_empty() {
+            rendered.push_str(&padding);
+            rendered.push_str(line.trim_end());
+        }
+    }
+    rendered.push('\n');
+    rendered.push_str(&pad);
+    rendered
+}
+
+/// 函数实参列表：含子查询时逐实参一行，闭括号回到函数名缩进。
+fn render_function_args(text: &str, violation: &crate::sql::checker::Violation) -> Option<String> {
+    let inner = &text[violation.span.start..violation.span.end];
+    let args = crate::sql::splitter::split_elements("select", inner);
+    if args.is_empty() {
         return None;
     }
     let padding = " ".repeat(violation.indent + 4);
     let pad = " ".repeat(violation.indent);
-    let mut lines = Vec::new();
-    for clause in &clauses {
-        let body = block[clause.body_start..clause.body_end].trim();
-        if body.is_empty() {
-            continue;
-        }
-        lines.push(format!("{padding}{} {body}", clause.kind));
-    }
-    if lines.is_empty() {
-        return None;
-    }
-    Some(format!("\n{}\n{pad}", lines.join("\n")))
+    let rendered = args.iter().map(|argument| collapse_whitespace(&argument.text)).collect::<Vec<_>>().join(&format!(",\n{padding}"));
+    Some(format!("\n{padding}{rendered}\n{pad}"))
 }
 
 /// `from` 的 join 版式：首表留在 `from` 行，join 行回到 `from` 缩进。
@@ -428,12 +481,24 @@ fn render_cross_join(_text: &str, violation: &crate::sql::checker::Violation) ->
     Some(format!("\n{pad}cross join"))
 }
 
-/// 文本去掉前导空白后是否以某个词开头（按词边界判断）。
-fn starts_with_word(text: &str, word: &str) -> bool {
-    let Some(rest) = text.trim_start().strip_prefix(word) else {
-        return false;
-    };
-    rest.chars().next().is_none_or(|character| !(character.is_alphanumeric() || character == '_' || character == '$'))
+/// 把任意空白折叠成一个空格；字符串与引号逐字节保留。
+fn collapse_whitespace(text: &str) -> String {
+    let mut output = String::new();
+    let mut pending = false;
+    for token in crate::sql::lexer::tokens(text) {
+        if token.kind == crate::sql::lexer::Kind::Whitespace {
+            if !output.is_empty() {
+                pending = true;
+            }
+            continue;
+        }
+        if pending {
+            output.push(' ');
+            pending = false;
+        }
+        output.push_str(token.text);
+    }
+    output
 }
 
 #[cfg(test)]
@@ -479,6 +544,21 @@ mod tests {
     }
 
     #[test]
+    fn expands_function_args_with_a_subquery() {
+        let sql = "select setval('seq', greatest(999999, (select coalesce(max(id), 999999) from t)))";
+        let expected = "select\n\
+                        \u{20}   setval(\n\
+                        \u{20}       'seq',\n\
+                        \u{20}       greatest(\n\
+                        \u{20}           999999,\n\
+                        \u{20}           (select coalesce(max(id), 999999) from t)\n\
+                        \u{20}       )\n\
+                        \u{20}   )";
+        assert_eq!(crate::sql::fix::format(sql).expect("format"), expected);
+        assert_eq!(crate::sql::fix::format(expected).expect("second"), expected);
+    }
+
+    #[test]
     fn rejects_comments() {
         assert!(crate::sql::fix::format("select a -- x\nfrom t").is_err());
     }
@@ -518,7 +598,7 @@ mod tests {
     fn inlines_simple_group() {
         let sql = "select a\nfrom t\nwhere 1 = 1\n    and (\n        1 = 0\n        or x = 1\n        or y = 2\n    )\n    and b = 2\n    and c = 3";
         let fixed = crate::sql::fix::format(sql).expect("format");
-        assert!(fixed.contains("and (x = 1 or y = 2)"), "{fixed}");
+        assert!(fixed.contains("where (x = 1 or y = 2) and b = 2 and c = 3"), "{fixed}");
         assert!(check_complete(&fixed), "{fixed}");
     }
 

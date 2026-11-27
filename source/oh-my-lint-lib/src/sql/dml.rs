@@ -25,10 +25,13 @@ fn layout_inner(sql: &str, dialect: Dialect) -> Option<String> {
     let statements = parse::parse(normalized, dialect).ok()?;
     let output = match statements.as_slice() {
         [Statement::Delete(delete)] => layout_delete(normalized, delete)?,
+        [Statement::Update(_)] => layout_update(normalized, dialect)?,
         [Statement::Insert(_)] => layout_insert(normalized, dialect)?,
         [Statement::Explain { statement, .. }] => layout_explain(normalized, statement, dialect)?,
         [Statement::Query(query)] => match query.body.as_ref() {
             SetExpr::Delete(Statement::Delete(delete)) => layout_delete(normalized, delete)?,
+            SetExpr::Update(_) => layout_update(normalized, dialect)?,
+            SetExpr::Insert(_) => layout_insert(normalized, dialect)?,
             _ => return None,
         },
         _ => return None,
@@ -42,20 +45,149 @@ fn layout_inner(sql: &str, dialect: Dialect) -> Option<String> {
 /// `INSERT ... SELECT`：保留 insert 头，把查询体交给 DQL 版式。
 fn layout_insert(text: &str, dialect: Dialect) -> Option<String> {
     let words = top_words(text);
-    let select = words.iter().position(|word| word.text == "select" || word.text == "with")?;
-    let header = text[..words[select].start].trim_end();
-    if !header.get(.."insert".len()).is_some_and(|prefix| prefix.eq_ignore_ascii_case("insert")) {
-        return None;
-    }
+    let insert = words.iter().find(|word| word.text == "insert")?;
+    let select = words
+        .iter()
+        .enumerate()
+        .skip_while(|(_, word)| word.start <= insert.start)
+        .find(|(_, word)| word.text == "select" || word.text == "with")
+        .map(|(index, _)| index)?;
+    let header = collapse(&text[insert.start..words[select].start]);
     let query = &text[words[select].start..];
     if query.trim().is_empty() {
         return None;
     }
     let flat = flatten_query(query)?;
     let formatted = crate::sql::fix::format_with(&flat, dialect).ok()?;
-    let output = format!("{header}\n{formatted}");
+    let body = format!("{header}\n{formatted}");
+    let output = if insert.start > 0 {
+        let cte = format_cte_prefix(&text[..insert.start], dialect)?;
+        format!("{cte}\n{body}")
+    } else {
+        body
+    };
     parse::parse(&output, dialect).ok()?;
     Some(output)
+}
+
+/// `with` 框架单独排版后拼回 DML：借用 `select 1` 让 DQL 只处理 CTE 部分。
+fn format_cte_prefix(prefix: &str, dialect: Dialect) -> Option<String> {
+    let synthetic = format!("{}\nselect 1", prefix.trim_end());
+    let formatted = crate::sql::fix::format_with(&synthetic, dialect).ok()?;
+    let trimmed = formatted.trim_end();
+    let cut = trimmed.rfind("\nselect 1")?;
+    let cte = trimmed[..cut].trim_end();
+    (!cte.is_empty()).then(|| cte.to_owned())
+}
+
+/// `UPDATE`：`set` 按 select 元素规则，其他子句超过 1 个元素即整句分行。
+fn layout_update(text: &str, dialect: Dialect) -> Option<String> {
+    let words = top_words(text);
+    let update = words.iter().position(|word| word.text == "update")?;
+    let set = words.iter().enumerate().skip(update + 1).find(|(_, word)| word.text == "set").map(|(index, _)| index)?;
+    let from = words.iter().enumerate().skip(set + 1).find(|(_, word)| word.text == "from").map(|(index, _)| index);
+    let after_from = from.map_or(set + 1, |index| index + 1);
+    let where_clause = words.iter().enumerate().skip(after_from).find(|(_, word)| word.text == "where").map(|(index, _)| index);
+    let after_where = where_clause.map_or(after_from, |index| index + 1);
+    let returning = words.iter().enumerate().skip(after_where).find(|(_, word)| word.text == "returning").map(|(index, _)| index);
+
+    let update_head = collapse(&text[words[update].start..words[set].start]);
+    let set_end = [from, where_clause, returning].into_iter().flatten().map(|index| words[index].start).min().unwrap_or(text.len());
+    let set_body = &text[words[set].end..set_end];
+    let from_body = from.map(|index| {
+        let end = [where_clause, returning].into_iter().flatten().map(|next| words[next].start).min().unwrap_or(text.len());
+        &text[words[index].end..end]
+    });
+    let where_body = where_clause.map(|index| {
+        let end = returning.map_or(text.len(), |next| words[next].start);
+        &text[words[index].end..end]
+    });
+    let returning_body = returning.map(|index| &text[words[index].end..]);
+
+    let cte = if words[update].start > 0 {
+        Some(format_cte_prefix(&text[..words[update].start], dialect)?)
+    } else {
+        None
+    };
+    let set_elements = splitter::split_elements("select", set_body);
+    let set_inline = set_elements.len() <= 3 && !set_elements.iter().any(|element| decision::is_complex(&element.text, "select"));
+    let from_inline = from_body.is_none_or(|body| splitter::split_elements("from", body).len() <= 1 && !decision::has_join(body));
+    let where_elements = where_body.map(|body| splitter::split_elements("where", body));
+    let where_inline = where_elements.as_ref().is_none_or(|elements| elements.len() <= 1);
+    let returning_lines = returning_body.map(returning_lines);
+    let returning_inline = returning_lines.as_ref().is_none_or(|lines| lines.len() == 1);
+
+    let set_lines = update_set_lines(set_body);
+    let from_lines = from_body.map(|body| table_lines(body, "from"));
+    let where_lines = where_body.map(where_lines);
+    let mut lines = Vec::new();
+    if let Some(cte) = &cte {
+        lines.extend(cte.lines().map(ToOwned::to_owned));
+    }
+    lines.push(update_head.clone());
+    lines.extend(set_lines.clone());
+    if let Some(from_lines) = &from_lines {
+        lines.extend(from_lines.clone());
+    }
+    if let Some(where_lines) = &where_lines {
+        lines.extend(where_lines.clone());
+    }
+    if let Some(returning_lines) = &returning_lines {
+        lines.extend(returning_lines.clone());
+    }
+    let simple = cte.is_none() && set_inline && from_inline && where_inline && returning_inline;
+    let output = if simple {
+        let mut parts = vec![update_head];
+        parts.extend(set_lines);
+        if let Some(from_lines) = from_lines {
+            parts.extend(from_lines);
+        }
+        if let Some(where_lines) = where_lines {
+            parts.extend(where_lines);
+        }
+        if let Some(returning_lines) = returning_lines {
+            parts.extend(returning_lines);
+        }
+        parts.join(" ")
+    } else {
+        lines.join("\n")
+    };
+    parse::parse(&output, dialect).ok()?;
+    Some(output)
+}
+
+/// `set` 赋值：≤3 个简单表达式同行，否则 `set` 独占一行、每项一行。
+fn update_set_lines(body: &str) -> Vec<String> {
+    let elements = splitter::split_elements("select", body);
+    if elements.is_empty() {
+        return vec!["set".to_owned()];
+    }
+    let broken = elements.len() >= 4 || elements.iter().any(|element| decision::is_complex(&element.text, "select"));
+    if !broken {
+        let joined = elements.iter().map(|element| collapse(&element.text)).collect::<Vec<_>>().join(", ");
+        return vec![format!("set {joined}")];
+    }
+    let mut lines = vec!["set".to_owned()];
+    for (index, element) in elements.iter().enumerate() {
+        let comma = if index + 1 < elements.len() { "," } else { "" };
+        lines.push(format!("    {}{comma}", collapse(&element.text)));
+    }
+    lines
+}
+
+/// `from`/`using` 的表列表；join 独行，首表留在关键字行。
+fn table_lines(body: &str, keyword: &str) -> Vec<String> {
+    let starts = join_starts(body);
+    if starts.is_empty() {
+        return vec![format!("{keyword} {}", collapse(body))];
+    }
+    let first = collapse(&body[..starts[0]]);
+    let mut lines = vec![if first.is_empty() { keyword.to_owned() } else { format!("{keyword} {first}") }];
+    for (index, start) in starts.iter().enumerate() {
+        let end = starts.get(index + 1).copied().unwrap_or(body.len());
+        lines.push(collapse(&body[*start..end]));
+    }
+    lines
 }
 
 /// 压掉查询里的换行，让 DQL 版式从元素列表重新渲染；字符串与注释原样。
@@ -117,8 +249,12 @@ fn layout_delete(text: &str, delete: &Delete) -> Option<String> {
     if let Some(with) = parts.iter().find(|part| part.kind == DeletePart::With)
         && !cte_bodies_simple(with.body(text))
     {
-        // 复杂 CTE 不在这里重排，避免破坏 `values`/集合运算体。
-        return None;
+        let words = top_words(text);
+        let delete_word = words.iter().find(|word| word.text == "delete")?;
+        let cte = format_cte_prefix(&text[..delete_word.start], crate::sql::lexer::current_dialect())?;
+        let main = &text[delete_word.start..];
+        let formatted = layout_delete(main, delete)?;
+        return Some(format!("{cte}\n{formatted}"));
     }
     let collected: Vec<Vec<String>> = parts.iter().map(|part| render_delete_part(text, *part)).collect();
     if delete_simple(text, &parts) {
@@ -230,17 +366,7 @@ fn render_delete_part(text: &str, part: Part) -> Vec<String> {
 
 /// `using` 按 R6/R23：join 随 `using` 缩进独占一行，首表留同行。
 fn using_lines(body: &str) -> Vec<String> {
-    let starts = join_starts(body);
-    if starts.is_empty() {
-        return vec![format!("using {}", collapse(body))];
-    }
-    let first = collapse(&body[..starts[0]]);
-    let mut lines = vec![if first.is_empty() { "using".to_owned() } else { format!("using {first}") }];
-    for (index, start) in starts.iter().enumerate() {
-        let end = starts.get(index + 1).copied().unwrap_or(body.len());
-        lines.push(collapse(&body[*start..end]));
-    }
-    lines
+    table_lines(body, "using")
 }
 
 /// `where` 按 R8/R19：≥4 个条件或复杂时逐条件断行，否则整行并丢弃锚点。
@@ -739,6 +865,51 @@ mod tests {
              x as (select a from t)\n\
              select a\n\
              from x"
+        );
+    }
+
+    #[test]
+    fn keeps_a_simple_update_on_one_line() {
+        assert_eq!(render("update t set a = 1 where b = 2"), "update t set a = 1 where b = 2");
+    }
+
+    #[test]
+    fn breaks_update_clauses_but_keeps_three_where_conditions_inline() {
+        assert_eq!(
+            render("update sys_permission set resource_path = '/x' where permission_code = 'p' and deleted = 0 and resource_path = '/y'"),
+            "update sys_permission\n\
+             set resource_path = '/x'\n\
+             where permission_code = 'p' and deleted = 0 and resource_path = '/y'"
+        );
+    }
+
+    #[test]
+    fn breaks_four_update_assignments() {
+        assert_eq!(
+            render("update t set a = 1, b = 2, c = 3, d = 4 where id = 1"),
+            "update t\n\
+             set\n\
+             \u{20}   a = 1,\n\
+             \u{20}   b = 2,\n\
+             \u{20}   c = 3,\n\
+             \u{20}   d = 4\n\
+             where id = 1"
+        );
+    }
+
+    #[test]
+    fn formats_with_update_and_cte() {
+        assert_eq!(
+            render("with ranked as (select id from t where status = 'RUNNING') update t set status = 'FAILED' where id in (select id from ranked)"),
+            "with\n\
+             ranked as (\n\
+             \u{20}   select id\n\
+             \u{20}   from t\n\
+             \u{20}   where status = 'RUNNING'\n\
+             )\n\
+             update t\n\
+             set status = 'FAILED'\n\
+             where id in (select id from ranked)"
         );
     }
 }

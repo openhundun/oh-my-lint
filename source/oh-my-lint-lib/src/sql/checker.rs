@@ -47,24 +47,81 @@ fn violations_inner(sql: &str, dialect: crate::sql::parse::Dialect) -> Vec<Viola
         for (index, block_span) in blocks.into_iter().enumerate() {
             let block = &statement_text[block_span.start..block_span.end];
             let is_root = block_span.start == 0 && block_span.end == statement_text.len();
-            if !is_root && !crate::sql::splitter::has_top_level_newline(block) && !crate::sql::decision::is_simple(block) && is_query_block(block) {
-                let count = crate::sql::splitter::clause_spans(block).len();
-                found.push(Violation {
-                    kind: "subquery",
-                    element_count: count,
-                    expected: Mode::Break,
-                    span: crate::span::Span::new(statement.start + block_span.start, statement.start + block_span.end),
-                    indent: line_indent(statement_text, block_span.start),
-                    next_indent: None,
-                    message: format!("subquery n={count} expected=break"),
-                });
-                continue;
+            if !is_root && is_query_block(block) && (!crate::sql::decision::is_simple(block) || crate::sql::splitter::clause_spans(block).len() >= 3) {
+                if !crate::sql::splitter::has_top_level_newline(block) {
+                    let count = crate::sql::splitter::clause_spans(block).len();
+                    found.push(Violation {
+                        kind: "subquery",
+                        element_count: count,
+                        expected: Mode::Break,
+                        span: crate::span::Span::new(statement.start + block_span.start, statement.start + block_span.end),
+                        indent: line_indent(statement_text, block_span.start),
+                        next_indent: None,
+                        message: format!("subquery n={count} expected=break"),
+                    });
+                    continue;
+                }
+                if let Some((open, close)) = query_parens(statement_text, block_span) {
+                    let indent = line_indent(statement_text, open);
+                    let actual = &statement_text[open + 1..close];
+                    let padding = " ".repeat(indent + 4);
+                    let closing = format!("\n{}", " ".repeat(indent));
+                    let starts = actual.starts_with(&format!("\n{padding}"));
+                    let ends = actual.ends_with(&closing);
+                    if !starts || !ends {
+                        found.push(Violation {
+                            kind: "query-layout",
+                            element_count: 0,
+                            expected: Mode::Break,
+                            span: crate::span::Span::new(statement.start + open + 1, statement.start + close),
+                            indent,
+                            next_indent: None,
+                            message: "subquery body should align with its parentheses".to_owned(),
+                        });
+                        continue;
+                    }
+                }
             }
             let _ = index;
             check_block(statement.start, statement_text, block_span, &mut found);
         }
     }
     found
+}
+
+/// `from` 正文是否包含 `(values ...)` 派生表；行构造器不参与条件组/函数实参检查。
+fn contains_values_derived(text: &str) -> bool {
+    let tokens = crate::sql::lexer::tokens(text);
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind != crate::sql::lexer::Kind::Punct || token.text != "(" {
+            continue;
+        }
+        let next = tokens[index + 1..].iter().find(|next| next.kind != crate::sql::lexer::Kind::Whitespace);
+        if next.is_some_and(|next| next.kind == crate::sql::lexer::Kind::Word && next.text.eq_ignore_ascii_case("values")) {
+            return true;
+        }
+    }
+    false
+}
+
+/// 子查询块两侧的括号；块内部用于统一重排。
+fn query_parens(text: &str, block: crate::span::Span) -> Option<(usize, usize)> {
+    let bytes = text.as_bytes();
+    let mut open = block.start;
+    while open > 0 && bytes[open - 1].is_ascii_whitespace() {
+        open -= 1;
+    }
+    if open == 0 || bytes[open - 1] != b'(' {
+        return None;
+    }
+    let mut close = block.end;
+    while close < bytes.len() && bytes[close].is_ascii_whitespace() {
+        close += 1;
+    }
+    if close >= bytes.len() || bytes[close] != b')' {
+        return None;
+    }
+    Some((open - 1, close))
 }
 
 /// 只把 `select` / `with` 开头的嵌套块视为子查询；`(1), (2)` 这类行构造器不报。
@@ -99,14 +156,18 @@ fn check_clauses(statement_start: usize, statement_text: &str, base: usize, end:
         return;
     }
     let block_indent = block_indent(statement_text, base);
-    if !crate::sql::decision::is_simple(text) {
-        for clause in clauses.iter().skip(1) {
+    let misplaced: Vec<&crate::sql::splitter::Clause> = clauses
+        .iter()
+        .skip(1)
+        .filter(|clause| {
             let relative = base + clause.keyword_start;
             let line_start = statement_text[..relative].rfind('\n').map_or(0, |index| index + 1);
-            let prefix = &statement_text[line_start..relative];
-            if prefix.chars().all(|character| character == ' ' || character == '\t') {
-                continue;
-            }
+            !statement_text[line_start..relative].chars().all(|character| character == ' ' || character == '\t')
+        })
+        .collect();
+    if !misplaced.is_empty() && !crate::sql::decision::is_simple(text) {
+        for clause in misplaced {
+            let relative = base + clause.keyword_start;
             let mut start = relative;
             let bytes = statement_text.as_bytes();
             while start > 0 && matches!(bytes[start - 1], b' ' | b'\t') {
@@ -133,9 +194,9 @@ fn check_clauses(statement_start: usize, statement_text: &str, base: usize, end:
             continue;
         }
         let has_join = clause.kind == "from" && crate::sql::decision::has_join(body);
+        let expected = if crate::sql::decision::needs_break(clause.kind, &elements) { Mode::Break } else { Mode::Inline };
         if !has_join {
-            let expected = if crate::sql::decision::needs_break(clause.kind, &elements) { Mode::Break } else { Mode::Inline };
-            let actual = crate::sql::splitter::has_top_level_newline(body.trim());
+            let actual = crate::sql::splitter::has_top_level_newline(body.trim_end());
             if (expected == Mode::Break) != actual {
                 found.push(Violation {
                     kind: clause.kind,
@@ -148,8 +209,12 @@ fn check_clauses(statement_start: usize, statement_text: &str, base: usize, end:
                 });
             }
         }
-        check_groups(statement_start, statement_text, base + clause.body_start, body, found);
-        check_cases(statement_start, statement_text, base + clause.body_start, body, found);
+        let values_derived = clause.kind == "from" && !has_join && contains_values_derived(body);
+        if !values_derived {
+            check_groups(statement_start, statement_text, base + clause.body_start, body, found);
+            check_cases(statement_start, statement_text, base + clause.body_start, body, found);
+            check_function_args(statement_start, statement_text, base + clause.body_start, body, found);
+        }
         if clause.kind == "from" {
             check_join(statement_start, statement_text, base, clause, body, found);
         }
@@ -215,6 +280,52 @@ fn check_cases(statement_start: usize, statement_text: &str, body_base: usize, b
             indent: line_indent(statement_text, body_base + case.start),
             next_indent: None,
             message: format!("case expected={}", expected.as_str()),
+        });
+    }
+}
+
+/// 函数实参内出现子查询时，实参逐行展开；已展开的保持原样。
+fn check_function_args(statement_start: usize, statement_text: &str, body_base: usize, body: &str, found: &mut Vec<Violation>) {
+    let nested: Vec<crate::span::Span> = crate::sql::splitter::all_statements(body).into_iter().skip(1).collect();
+    for call in function_paren_spans(body) {
+        if nested.iter().any(|block| block.start <= call.start && call.end <= block.end) {
+            continue;
+        }
+        let tokens = crate::sql::lexer::tokens(body);
+        let Some(name) = tokens.iter().find(|token| token.start == call.start) else {
+            continue;
+        };
+        if name.kind == crate::sql::lexer::Kind::Word
+            && matches!(
+                name.text.to_ascii_lowercase().as_str(),
+                "over" | "filter" | "within" | "partition" | "group" | "order" | "by" | "using" | "on" | "rollup"
+            )
+        {
+            continue;
+        }
+        let Some(open) = tokens
+            .iter()
+            .find(|token| token.start > call.start && token.kind == crate::sql::lexer::Kind::Punct && token.text == "(")
+        else {
+            continue;
+        };
+        let inner_start = open.start + 1;
+        let inner_end = call.end.saturating_sub(1);
+        if inner_start >= inner_end {
+            continue;
+        }
+        let inner = &body[inner_start..inner_end];
+        if inner.trim_start_matches([' ', '\t', '\r']).starts_with('\n') || !crate::sql::decision::has_subquery(inner) {
+            continue;
+        }
+        found.push(Violation {
+            kind: "function-args",
+            element_count: 0,
+            expected: Mode::Break,
+            span: crate::span::Span::new(statement_start + body_base + inner_start, statement_start + body_base + inner_end),
+            indent: line_indent(statement_text, body_base + call.start),
+            next_indent: None,
+            message: "function args with a subquery should break".to_owned(),
         });
     }
 }

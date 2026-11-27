@@ -37,12 +37,13 @@ impl Dialect {
     }
 }
 
-/// 单条语句的门类；只有查询、`DELETE`、`EXPLAIN` 与三种 DDL 有自己的版式。
+/// 单条语句的门类；查询、DML、EXPLAIN 与三种 DDL 有自己的版式。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum StatementKind {
     Query,
     Delete,
     Explain,
+    Update,
     CreateTable,
     CreateIndex,
     AlterTable,
@@ -69,11 +70,14 @@ pub fn classify_one(sql: &str, dialect: Dialect) -> Result<StatementKind, String
         // `WITH … DELETE/UPDATE/INSERT/MERGE` 包在 `Statement::Query` 的 body 里。
         Statement::Query(query) => match query.body.as_ref() {
             SetExpr::Delete(_) => StatementKind::Delete,
-            SetExpr::Update(_) | SetExpr::Insert(_) | SetExpr::Merge(_) => StatementKind::Other,
+            SetExpr::Update(_) => StatementKind::Update,
+            SetExpr::Insert(_) => StatementKind::Insert,
+            SetExpr::Merge(_) => StatementKind::Other,
             _ => StatementKind::Query,
         },
         Statement::Delete(_) => StatementKind::Delete,
         Statement::Explain { .. } => StatementKind::Explain,
+        Statement::Update(_) => StatementKind::Update,
         Statement::CreateTable(_) => StatementKind::CreateTable,
         Statement::CreateIndex(_) => StatementKind::CreateIndex,
         Statement::AlterTable(_) => StatementKind::AlterTable,
@@ -118,7 +122,8 @@ mod tests {
             ("create index i on t (a)", StatementKind::CreateIndex),
             ("alter table t add column b int", StatementKind::AlterTable),
             ("with keep as (select 1) delete from t using keep", StatementKind::Delete),
-            ("with src as (select 1) update t set a = 1", StatementKind::Other),
+            ("with src as (select 1) update t set a = 1", StatementKind::Update),
+            ("with src as (select 1) insert into t select a from src", StatementKind::Insert),
             ("insert into t (a) values (1)", StatementKind::Insert),
         ];
         for (sql, expected) in cases {

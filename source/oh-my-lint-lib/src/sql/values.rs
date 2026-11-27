@@ -8,7 +8,104 @@ use crate::sql::splitter;
 pub(crate) fn format(text: &str, dialect: Dialect) -> String {
     let protected = protected_ranges(text, dialect);
     let text = space_alias_columns(text, &protected);
-    format_values(&text, &protected)
+    let protected = protected_ranges(&text, dialect);
+    let text = format_insert_headers(&text, &protected);
+    let protected = protected_ranges(&text, dialect);
+    let text = format_values(&text, &protected);
+    format_on_conflict(&text, dialect)
+}
+
+/// `insert into t` 与字段列表、`values` 始终同一行；不可解析语句不动。
+fn format_insert_headers(text: &str, protected: &[Span]) -> String {
+    let tokens = lexer::tokens(text);
+    let spans = splitter::statements(text);
+    let mut edits: Vec<(usize, usize, String)> = Vec::new();
+    for span in spans {
+        if is_protected(protected, span.start) {
+            continue;
+        }
+        let mut depth = 0usize;
+        let mut insert = None;
+        let mut values = None;
+        for (index, token) in tokens.iter().enumerate() {
+            if token.start < span.start {
+                continue;
+            }
+            if token.start >= span.end {
+                break;
+            }
+            if token.kind == Kind::Punct {
+                match token.text {
+                    "(" => depth += 1,
+                    ")" => depth = depth.saturating_sub(1),
+                    _ => {}
+                }
+            }
+            if depth != 0 {
+                continue;
+            }
+            if insert.is_none() && word(token, "insert") {
+                insert = Some(index);
+            } else if insert.is_some() && word(token, "values") {
+                values = Some(index);
+                break;
+            }
+        }
+        let (Some(insert), Some(values)) = (insert, values) else {
+            continue;
+        };
+        let start = tokens[insert].start;
+        let end = tokens[values].start;
+        let header = collapse_whitespace(&text[start..end]);
+        let replacement = format!("{} ", header.trim_end());
+        if text[start..end] != replacement {
+            edits.push((start, end, replacement));
+        }
+    }
+    apply(text, edits)
+}
+
+/// `on conflict` 子句另起一行，并与语句同缩进。
+fn format_on_conflict(text: &str, dialect: Dialect) -> String {
+    let protected = protected_ranges(text, dialect);
+    let tokens = lexer::tokens(text);
+    let spans = splitter::statements(text);
+    let mut edits: Vec<(usize, usize, String)> = Vec::new();
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate() {
+        if token.kind == Kind::Punct {
+            match token.text {
+                "(" => depth += 1,
+                ")" => depth = depth.saturating_sub(1),
+                _ => {}
+            }
+        }
+        if depth != 0 || !word(token, "on") || is_protected(&protected, token.start) {
+            continue;
+        }
+        let Some(next) = next_non_ws(&tokens, index + 1) else {
+            continue;
+        };
+        if !word(&tokens[next], "conflict") {
+            continue;
+        }
+        let Some(span) = spans.iter().find(|span| span.start <= token.start && token.start < span.end) else {
+            continue;
+        };
+        if !has_insert(&tokens, span.start, index) {
+            continue;
+        }
+        let indent = line_indent_of(text, span.start);
+        let mut start = token.start;
+        while start > 0 && text.as_bytes()[start - 1].is_ascii_whitespace() {
+            start -= 1;
+        }
+        let replacement = format!("\n{indent}");
+        if text[start..token.start] != replacement {
+            edits.push((start, token.start, replacement));
+        }
+    }
+    apply(text, edits)
 }
 
 /// 无法解析的语句按 R34 保留，`values` 与别名列表也不碰。
@@ -114,6 +211,14 @@ fn format_values(text: &str, protected: &[Span]) -> String {
             edits.push((token_end(&tokens[previous]), token.start, format!("\n{indent}")));
         }
         if tuples.len() < 2 {
+            if insert {
+                for (start, end) in &tuples {
+                    let collapsed = collapse_whitespace(&text[*start..*end]);
+                    if text[*start..*end] != collapsed {
+                        edits.push((*start, *end, collapsed));
+                    }
+                }
+            }
             continue;
         }
 
@@ -326,5 +431,29 @@ mod tests {
     fn joins_single_row_values_to_insert_header() {
         let sql = "insert into t (a)\nvalues (1);";
         assert_eq!(format(sql), "insert into t (a) values (1);");
+    }
+
+    #[test]
+    fn keeps_insert_column_list_on_the_header() {
+        let sql = "insert into t\n    (a, b) values (1, 2);";
+        assert_eq!(format(sql), "insert into t (a, b) values (1, 2);");
+    }
+
+    #[test]
+    fn collapses_a_multiline_values_tuple() {
+        let sql = "insert into t (a, b) values (1,\n2);";
+        assert_eq!(format(sql), "insert into t (a, b) values (1, 2);");
+    }
+
+    #[test]
+    fn starts_on_conflict_on_its_own_line() {
+        let sql = "insert into t (a, b) values (1, 2) on conflict (a) do nothing;";
+        assert_eq!(format(sql), "insert into t (a, b) values (1, 2)\non conflict (a) do nothing;");
+    }
+
+    #[test]
+    fn starts_on_conflict_after_select_on_its_own_line() {
+        let sql = "insert into t (a) select x from s where y = 1 on conflict (a) do nothing;";
+        assert_eq!(format(sql), "insert into t (a)\nselect x from s where y = 1\non conflict (a) do nothing;");
     }
 }

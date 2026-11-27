@@ -9,11 +9,10 @@ fn three_aliased_fields_break() {
 }
 
 #[test]
-fn window_function_breaks_select() {
-    let sql = "select a, rank() over(order by b) as r from t";
-    assert!(!crate::sql::check(sql).is_empty());
-    let fixed = crate::sql::format(sql).expect("format");
-    assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+fn window_function_stays_inline() {
+    let sql = "select a, rank() over(order by b) as r from t;";
+    assert!(crate::sql::check(sql).is_empty(), "{:?}", crate::sql::check(sql));
+    assert_eq!(crate::sql::format(sql).expect("format"), sql);
 }
 
 #[test]
@@ -107,6 +106,20 @@ fn values_derived_table_is_not_a_subquery() {
     let sql = "select *\nfrom (values (1), (2)) a (x),\n    (values (3)) b (y);";
     let findings = crate::sql::check(sql);
     assert!(findings.is_empty(), "{findings:?}");
+}
+
+#[test]
+fn update_with_values_derived_is_clean() {
+    let sql = "update sys_permission p\n\
+               set resource_path = spec.resource_path, http_method = 'POST'\n\
+               from (\n\
+               \u{20}   values\n\
+               \u{20}   ('dlp:read:21', '/api/a'),\n\
+               \u{20}   ('dlp:read:22', '/api/b')\n\
+               ) spec (permission_code, resource_path)\n\
+               where p.permission_code = spec.permission_code and p.deleted = 0;";
+    assert!(crate::sql::check(sql).is_empty(), "{:?}", crate::sql::check(sql));
+    assert_eq!(crate::sql::format(sql).expect("format"), sql);
 }
 
 #[test]

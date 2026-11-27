@@ -1,7 +1,7 @@
 //! 元素形态与断行判定：把 `complex` / `simple` / `decide` 固化成函数。
 
 /// 判定函数调用时必须排除的结构关键字：它们后面跟括号不是函数。
-const NON_FUNCTION_WORDS: [&str; 44] = [
+const NON_FUNCTION_WORDS: [&str; 45] = [
     "all",
     "and",
     "as",
@@ -37,6 +37,7 @@ const NON_FUNCTION_WORDS: [&str; 44] = [
     "or",
     "order",
     "outer",
+    "over",
     "right",
     "select",
     "then",
@@ -54,10 +55,24 @@ static ALIAS: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| re
 pub fn is_complex(element: &str, kind: &str) -> bool {
     has_word(element, "case")
         || has_subquery(element)
-        || (matches!(kind, "select" | "order by") && has_over(element))
         || (!matches!(kind, "select" | "order by") && has_complex_function_call(element))
         || has_oversized_in_list(element)
-        || !crate::sql::splitter::boolean_group_spans(element).is_empty()
+        || has_breaking_boolean_group(element)
+}
+
+/// 只有组内条件超过 3 个或本身复杂时才把外层条件一起拉断。
+fn has_breaking_boolean_group(text: &str) -> bool {
+    for group in crate::sql::splitter::boolean_group_spans(text) {
+        let conditions = crate::sql::splitter::split_elements("where", &text[group.start..group.end]);
+        if conditions.len() > 3
+            || conditions
+                .iter()
+                .any(|condition| has_subquery(&condition.text) || has_word(&condition.text, "case") || has_complex_function_call(&condition.text) || has_oversized_in_list(&condition.text))
+        {
+            return true;
+        }
+    }
+    false
 }
 
 /// 是否以 `as <标识符>` 结尾。
@@ -107,7 +122,7 @@ pub fn needs_break(kind: &str, elements: &[crate::sql::splitter::Element]) -> bo
         return count >= 2 && elements.iter().any(|element| is_derived(&element.text));
     }
     if count <= 1 {
-        return false;
+        return kind == "select" && elements.first().is_some_and(|element| has_subquery(&element.text) || function_contains_subquery(&element.text));
     }
     let complex = elements.iter().any(|element| is_complex(&element.text, kind));
     if kind == "select" {
@@ -172,7 +187,7 @@ fn has_word(text: &str, word: &str) -> bool {
 }
 
 /// 文本是否含子查询：`(` 之后（忽略空白）是 `select` / `with`。
-fn has_subquery(text: &str) -> bool {
+pub(crate) fn has_subquery(text: &str) -> bool {
     let tokens = crate::sql::lexer::tokens(text);
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != crate::sql::lexer::Kind::Punct || token.text != "(" {
@@ -339,18 +354,46 @@ fn simple_operand(tokens: &[crate::sql::lexer::Token<'_>]) -> bool {
     matches!(slice[0].kind, crate::sql::lexer::Kind::Word | crate::sql::lexer::Kind::QuotedIdent) && slice.get(1).is_some_and(|token| token.text == "(") && simple_call(slice)
 }
 
-/// 是否含窗口函数 `over(...)`。
-fn has_over(text: &str) -> bool {
+/// 函数实参内是否含子查询。
+fn function_contains_subquery(text: &str) -> bool {
     let tokens = crate::sql::lexer::tokens(text);
     for (index, token) in tokens.iter().enumerate() {
-        if token.kind != crate::sql::lexer::Kind::Word || !token.text.eq_ignore_ascii_case("over") {
+        if token.kind != crate::sql::lexer::Kind::Punct || token.text != "(" {
             continue;
         }
-        let mut probe = index + 1;
-        while probe < tokens.len() && tokens[probe].kind == crate::sql::lexer::Kind::Whitespace {
-            probe += 1;
+        let mut probe = index;
+        while probe > 0 && tokens[probe - 1].kind == crate::sql::lexer::Kind::Whitespace {
+            probe -= 1;
         }
-        if probe < tokens.len() && tokens[probe].text == "(" {
+        if probe == 0 {
+            continue;
+        }
+        let name = tokens[probe - 1];
+        let is_name = match name.kind {
+            crate::sql::lexer::Kind::Word => is_function_name(name.text),
+            crate::sql::lexer::Kind::QuotedIdent => true,
+            _ => false,
+        };
+        if !is_name || (name.kind == crate::sql::lexer::Kind::Word && name.text.eq_ignore_ascii_case("over")) {
+            continue;
+        }
+        let mut depth = 0;
+        let mut close = None;
+        for next in &tokens[index..] {
+            if next.kind == crate::sql::lexer::Kind::Punct && next.text == "(" {
+                depth += 1;
+            } else if next.kind == crate::sql::lexer::Kind::Punct && next.text == ")" {
+                depth -= 1;
+                if depth == 0 {
+                    close = Some(next.start);
+                    break;
+                }
+            }
+        }
+        let Some(close) = close else {
+            continue;
+        };
+        if has_subquery(&text[token.start + 1..close]) {
             return true;
         }
     }
@@ -439,7 +482,7 @@ mod tests {
         assert!(!crate::sql::decision::needs_break("select", &elements(&["a", "cast(b as int)"])));
         assert!(!crate::sql::decision::needs_break("select", &elements(&["a", "substring(b, 1, 2)"])));
         assert!(!crate::sql::decision::needs_break("select", &elements(&["a", "sum(b * c)"])));
-        assert!(crate::sql::decision::needs_break("select", &elements(&["a", "rank() over(order by b)"])));
+        assert!(!crate::sql::decision::needs_break("select", &elements(&["a", "rank() over(order by b)"])));
     }
 
     #[test]
@@ -499,6 +542,6 @@ mod tests {
         assert!(crate::sql::decision::is_complex("sum(a * b)", "where"));
         assert!(crate::sql::decision::is_complex("concat(a, b)", "where"));
         assert!(!crate::sql::decision::is_complex("concat(a, b)", "select"));
-        assert!(crate::sql::decision::is_complex("rank() over(order by b)", "select"));
+        assert!(!crate::sql::decision::is_complex("rank() over(order by b)", "select"));
     }
 }

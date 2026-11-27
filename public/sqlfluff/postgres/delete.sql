@@ -56,7 +56,7 @@ delete from tasks where status = 'DONE' returning actor_id as a_id, producer_id 
 
 with test as (select foo from bar) delete from films;
 
-with recursive t(n) as (
+with recursive t (n) as (
     values (1)
     union all
     select n + 1 from t where n < 100

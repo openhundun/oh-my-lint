@@ -24,7 +24,7 @@
 - R36 类型别名归一到受限子集：`int`（`integer`/`int4`）、`bigint`（`int8`）、`smallint`（`int2`）、`boolean`（`bool`）、`varchar`（`character varying`/`char varying`）、`char`（`character`）、`decimal`（`numeric`）、`float4`（`real`）、`float8`（`double precision`）、`timestamptz`（`timestamp with time zone`）、`serial`/`bigserial`/`smallserial`；`timestamp without time zone`→`timestamp`，`time without time zone`→`time`，`time with time zone`→`timetz`。`numeric` 只在类型位置改，`collate numeric` 这类排序规则名不动。
 - R37 命名参数等号两侧不加空格（`with (fillfactor=70)`、`set (parameter_1='value')`、`opclass (opt1=1)`）；表达式里的 `a = b` 仍有空格。
 - R38 默认形式省略：显式 `null`、`asc`、`nulls distinct`、ASC 下的 `nulls last`、DESC 下的 `nulls first`、`match simple`、`not deferrable initially immediate`、`on commit preserve rows`、列定义里的 `storage default`/`compression default`、`without oids`、`outer`。保留非默认形式；两种非默认形式并存时，右对齐区分后缀（`distinct`、`first`/`last`）。`alter … set storage default` 是 action，不省略。
-- R39 SQL 关键字构造与括号之间留一个空格：`primary key (`、`unique (`、`check (`、`foreign key (`、`references t (`、`exclude using gist (`、`include (`、`with (`、`set (`、`options (`、`using gin (`；派生表别名后的字段列表也留空格：`) t (a, b)`；类型和函数调用紧贴：`varchar(40)`、`now()`、`nextval(…)`、`char_length(…)`。
+- R39 SQL 关键字构造与括号之间留一个空格：`primary key (`、`unique (`、`check (`、`foreign key (`、`references t (`、`exclude using gist (`、`include (`、`with (`、`set (`、`options (`、`using gin (`；派生表别名后的字段列表也留空格：`) t (a, b)`；CTE 名称后的字段列表也留空格：`with recursive t (n) as (`、`with x (a, b) as (`；`insert into t (a, b)` 的字段列表同样留空格；类型和函数调用紧贴：`varchar(40)`、`now()`、`nextval(…)`、`char_length(…)`。
 
 ### 解析门禁
 
@@ -35,11 +35,12 @@
 
 ### 表达式
 
-- R1 `原子表达式`：不含子查询、`case … end`、`over(`、复杂函数调用、布尔组，且 `in` 列表不超过 3 个常量；`cast(单字段或字面量 as 类型)`、`coalesce`/`nullif`（所有参数都是简单操作数）、零参 `current_date()`/`current_timestamp()`、单列聚合（`count`/`sum`/`avg`/`min`/`max` 与 `stddev`/`variance` 家族，参数为单个字段、`*` 或字面量，可带 `distinct`）视为原子。
-- R2 `复杂表达式`：含子查询、`case … end`、`select`/`order by` 位置的 `over(`、上述白名单之外的函数调用、布尔组，或 `in` 列表超过 3 个常量；`greatest`/`least`、`substring`、`concat`、`abs` 等仍算复杂，`sum(a * b)` 这类参数不是单个字段的聚合也算复杂。
-- R3 复杂度只决定"元素 ≥2 的子句是否断行"；单元素子句永不逐元素断行。
+- R1 `原子表达式`：不含子查询、`case … end`、复杂函数调用、布尔组，且 `in` 列表不超过 3 个常量；`cast(单字段或字面量 as 类型)`、`coalesce`/`nullif`（所有参数都是简单操作数）、零参 `current_date()`/`current_timestamp()`、单列聚合（`count`/`sum`/`avg`/`min`/`max` 与 `stddev`/`variance` 家族，参数为单个字段、`*` 或字面量，可带 `distinct`）、窗口函数整体视为原子。
+- R2 `复杂表达式`：含子查询、`case … end`、上述白名单之外的函数调用、布尔组，或 `in` 列表超过 3 个常量；`greatest`/`least`、`substring`、`concat`、`abs` 等仍算复杂，`sum(a * b)` 这类参数不是单个字段的聚合也算复杂；窗口函数不因 `over(` 拉断 `select`/`order by`。
+- R3 单元素子句永不因元素数量断行；但单个 `select` 元素含子查询，或函数实参内含子查询时，`select` 与函数实参按 R5/R21 展开。
 - R4 独立 `case` 元素：任一分支持子查询或为复杂表达式时展开，`(case`、`when …` 与 `then …`、`else …`、`end)` 各独占一行并缩进 +4；函数实参内的 `case` 不因本规则展开。
-- R5 子查询展开优先：函数实参或 `case` 分支里出现非简单子查询体时，子查询按 R11 展开，外层不额外折行。
+- R5 函数实参与子查询：函数实参中出现子查询时，该函数实参逐行展开，并沿嵌套调用链递归展开外层函数；子查询体按 R11/R21 展开，闭合括号回到函数名缩进。已展开的实参列表不再改动。
+- R5a 子查询层级：非简单子查询、以及包含 `select`+`from`+`where` 等 ≥3 个子句的简单子查询，`(` 单独占位、正文 +4、`)` 与 `(` 同缩进；只有 2 个子句的简单标量子查询可内联。
 
 ### 子句
 
@@ -74,7 +75,8 @@
 
 - M1 `DELETE`：子句为 `with`、`delete from`、`using`、`where`、`returning`。简单判定同 R11：`returning` 元素 ≤3 且不触发 R7，其他子句元素 ≤1，`using` 无 join，CTE 各体简单；简单语句整行。非简单时每个子句独占一行、0 缩进；`where` 按 R8/R19，`returning` 按 R7，`using` 按 R6/R23；显式 join 的缩进等于 `using`；`returning` 别名必须有 `as`。`where` 超过一个条件即不算简单，但条件本身仍只在 ≥4 或复杂时逐元素断行。`with` 各部分都简单时允许整行。
 - M2 `EXPLAIN`：`explain` 头与被执行语句必然分行，被执行语句在下一行、0 缩进。头部只占一行，选项以 `, ` 连接，不因数量折行；布尔值统一 `true`/`false`（`on`/`off`、`1`/`0` 只在布尔选项位置改写），裸选项保持裸写，`format text|xml|json|yaml` 与 `serialize none|text|binary` 保留；`analyse`/`analyze` 不互相归一。被执行语句按 DQL 处理。
-- M3 `VALUES` 行构造器：超过 1 个值元组时逐元组一行，元组与 `values` 同缩进、不额外缩进。独立 `INSERT ... VALUES` 的 `values` 与 `insert into` 头同行；派生表 `(values ...)` 的 `values` 在左括号下一行，闭合 `)` 回到左括号所在缩进。
+- M3 `VALUES` 行构造器：`insert into <table> (<字段>)` 的字段列表始终与 `insert into` 同行；超过 1 个值元组时逐元组一行，每个元组自身不折行，元组与 `values` 同缩进、不额外缩进。独立 `INSERT ... VALUES` 的 `values` 与 `insert into` 头同行；派生表 `(values ...)` 的 `values` 在左括号下一行，闭合 `)` 回到左括号所在缩进。`on conflict` 子句另起一行、与语句同缩进。
+- M4 `UPDATE`：`set` 按 `select` 元素规则（≤3 个简单赋值同行，≥4 或含复杂表达式时 `set` 独行、每项 +4）；其他子句元素 ≤1 时整句单行，否则 `update`/`set`/`from`/`where`/`returning` 各占一行；`where` 超过一个条件即不算简单，但条件本身仍只在 ≥4 或复杂时按 R8/R19 断行；`from` 的 join 按 R23；`with` 按 R14，CTE 与主语句分行。
 
 ## DDL
 

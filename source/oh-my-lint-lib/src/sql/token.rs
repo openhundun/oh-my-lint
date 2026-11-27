@@ -586,6 +586,53 @@ fn relation_paren(tokens: &[Token], flavors: &[(Span, StatementFlavor)], name_in
     }
 }
 
+/// CTE 名称后的字段列表 `name (a, b) as (` 需要空格。
+fn cte_column_paren(tokens: &[Token], index: usize) -> bool {
+    if tokens[index].kind != Kind::Word {
+        return false;
+    }
+    if tokens[index].text.eq_ignore_ascii_case("with") || tokens[index].text.eq_ignore_ascii_case("recursive") {
+        return false;
+    }
+    let Some(open) = next_non_ws(tokens, index) else {
+        return false;
+    };
+    if !punct(&tokens[open], "(") {
+        return false;
+    }
+    let Some(close) = matching_paren(tokens, open) else {
+        return false;
+    };
+    let Some(after) = next_non_ws(tokens, close) else {
+        return false;
+    };
+    if !word_is(&tokens[after], "as") {
+        return false;
+    }
+    let Some(before) = previous_non_ws(tokens, index) else {
+        return false;
+    };
+    if word_is(&tokens[before], "with") || word_is(&tokens[before], "recursive") {
+        return true;
+    }
+    if !punct(&tokens[before], ",") {
+        return false;
+    }
+    let mut depth = 0i32;
+    let mut probe = before;
+    while probe > 0 {
+        probe -= 1;
+        let token = &tokens[probe];
+        match token.kind {
+            Kind::Punct if token.text == ")" => depth += 1,
+            Kind::Punct if token.text == "(" => depth -= 1,
+            Kind::Word if depth == 0 && token.text.eq_ignore_ascii_case("with") => return true,
+            _ => {}
+        }
+    }
+    false
+}
+
 /// 派生表别名后的字段列表 `) t (a, b)` 需要空格，不能当函数调用。
 fn alias_column_paren(tokens: &[Token], index: usize) -> bool {
     let token = &tokens[index];
@@ -612,13 +659,16 @@ fn alias_column_paren(tokens: &[Token], index: usize) -> bool {
 /// R39：判断 `(` 应紧贴前一个词（函数/类型调用）还是留一个空格（关键字构造）。
 fn paren_hugs(tokens: &[Token], flavors: &[(Span, StatementFlavor)], index: usize) -> Option<bool> {
     let token = &tokens[index];
-    if alias_column_paren(tokens, index) {
+    if cte_column_paren(tokens, index) || alias_column_paren(tokens, index) {
         return Some(false);
     }
     match token.kind {
         Kind::QuotedIdent => Some(!relation_paren(tokens, flavors, index)),
         Kind::Word => {
             let lower = token.text.to_ascii_lowercase();
+            if lower == "over" {
+                return Some(true);
+            }
             if spaced_paren_word(&lower) || relation_paren(tokens, flavors, index) {
                 return Some(false);
             }
@@ -1939,6 +1989,11 @@ mod tests {
             "INSERT INTO t AS d(did, name) VALUES(1, 'x') ON CONFLICT(did) DO NOTHING",
             "insert into t as d (did, name) values (1, 'x') on conflict (did) do nothing",
         );
+    }
+
+    #[test]
+    fn spaces_cte_column_lists() {
+        assert_fixed("WITH RECURSIVE t(n) AS (SELECT 1) SELECT * FROM t", "with recursive t (n) as (select 1) select * from t");
     }
 
     #[test]

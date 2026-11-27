@@ -89,7 +89,7 @@ fn is_distinct_from(words: &[Word], index: usize) -> bool {
     index > 0 && words[index - 1].text == "distinct"
 }
 
-/// `set` 赋值：≤3 个简单表达式同行，否则 `set` 独占一行、每项一行。
+/// `set` 赋值：≤3 个简单表达式同行，否则 `set` 独占一行、每项一行，并按 `=` 对齐。
 fn update_set_lines(body: &str) -> Vec<String> {
     let elements = splitter::split_elements("select", body);
     if elements.is_empty() {
@@ -100,6 +100,41 @@ fn update_set_lines(body: &str) -> Vec<String> {
         let joined = elements.iter().map(|element| collapse(&element.text)).collect::<Vec<_>>().join(", ");
         return vec![format!("set {joined}")];
     }
+    let mut assignments = Vec::with_capacity(elements.len());
+    for element in &elements {
+        let Some((left, right)) = split_assignment(&element.text) else {
+            return unaligned_set_lines(&elements);
+        };
+        assignments.push((collapse(left), collapse(right)));
+    }
+    let width = assignments.iter().map(|(left, _)| left.chars().count()).max().unwrap_or(0);
+    let mut lines = vec!["set".to_owned()];
+    for (index, (left, right)) in assignments.iter().enumerate() {
+        let comma = if index + 1 < assignments.len() { "," } else { "" };
+        lines.push(format!("    {left:<width$} = {right}{comma}"));
+    }
+    lines
+}
+
+/// 在深度 0 的 `=` 处切分赋值。
+fn split_assignment(text: &str) -> Option<(&str, &str)> {
+    let mut depth = 0i32;
+    for token in crate::sql::lexer::tokens(text) {
+        match token.kind {
+            crate::sql::lexer::Kind::Punct if token.text == "(" => depth += 1,
+            crate::sql::lexer::Kind::Punct if token.text == ")" => depth -= 1,
+            crate::sql::lexer::Kind::Punct if token.text == "=" && depth == 0 => {
+                let left = text[..token.start].trim();
+                let right = text[token.start + token.text.len()..].trim();
+                return (!left.is_empty() && !right.is_empty()).then_some((left, right));
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+fn unaligned_set_lines(elements: &[crate::sql::splitter::Element]) -> Vec<String> {
     let mut lines = vec!["set".to_owned()];
     for (index, element) in elements.iter().enumerate() {
         let comma = if index + 1 < elements.len() { "," } else { "" };

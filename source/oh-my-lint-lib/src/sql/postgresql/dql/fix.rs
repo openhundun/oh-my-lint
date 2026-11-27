@@ -1,7 +1,7 @@
 //! 修复：只重写违规区间，块内其余字节原样保留。
 
 /// 目前能正确渲染的违规类型。
-const SUPPORTED_FIXES: [&str; 23] = [
+const SUPPORTED_FIXES: [&str; 24] = [
     "select",
     "from",
     "where",
@@ -22,6 +22,7 @@ const SUPPORTED_FIXES: [&str; 23] = [
     "set-op-parens",
     "rollup",
     "with",
+    "with-inline",
     "with-close",
     "with-separator",
     "with-query",
@@ -70,7 +71,7 @@ fn render(text: &str, violation: &crate::sql::checker::Violation, dialect: crate
     if violation.kind == "rollup" {
         return super::rollup::render(text, violation);
     }
-    if matches!(violation.kind, "with" | "with-close" | "with-separator" | "with-query") {
+    if matches!(violation.kind, "with" | "with-inline" | "with-close" | "with-separator" | "with-query") {
         return super::with::render(text, violation);
     }
     if violation.kind == "clause-start" {
@@ -331,7 +332,7 @@ mod tests {
     fn lays_out_with_frame() {
         let sql = "with x as (select a from t) select a from x";
         let fixed = crate::sql::fix::format(sql).expect("format");
-        assert!(fixed.contains("with\nx as (select a from t)\nselect a\nfrom x"), "{fixed}");
+        assert!(fixed.contains("with x as (select a from t)\nselect a\nfrom x"), "{fixed}");
         assert!(check_complete(&fixed), "{fixed}");
         assert_eq!(crate::sql::fix::format(&fixed).expect("second"), fixed);
     }

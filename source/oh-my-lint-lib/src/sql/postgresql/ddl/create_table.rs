@@ -387,6 +387,11 @@ fn foreign_key_head(text: &str) -> Option<(&str, &str)> {
 }
 
 fn constraint_lines(text: &str) -> Vec<String> {
+    if is_check(text)
+        && let Some(lines) = check_lines(text)
+    {
+        return lines;
+    }
     if !is_exclude(text) {
         return vec![text.to_owned()];
     }
@@ -394,6 +399,104 @@ fn constraint_lines(text: &str) -> Vec<String> {
         return vec![text.to_owned()];
     };
     lines
+}
+
+fn is_check(text: &str) -> bool {
+    let toks = significant(text);
+    let mut index = 0;
+    if word_at(&toks, index, "constraint") {
+        index += 2;
+    }
+    word_at(&toks, index, "check") && punct_at(&toks, index + 1, "(")
+}
+
+/// 复杂 CHECK 正文按条件块渲染：`check (` 后换行，内容 +4，`)` 回约束缩进。
+fn check_lines(text: &str) -> Option<Vec<String>> {
+    let toks = significant(text);
+    let depth = depths(&toks);
+    let mut open = None;
+    for (index, _) in toks.iter().enumerate() {
+        if depth[index] == 0 && word_at(&toks, index, "check") && punct_at(&toks, index + 1, "(") {
+            open = Some(index + 1);
+            break;
+        }
+    }
+    let open = open?;
+    let close = matching_paren(&toks, open)?;
+    let inner = &text[token_end(&toks[open])..toks[close].start];
+    let parsed = crate::sql::postgresql::dql::r#where::parse(inner);
+    if parsed.elements.is_empty() || crate::sql::postgresql::dql::r#where::mode(&parsed.elements) != crate::sql::postgresql::dql::Mode::Break {
+        return None;
+    }
+    let mut lines = vec![text[..token_end(&toks[open])].trim_end().to_owned()];
+    lines.extend(condition_lines(inner, 4)?);
+    let tail = text[token_end(&toks[close])..].trim();
+    lines.push(if tail.is_empty() { ")".to_owned() } else { format!(") {tail}") });
+    Some(lines)
+}
+
+/// 条件正文的递归渲染；返回的每一行都带相对约束的缩进。
+fn condition_lines(inner: &str, indent: usize) -> Option<Vec<String>> {
+    let parsed = crate::sql::postgresql::dql::r#where::parse(inner);
+    if parsed.elements.is_empty() {
+        return None;
+    }
+    let pad = " ".repeat(indent);
+    if crate::sql::postgresql::dql::r#where::mode(&parsed.elements) == crate::sql::postgresql::dql::Mode::Inline {
+        return Some(vec![format!("{pad}{}", crate::sql::postgresql::dql::r#where::inline_text(&parsed.elements))]);
+    }
+    let connective = parsed
+        .elements
+        .get(1)
+        .or_else(|| parsed.elements.first())
+        .map_or(crate::sql::splitter::Connector::And, |element| element.connector);
+    let anchor = if connective == crate::sql::splitter::Connector::Or { "1 = 0" } else { "1 = 1" };
+    let mut lines = vec![format!("{pad}{anchor}")];
+    for (index, element) in parsed.elements.iter().enumerate() {
+        let connector = if index == 0 { connective } else { element.connector };
+        let prefix = crate::sql::postgresql::dql::clause::connector_word(connector);
+        let body = element.text.trim();
+        let Some(group) = outer_group_inner(body) else {
+            lines.push(format!("{pad}{prefix} {}", collapse(body)));
+            continue;
+        };
+        let parsed = crate::sql::postgresql::dql::r#where::parse(group);
+        if parsed.elements.is_empty() {
+            lines.push(format!("{pad}{prefix} {}", collapse(body)));
+            continue;
+        }
+        if crate::sql::postgresql::dql::r#where::mode(&parsed.elements) == crate::sql::postgresql::dql::Mode::Inline {
+            lines.push(format!("{pad}{prefix} ({})", crate::sql::postgresql::dql::r#where::inline_text(&parsed.elements)));
+            continue;
+        }
+        lines.push(format!("{pad}{prefix} ("));
+        lines.extend(condition_lines(group, indent + 4)?);
+        lines.push(format!("{pad})"));
+    }
+    Some(lines)
+}
+
+/// 整段被一对括号包住的布尔组；函数调用、字符串内的括号不参与。
+fn outer_group_inner(text: &str) -> Option<&str> {
+    let text = text.trim();
+    if !text.starts_with('(') || !text.ends_with(')') {
+        return None;
+    }
+    let masked = crate::sql::lexer::mask(text);
+    let mut depth = 0usize;
+    for (index, character) in masked.char_indices() {
+        match character {
+            '(' => depth += 1,
+            ')' => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 && index != text.len() - 1 {
+                    return None;
+                }
+            }
+            _ => {}
+        }
+    }
+    (depth == 0).then(|| &text[1..text.len() - 1])
 }
 
 fn is_exclude(text: &str) -> bool {
@@ -1512,6 +1615,14 @@ mod tests {
         check(
             "create table t (a text, b text, exclude using gist (a with &&));",
             "create table t (\n    a text,\n    b text,\n    exclude using gist (a with &&)\n)",
+        );
+    }
+
+    #[test]
+    fn complex_check_conditions_break() {
+        check(
+            "create table t (a int, b int, constraint ck check (1 = 0 or a != 1 or (1 = 1 and b > 0 and (1 = 0 or b != 2 or (b != 3 and b != 4)))));",
+            "create table t (\n    a int,\n    b int,\n    constraint ck check (\n        1 = 0\n        or a != 1\n        or (\n            1 = 1\n            and b > 0\n            and (\n                1 = 0\n                or b != 2\n                or (b != 3 and b != 4)\n            )\n        )\n    )\n)",
         );
     }
 

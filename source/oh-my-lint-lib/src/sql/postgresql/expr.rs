@@ -273,16 +273,33 @@ fn simple_operand(tokens: &[crate::sql::lexer::Token<'_>]) -> bool {
             _ => false,
         };
     }
-    let field = slice.len() % 2 == 1
-        && slice
+    if simple_field(slice) {
+        return true;
+    }
+    if let Some(operator) = slice.iter().position(|token| token.kind == crate::sql::lexer::Kind::Punct && matches!(token.text, "->" | "->>")) {
+        return operator > 0
+            && simple_field(&slice[..operator])
+            && slice[operator..].len().is_multiple_of(2)
+            && slice[operator..].chunks(2).all(|pair| {
+                pair[0].kind == crate::sql::lexer::Kind::Punct
+                    && matches!(pair[0].text, "->" | "->>")
+                    && matches!(
+                        pair[1].kind,
+                        crate::sql::lexer::Kind::String | crate::sql::lexer::Kind::Number | crate::sql::lexer::Kind::Word | crate::sql::lexer::Kind::QuotedIdent
+                    )
+            });
+    }
+    matches!(slice[0].kind, crate::sql::lexer::Kind::Word | crate::sql::lexer::Kind::QuotedIdent) && slice.get(1).is_some_and(|token| token.text == "(") && simple_call(slice)
+}
+
+/// 字段或限定字段：`a`、`t.a`、`"t"."a"`。
+fn simple_field(tokens: &[crate::sql::lexer::Token<'_>]) -> bool {
+    tokens.len() % 2 == 1
+        && tokens
             .iter()
             .step_by(2)
             .all(|token| matches!(token.kind, crate::sql::lexer::Kind::Word | crate::sql::lexer::Kind::QuotedIdent))
-        && slice.iter().skip(1).step_by(2).all(|token| token.kind == crate::sql::lexer::Kind::Punct && token.text == ".");
-    if field {
-        return true;
-    }
-    matches!(slice[0].kind, crate::sql::lexer::Kind::Word | crate::sql::lexer::Kind::QuotedIdent) && slice.get(1).is_some_and(|token| token.text == "(") && simple_call(slice)
+        && tokens.iter().skip(1).step_by(2).all(|token| token.kind == crate::sql::lexer::Kind::Punct && token.text == ".")
 }
 
 /// 函数实参内是否含子查询。
@@ -470,6 +487,13 @@ mod tests {
         assert!(crate::sql::decision::is_complex("coalesce(substring(x, 1, 2), '')", "where"));
         assert!(crate::sql::decision::is_complex("greatest(a, b)", "where"));
         assert!(crate::sql::decision::is_complex("least(a, b)", "where"));
+    }
+
+    #[test]
+    fn json_extraction_is_a_simple_operand() {
+        assert!(!crate::sql::decision::is_complex("coalesce(a->>'b', '')", "where"));
+        assert!(!crate::sql::decision::is_complex("coalesce(t.a->>'b', '')", "where"));
+        assert!(crate::sql::decision::is_complex("coalesce(a->>'b' || c, '')", "where"));
     }
 
     #[test]

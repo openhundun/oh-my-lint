@@ -113,6 +113,7 @@ fn render_alter(statement: &str) -> Option<String> {
     let multiline = actions.len() >= 3;
     let base = if multiline { 4 } else { 0 };
     let formatted: Vec<String> = actions.iter().map(|action| format_action(action, base)).collect();
+    let formatted = if multiline { align_add_columns(&formatted).unwrap_or(formatted) } else { formatted };
     let mut output = header;
     if multiline {
         for (index, action) in formatted.iter().enumerate() {
@@ -166,6 +167,100 @@ fn alter_header_end(tokens: &[Token]) -> Option<usize> {
 /// 一个顶层 action：`exclude` 列表按 D4 断行，其余保持单行。
 fn format_action(action: &str, base: usize) -> String {
     format_exclude(action, base).unwrap_or_else(|| space_parens(&inline(action)))
+}
+
+/// 多行 `add column` action：按列名、类型、其余约束对齐，同 CREATE TABLE 的字段列。
+fn align_add_columns(actions: &[String]) -> Option<Vec<String>> {
+    let parsed: Vec<AddColumn> = actions.iter().map(|action| parse_add_column(action)).collect::<Option<_>>()?;
+    let prefix = parsed.first()?.prefix.clone();
+    if parsed.iter().any(|column| column.prefix != prefix) {
+        return None;
+    }
+    let name_width = parsed.iter().map(|column| column.name.chars().count()).max()?;
+    let type_width = parsed.iter().filter(|column| !column.rest.is_empty()).map(|column| column.ty.chars().count()).max().unwrap_or(0);
+    Some(
+        parsed
+            .into_iter()
+            .map(|column| {
+                let name = format!("{:<name_width$}", column.name);
+                if column.rest.is_empty() {
+                    format!("{} {name} {}", column.prefix, column.ty)
+                } else {
+                    let ty = format!("{:<type_width$}", column.ty);
+                    format!("{} {name} {ty} {}", column.prefix, column.rest)
+                }
+            })
+            .collect(),
+    )
+}
+
+struct AddColumn {
+    prefix: String,
+    name: String,
+    ty: String,
+    rest: String,
+}
+
+/// `add [column] [if not exists] <name> <type> [constraints]`。
+fn parse_add_column(action: &str) -> Option<AddColumn> {
+    let all = tokens(action);
+    let flat: Vec<Token> = all.into_iter().filter(|token| token.kind != Kind::Whitespace).collect();
+    if !word_is(flat.first(), "add") {
+        return None;
+    }
+    let mut index = 1;
+    if word_is(flat.get(index), "column") {
+        index += 1;
+    }
+    if word_is(flat.get(index), "if") && word_is(flat.get(index + 1), "not") && word_is(flat.get(index + 2), "exists") {
+        index += 3;
+    }
+    let name = flat.get(index)?;
+    if !matches!(name.kind, Kind::Word | Kind::QuotedIdent) {
+        return None;
+    }
+    let type_start = index + 1;
+    if type_start >= flat.len() {
+        return None;
+    }
+    let mut depth = 0i32;
+    let mut type_end = flat.len();
+    for (index, token) in flat.iter().enumerate().skip(type_start) {
+        if token.kind == Kind::Punct {
+            match token.text {
+                "(" => depth += 1,
+                ")" => depth -= 1,
+                _ => {}
+            }
+            continue;
+        }
+        if depth == 0 && column_boundary(&flat, index) {
+            type_end = index;
+            break;
+        }
+    }
+    if type_end == type_start {
+        return None;
+    }
+    let prefix = inline(&action[..name.start]).trim_end().to_owned();
+    let ty = inline(&action[flat[type_start].start..flat[type_end - 1].start + flat[type_end - 1].text.len()]);
+    let rest = if type_end < flat.len() { inline(&action[flat[type_end].start..]) } else { String::new() };
+    (!prefix.is_empty() && !ty.is_empty()).then(|| AddColumn { prefix, name: name.text.to_owned(), ty, rest })
+}
+
+/// 列类型之后开始列约束的关键字。
+fn column_boundary(tokens: &[Token], index: usize) -> bool {
+    let Some(token) = tokens.get(index) else {
+        return false;
+    };
+    if token.kind != Kind::Word {
+        return false;
+    }
+    match token.text.to_ascii_lowercase().as_str() {
+        "storage" | "compression" | "collate" | "default" | "generated" | "unique" | "check" | "references" | "primary" | "constraint" | "null" => true,
+        "not" => word_is(tokens.get(index + 1), "null"),
+        _ => false,
+    }
 }
 
 /// `add [constraint <name>] exclude ...`：元素 ≥4 或含复杂表达式时按 D4 断行。
@@ -652,6 +747,15 @@ mod tests {
     fn alter_three_actions_break() {
         let sql = "alter table foo alter column foo_timestamp drop default, alter column foo_timestamp type timestamptz using 'epoch'::timestamp + foo_timestamp * '1 second'::interval, alter column foo_timestamp set default now()";
         let expected = "alter table foo\n    alter column foo_timestamp drop default,\n    alter column foo_timestamp type timestamptz using 'epoch'::timestamp + foo_timestamp * '1 second'::interval,\n    alter column foo_timestamp set default now()";
+        assert_eq!(layout(sql), expected);
+        assert_idempotent(expected);
+    }
+
+    #[test]
+    fn alter_add_columns_align_fields() {
+        let sql = "alter table t add column if not exists a varchar(255), add column if not exists long_name bigint not null default 0, add column if not exists c jsonb";
+        let expected =
+            "alter table t\n    add column if not exists a         varchar(255),\n    add column if not exists long_name bigint not null default 0,\n    add column if not exists c         jsonb";
         assert_eq!(layout(sql), expected);
         assert_idempotent(expected);
     }

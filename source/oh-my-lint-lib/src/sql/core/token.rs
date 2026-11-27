@@ -191,6 +191,17 @@ fn spacing_edits(tokens: &[Token], sql: &str, edits: &mut Vec<Edit>) {
                     binary_gap(tokens, index, sql, edits);
                 }
             }
+            "->" | "->>" => {
+                if operator_definition(tokens, index) {
+                    continue;
+                }
+                if let Some(previous) = previous_non_ws(tokens, index) {
+                    push_gap(edits, sql, token_end(&tokens[previous]), token.start, "", "JSON operator should hug its left operand");
+                }
+                if let Some(next) = next_non_ws(tokens, index) {
+                    push_gap(edits, sql, token_end(token), tokens[next].start, "", "JSON operator should hug its right operand");
+                }
+            }
             "+" | "-" => {
                 if operator_definition(tokens, index) {
                     continue;
@@ -2013,6 +2024,12 @@ mod tests {
         assert_fixed("select a,b from t where x<>y", "select a, b from t where x != y");
         assert_fixed("select a from t;", "select a from t;");
         assert_fixed("select a from t;   ", "select a from t;");
+    }
+
+    #[test]
+    fn hugs_json_operators() {
+        assert_fixed("select a -> 'x' ->> 'y' from t", "select a->'x'->>'y' from t");
+        assert_fixed("select menu_config -> 'custom' -> 0 ->> 'router' from t", "select menu_config->'custom'->0->>'router' from t");
     }
 
     #[test]

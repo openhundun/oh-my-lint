@@ -418,7 +418,7 @@ mod tests {
     fn splits_with_from_non_simple_delete() {
         assert_eq!(
             render("with test as (select foo from bar) delete from films where a = 1 and b = 2"),
-            "with\ntest as (select foo from bar)\ndelete from films\nwhere a = 1 and b = 2"
+            "with test as (select foo from bar)\ndelete from films\nwhere a = 1 and b = 2"
         );
     }
 
@@ -502,8 +502,7 @@ mod tests {
         assert_eq!(
             render("explain (analyze true) with x as (select a from t) select a from x"),
             "explain (analyze true)\n\
-             with\n\
-             x as (select a from t)\n\
+             with x as (select a from t)\n\
              select a\n\
              from x"
         );
@@ -566,11 +565,24 @@ mod tests {
     }
 
     #[test]
+    fn aligns_broken_update_set_at_equals() {
+        assert_eq!(
+            render("update t set a = 1, long_name = 2, c = 3, d = 4 where id = 1"),
+            "update t\n\
+             set\n\
+             \u{20}   a         = 1,\n\
+             \u{20}   long_name = 2,\n\
+             \u{20}   c         = 3,\n\
+             \u{20}   d         = 4\n\
+             where id = 1"
+        );
+    }
+
+    #[test]
     fn formats_with_update_and_cte() {
         assert_eq!(
             render("with ranked as (select id from t where status = 'RUNNING') update t set status = 'FAILED' where id in (select id from ranked)"),
-            "with\n\
-             ranked as (select id from t where status = 'RUNNING')\n\
+            "with ranked as (select id from t where status = 'RUNNING')\n\
              update t\n\
              set status = 'FAILED'\n\
              where id in (select id from ranked)"

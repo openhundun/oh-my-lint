@@ -292,6 +292,26 @@ fn separates_cte_definitions() {
 }
 
 #[test]
+fn inlines_single_simple_cte() {
+    let sql = "with\nx as (select a from t)\nselect * from x";
+    let expected = "with x as (select a from t)\nselect *\nfrom x;";
+    assert!(!crate::sql::check(sql).is_empty());
+    assert_eq!(crate::sql::format(sql).expect("format"), expected);
+    assert!(crate::sql::check(expected).is_empty(), "{:?}", crate::sql::check(expected));
+}
+
+#[test]
+fn keeps_multiple_or_complex_cte_broken() {
+    let sql = "with\na as (select 1), b as (select 2)\nselect * from a";
+    let expected = "with\na as (select 1),\nb as (select 2)\nselect *\nfrom a;";
+    assert_eq!(crate::sql::format(sql).expect("format"), expected);
+
+    let sql = "with x as (select a from t where a = 1 and b = 2) select * from x";
+    let expected = "with\nx as (\n    select a\n    from t\n    where a = 1 and b = 2\n)\nselect *\nfrom x;";
+    assert_eq!(crate::sql::format(sql).expect("format"), expected);
+}
+
+#[test]
 fn ctas_realigns_aligned_select_to_block() {
     let sql = "create table t as (\n    select m.id as main_meta_id,\n           m.version,\n           m.namespace,\n           m.callable_types,\n           m.gmt_create,\n           m.gmt_modified\n    from t\n);";
     let expected = "create table t as (\n    select\n        m.id as main_meta_id,\n        m.version,\n        m.namespace,\n        m.callable_types,\n        m.gmt_create,\n        m.gmt_modified\n    from t\n);";

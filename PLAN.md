@@ -200,7 +200,7 @@ git diff --check
 | P5 DDL | done | — | create_table/misc/realign；白名单 2 findings（基线 57） |
 | P6 file | done | — | reorder/comments/realign；fix 无 changes |
 | P7 清理 | done | — | check=render-diff；旧 check 分支删除；215 tests |
-| P8 条件块 | done | — | Break 整块加括号；where/having/on/DML 共用；254 tests；公司 0；PG 2 |
+| P8 条件块 | done | — | Break 整块加括号；where/having/on/DML/CHECK 共用；SET/ADD COLUMN 对齐；261 tests；公司 0；PG 2 |
 
 ## P8 条件块
 
@@ -226,4 +226,9 @@ git diff --check
 - 多行 `values` 元组按列左对齐，列宽用 Unicode display width（ASCII 1、CJK 2）；末列补空格，右括号对齐。
 - `on conflict ... do update set` 保持同一行，赋值逐行 +4；`where`/`returning` 回语句缩进。单个 `values` 元组的元组换行会并回 `values` 行。
 - `comment on` 的 `is` 与值并回一行，连续块按前缀对齐；`check` 现在也覆盖 comment 块对齐；支持 `table`/`column`/`index` 等对象。
+- UPDATE `set` 断行时按 `=` 对齐；ALTER TABLE 多条 `add column` 按列名、类型、其余约束对齐。
+- 单 CTE 且正文简单时 `with <名称> as (<子查询>)` 与 `with` 同行；多个或非简单 CTE 仍截断为 `with` 独占一行。
+- JSON 提取 `->`/`->>` 两侧紧贴操作数。
+- complex `check` 正文按 `where` 条件块渲染：`check (` 后换行、内容 +4、`)` 回约束缩进；简单的 `check` 保持单行。
+- `coalesce`/`nullif` 的 JSON `->`/`->>` 提取视为简单操作数，避免嵌套条件组被误判为复杂而强制断行。
 - tokenizer 遇到 `DO $$ ... $$` 等正文会整段回退；fallback mask 现在扫描字符串、美元引用和注释，只保留 SQL 分号，DO 块不再吞掉后续语句。

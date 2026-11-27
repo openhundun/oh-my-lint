@@ -18,7 +18,8 @@ from
             date_dim,
             store,
             household_demographics
-        where 1 = 1
+        where (
+            1 = 1
             and store_sales.ss_sold_date_sk = date_dim.d_date_sk
             and store_sales.ss_store_sk = store.s_store_sk
             and store_sales.ss_hdemo_sk = household_demographics.hd_demo_sk
@@ -26,6 +27,7 @@ from
             and date_dim.d_dow = 1
             and date_dim.d_year in (1999, 1999 + 1, 1999 + 2)
             and (store.s_number_employees between 200 and 295)
+        )
         group by
             ss_ticket_number,
             ss_customer_sk,
@@ -40,4 +42,4 @@ order by
     substring(s_city, 1, 30) nulls first,
     profit nulls first,
     ss_ticket_number
-limit 100
+limit 100;

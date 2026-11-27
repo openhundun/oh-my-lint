@@ -128,7 +128,7 @@ fn delete_simple(text: &str, parts: &[Part]) -> bool {
                 }
             }
             DeletePart::Where => {
-                if splitter::split_elements("where", body).len() > 1 {
+                if crate::sql::postgresql::dql::r#where::parse(body).elements.len() > 1 {
                     return false;
                 }
             }

@@ -13,7 +13,8 @@ from
     date_dim,
     customer_address,
     web_site
-where 1 = 1
+where (
+    1 = 1
     and (d_date between '1999-02-01' and cast('1999-04-02' as date))
     and ws1.ws_ship_date_sk = d_date_sk
     and ws1.ws_ship_addr_sk = ca_address_sk
@@ -26,5 +27,6 @@ where 1 = 1
         from web_returns, ws_wh
         where wr_order_number = ws_wh.ws_order_number
     )
+)
 order by count(distinct ws_order_number)
-limit 100
+limit 100;

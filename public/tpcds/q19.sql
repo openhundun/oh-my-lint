@@ -11,7 +11,8 @@ from
     customer,
     customer_address,
     store
-where 1 = 1
+where (
+    1 = 1
     and d_date_sk = ss_sold_date_sk
     and ss_item_sk = i_item_sk
     and i_manager_id = 8
@@ -21,6 +22,7 @@ where 1 = 1
     and c_current_addr_sk = ca_address_sk
     and substring(ca_zip, 1, 5) != substring(s_zip, 1, 5)
     and ss_store_sk = s_store_sk
+)
 group by
     i_brand,
     i_brand_id,
@@ -32,4 +34,4 @@ order by
     i_brand_id,
     i_manufact_id,
     i_manufact
-limit 100
+limit 100;

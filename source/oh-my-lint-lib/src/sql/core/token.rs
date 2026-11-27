@@ -609,6 +609,12 @@ fn cte_column_paren(tokens: &[Token], index: usize) -> bool {
     if !word_is(&tokens[after], "as") {
         return false;
     }
+    let Some(after_as) = next_non_ws(tokens, after) else {
+        return false;
+    };
+    if !punct(&tokens[after_as], "(") {
+        return false;
+    }
     let Some(before) = previous_non_ws(tokens, index) else {
         return false;
     };
@@ -1994,6 +2000,11 @@ mod tests {
     #[test]
     fn spaces_cte_column_lists() {
         assert_fixed("WITH RECURSIVE t(n) AS (SELECT 1) SELECT * FROM t", "with recursive t (n) as (select 1) select * from t");
+    }
+
+    #[test]
+    fn keeps_function_name_hugging_after_cte() {
+        assert_fixed("with x as (select 1) select a, round(b, 2) as r from t", "with x as (select 1) select a, round(b, 2) as r from t");
     }
 
     #[test]

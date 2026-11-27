@@ -70,4 +70,4 @@ from (
 ) x
 group by rollup(channel, id)
 order by channel nulls first, id nulls first, returns_ desc
-limit 100
+limit 100;

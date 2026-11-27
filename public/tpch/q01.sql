@@ -10,6 +10,6 @@ select
     avg(l_discount) as avg_disc,
     count(*) as count_order
 from lineitem
-where l_shipdate <= date '1998-09-02'
+where l_shipdate <= '1998-09-02'::date
 group by l_returnflag, l_linestatus
-order by l_returnflag, l_linestatus
+order by l_returnflag, l_linestatus;

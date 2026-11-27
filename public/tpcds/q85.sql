@@ -12,7 +12,8 @@ from
     customer_address,
     date_dim,
     reason
-where 1 = 1
+where (
+    1 = 1
     and ws_web_page_sk = wp_web_page_sk
     and ws_item_sk = wr_item_sk
     and ws_order_number = wr_order_number
@@ -55,10 +56,11 @@ where 1 = 1
         or (ca_country = 'United States' and ca_state in ('WI', 'CT', 'KY') and (ws_net_profit between 150 and 300))
         or (ca_country = 'United States' and ca_state in ('LA', 'IA', 'AR') and (ws_net_profit between 50 and 250))
     )
+)
 group by r_reason_desc
 order by
     substring(r_reason_desc, 1, 20),
     avg(ws_quantity),
     avg(wr_refunded_cash),
     avg(wr_fee)
-limit 100
+limit 100;

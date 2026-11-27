@@ -23,11 +23,13 @@ select
     c_last_review_date_sk,
     ctr_total_return
 from customer_total_return ctr1, customer_address, customer
-where 1 = 1
+where (
+    1 = 1
     and ctr1.ctr_total_return > (select avg(ctr_total_return) * 1.2 from customer_total_return ctr2 where ctr1.ctr_state = ctr2.ctr_state)
     and ca_address_sk = c_current_addr_sk
     and ca_state = 'GA'
     and ctr1.ctr_customer_sk = c_customer_sk
+)
 order by
     c_customer_id nulls first,
     c_salutation nulls first,
@@ -42,4 +44,4 @@ order by
     c_email_address nulls first,
     c_last_review_date_sk nulls first,
     ctr_total_return nulls first
-limit 100
+limit 100;

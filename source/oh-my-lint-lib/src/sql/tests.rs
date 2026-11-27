@@ -24,8 +24,164 @@ fn derived_table_breaks_from() {
 }
 
 #[test]
+fn wraps_break_on_condition() {
+    let sql = "select a from t join u on t.id = u.id and t.kind = u.kind and t.deleted = 0 and u.deleted = 0;";
+    let fixed = crate::sql::format(sql).expect("format");
+    assert_eq!(
+        fixed,
+        "select a\nfrom t\njoin u on (\n    1 = 1\n    and t.id = u.id\n    and t.kind = u.kind\n    and t.deleted = 0\n    and u.deleted = 0\n);"
+    );
+    assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+    assert_eq!(crate::sql::format(&fixed).expect("second"), fixed);
+}
+
+#[test]
+fn inline_on_and_where_are_not_wrapped() {
+    let on = "select a from t join u on t.id = u.id and t.deleted = 0;";
+    let fixed = crate::sql::format(on).expect("format");
+    assert_eq!(fixed, "select a\nfrom t\njoin u on t.id = u.id and t.deleted = 0;");
+
+    let where_sql = "select a from t where a = 1 and b = 2 and c = 3;";
+    let fixed = crate::sql::format(where_sql).expect("format");
+    assert_eq!(fixed, "select a\nfrom t\nwhere a = 1 and b = 2 and c = 3;");
+}
+
+#[test]
+fn single_subquery_condition_stays_unwrapped() {
+    let sql = "select a from t where exists (select 1 from u where a = 1 and b = 2 and c = 3 and d = 4);";
+    let fixed = crate::sql::format(sql).expect("format");
+    assert!(fixed.starts_with("select a\nfrom t\nwhere exists ("), "{fixed}");
+    assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+}
+
+#[test]
+fn unwraps_inline_condition_bodies() {
+    let where_sql = "select a\nfrom t\nwhere (\n    1 = 1\n    and a = 1\n    and b = 2\n);";
+    assert_eq!(crate::sql::format(where_sql).expect("format"), "select a\nfrom t\nwhere a = 1 and b = 2;");
+
+    let on_sql = "select a from t join u on (t.id = u.id and t.deleted = 0);";
+    assert_eq!(crate::sql::format(on_sql).expect("format"), "select a\nfrom t\njoin u on t.id = u.id and t.deleted = 0;");
+}
+
+#[test]
+fn wraps_each_break_on_condition_in_multi_join() {
+    let sql =
+        "select a from t join u on t.id = u.id and t.kind = u.kind and t.deleted = 0 and u.deleted = 0 join v on v.id = u.id and v.kind = u.kind and v.deleted = 0 and v.status = 1 where t.a = 1;";
+    let fixed = crate::sql::format(sql).expect("format");
+    assert_eq!(
+        fixed,
+        "select a\n\
+         from t\n\
+         join u on (\n\
+         \u{20}   1 = 1\n\
+         \u{20}   and t.id = u.id\n\
+         \u{20}   and t.kind = u.kind\n\
+         \u{20}   and t.deleted = 0\n\
+         \u{20}   and u.deleted = 0\n\
+         )\n\
+         join v on (\n\
+         \u{20}   1 = 1\n\
+         \u{20}   and v.id = u.id\n\
+         \u{20}   and v.kind = u.kind\n\
+         \u{20}   and v.deleted = 0\n\
+         \u{20}   and v.status = 1\n\
+         )\n\
+         where t.a = 1;"
+    );
+    assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+    assert_eq!(crate::sql::format(&fixed).expect("second"), fixed);
+}
+
+#[test]
+fn ctas_keeps_break_where_block() {
+    let sql = "create temp table t as (select id from u where a = 1 and b = 2 and c = 3 and d = 4);";
+    let fixed = crate::sql::format(sql).expect("format");
+    assert_eq!(
+        fixed,
+        "create temp table t as (\n    select id\n    from u\n    where (\n        1 = 1\n        and a = 1\n        and b = 2\n        and c = 3\n        and d = 4\n    )\n);"
+    );
+    assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+}
+
+#[test]
+fn wraps_break_where_and_having_before_next_clauses() {
+    let sql = "select a, count(*) from t where a = 1 and b = 2 and c = 3 and d = 4 group by a having count(*) > 1 and sum(b) > 2 and min(c) > 3 and max(d) > 4 order by a;";
+    let fixed = crate::sql::format(sql).expect("format");
+    assert!(
+        fixed.contains("where (\n    1 = 1\n    and a = 1\n    and b = 2\n    and c = 3\n    and d = 4\n)\ngroup by a\n"),
+        "{fixed}"
+    );
+    assert!(
+        fixed.contains("having (\n    1 = 1\n    and count(*) > 1\n    and sum(b) > 2\n    and min(c) > 3\n    and max(d) > 4\n)\norder by a;"),
+        "{fixed}"
+    );
+    assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+    assert_eq!(crate::sql::format(&fixed).expect("second"), fixed);
+}
+
+#[test]
+fn single_subquery_on_stays_unwrapped() {
+    let sql = "select a from t join u on exists (select 1 from v where a = 1 and b = 2 and c = 3 and d = 4);";
+    let fixed = crate::sql::format(sql).expect("format");
+    assert!(fixed.contains("join u on exists ("), "{fixed}");
+    assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+}
+
+#[test]
+fn on_condition_stops_before_cross_join_comma() {
+    let sql = "select a from t join u on t.id = u.id and t.kind = u.kind and t.deleted = 0 and u.deleted = 0, v;";
+    let fixed = crate::sql::format(sql).expect("format");
+    assert_eq!(
+        fixed,
+        "select a\nfrom t\njoin u on (\n    1 = 1\n    and t.id = u.id\n    and t.kind = u.kind\n    and t.deleted = 0\n    and u.deleted = 0\n)\ncross join v;"
+    );
+    assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+}
+
+#[test]
+fn simple_three_clause_subquery_stays_inline() {
+    let sql = "select a from t where b < (\n    select 0.2 * avg(c)\n    from u\n    where u.id = t.id\n);";
+    let fixed = crate::sql::format(sql).expect("format");
+    assert_eq!(fixed, "select a\nfrom t\nwhere b < (select 0.2 * avg(c) from u where u.id = t.id);");
+    assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+}
+
+#[test]
+fn window_case_stays_inline() {
+    let sql = "select rank() over(partition by (case when grouping(s_state) = 0 then s_state end) order by sum(x) desc) as r from t;";
+    let fixed = crate::sql::format(sql).expect("format");
+    assert_eq!(
+        fixed,
+        "select rank() over(partition by (case when grouping(s_state) = 0 then s_state end) order by sum(x) desc) as r from t;"
+    );
+    assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+
+    let expanded = "select rank() over(partition by (case\n    when grouping(s_state) = 0\n    then s_state\nend) order by sum(x) desc) as r from t;";
+    assert_eq!(crate::sql::format(expanded).expect("format"), fixed);
+}
+
+#[test]
+fn inline_where_keeps_simple_query_inline() {
+    let sql = "select a from t where ((a = 1)) order by a;";
+    let fixed = crate::sql::format(sql).expect("format");
+    assert_eq!(fixed, "select a from t where a = 1 order by a;");
+    assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+}
+
+#[test]
+fn wraps_break_on_or_chain() {
+    let sql = "select a from t join u on t.id = u.id or t.kind = u.kind or t.deleted = 0 or u.deleted = 0;";
+    let fixed = crate::sql::format(sql).expect("format");
+    assert_eq!(
+        fixed,
+        "select a\nfrom t\njoin u on (\n    1 = 0\n    or t.id = u.id\n    or t.kind = u.kind\n    or t.deleted = 0\n    or u.deleted = 0\n);"
+    );
+    assert!(crate::sql::check(&fixed).is_empty(), "{fixed}");
+}
+
+#[test]
 fn sentinel_shape_matches_corpus() {
-    let sql = "select a\nfrom t\nwhere 1 = 1\n    and a = 1\n    and b = 2\n    and c = 3\n    and d = 4;";
+    let sql = "select a\nfrom t\nwhere (\n    1 = 1\n    and a = 1\n    and b = 2\n    and c = 3\n    and d = 4\n);";
     assert!(crate::sql::check(sql).is_empty(), "{:?}", crate::sql::check(sql));
     assert_eq!(crate::sql::format(sql).expect("format"), sql);
 }

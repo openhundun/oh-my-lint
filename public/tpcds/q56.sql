@@ -6,7 +6,8 @@ ss as (
         date_dim,
         customer_address,
         item
-    where 1 = 1
+    where (
+        1 = 1
         and i_item_id in (select i_item_id from item where i_color in ('slate', 'blanched', 'burnished'))
         and ss_item_sk = i_item_sk
         and ss_sold_date_sk = d_date_sk
@@ -14,6 +15,7 @@ ss as (
         and d_moy = 2
         and ss_addr_sk = ca_address_sk
         and ca_gmt_offset = -5
+    )
     group by i_item_id
 ),
 cs as (
@@ -23,7 +25,8 @@ cs as (
         date_dim,
         customer_address,
         item
-    where 1 = 1
+    where (
+        1 = 1
         and i_item_id in (select i_item_id from item where i_color in ('slate', 'blanched', 'burnished'))
         and cs_item_sk = i_item_sk
         and cs_sold_date_sk = d_date_sk
@@ -31,6 +34,7 @@ cs as (
         and d_moy = 2
         and cs_bill_addr_sk = ca_address_sk
         and ca_gmt_offset = -5
+    )
     group by i_item_id
 ),
 ws as (
@@ -40,7 +44,8 @@ ws as (
         date_dim,
         customer_address,
         item
-    where 1 = 1
+    where (
+        1 = 1
         and i_item_id in (select i_item_id from item where i_color in ('slate', 'blanched', 'burnished'))
         and ws_item_sk = i_item_sk
         and ws_sold_date_sk = d_date_sk
@@ -48,6 +53,7 @@ ws as (
         and d_moy = 2
         and ws_bill_addr_sk = ca_address_sk
         and ca_gmt_offset = -5
+    )
     group by i_item_id
 )
 select i_item_id, sum(total_sales) as total_sales
@@ -60,4 +66,4 @@ from (
 ) tmp1
 group by i_item_id
 order by total_sales nulls first, i_item_id nulls first
-limit 100
+limit 100;

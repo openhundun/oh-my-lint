@@ -36,8 +36,7 @@ pub(super) fn layout_update(text: &str, dialect: Dialect) -> Option<String> {
     let set_elements = splitter::split_elements("select", set_body);
     let set_inline = set_elements.len() <= 3 && !set_elements.iter().any(|element| decision::is_complex(&element.text, "select"));
     let from_inline = from_body.is_none_or(|body| splitter::split_elements("from", body).len() <= 1 && !decision::has_join(body));
-    let where_elements = where_body.map(|body| splitter::split_elements("where", body));
-    let where_inline = where_elements.as_ref().is_none_or(|elements| elements.len() <= 1);
+    let where_inline = where_body.is_none_or(|body| crate::sql::postgresql::dql::r#where::parse(body).elements.len() <= 1);
     let returning_lines = returning_body.map(returning_lines);
     let returning_inline = returning_lines.as_ref().is_none_or(|lines| lines.len() == 1);
 

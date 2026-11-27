@@ -56,7 +56,8 @@ from
     year_total t_s_secyear,
     year_total t_w_firstyear,
     year_total t_w_secyear
-where 1 = 1
+where (
+    1 = 1
     and t_s_secyear.customer_id = t_s_firstyear.customer_id
     and t_s_firstyear.customer_id = t_w_secyear.customer_id
     and t_s_firstyear.customer_id = t_w_firstyear.customer_id
@@ -71,9 +72,10 @@ where 1 = 1
     and t_s_firstyear.year_total > 0
     and t_w_firstyear.year_total > 0
     and (case when t_w_firstyear.year_total > 0 then (t_w_secyear.year_total * 1.0000) / t_w_firstyear.year_total else 0.0 end) > (case when t_s_firstyear.year_total > 0 then (t_s_secyear.year_total * 1.0000) / t_s_firstyear.year_total else 0.0 end)
+)
 order by
     t_s_secyear.customer_id nulls first,
     t_s_secyear.customer_first_name nulls first,
     t_s_secyear.customer_last_name nulls first,
     t_s_secyear.customer_preferred_cust_flag nulls first
-limit 100
+limit 100;

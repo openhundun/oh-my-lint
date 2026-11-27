@@ -23,7 +23,8 @@ from
     date_dim d3,
     store,
     item
-where 1 = 1
+where (
+    1 = 1
     and d1.d_quarter_name = '2001Q1'
     and d1.d_date_sk = ss_sold_date_sk
     and i_item_sk = ss_item_sk
@@ -37,6 +38,7 @@ where 1 = 1
     and sr_item_sk = cs_item_sk
     and cs_sold_date_sk = d3.d_date_sk
     and d3.d_quarter_name in ('2001Q1', '2001Q2', '2001Q3')
+)
 group by i_item_id, i_item_desc, s_state
 order by i_item_id nulls first, i_item_desc nulls first, s_state nulls first
-limit 100
+limit 100;

@@ -6,4 +6,4 @@ from (
     group by c_custkey
 ) c_orders
 group by c_count
-order by custdist desc, c_count desc
+order by custdist desc, c_count desc;

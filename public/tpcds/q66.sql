@@ -83,7 +83,8 @@ from (
         date_dim,
         time_dim,
         ship_mode
-    where 1 = 1
+    where (
+        1 = 1
         and ws_warehouse_sk = w_warehouse_sk
         and ws_sold_date_sk = d_date_sk
         and ws_sold_time_sk = t_time_sk
@@ -91,6 +92,7 @@ from (
         and d_year = 2001
         and (t_time between 30838 and 30838 + 28800)
         and sm_carrier in ('DHL', 'BARIAN')
+    )
     group by
         w_warehouse_name,
         w_warehouse_sq_ft,
@@ -139,7 +141,8 @@ from (
         date_dim,
         time_dim,
         ship_mode
-    where 1 = 1
+    where (
+        1 = 1
         and cs_warehouse_sk = w_warehouse_sk
         and cs_sold_date_sk = d_date_sk
         and cs_sold_time_sk = t_time_sk
@@ -147,6 +150,7 @@ from (
         and d_year = 2001
         and (t_time between 30838 and 30838 + 28800)
         and sm_carrier in ('DHL', 'BARIAN')
+    )
     group by
         w_warehouse_name,
         w_warehouse_sq_ft,
@@ -166,4 +170,4 @@ group by
     ship_carriers,
     year_
 order by w_warehouse_name nulls first
-limit 100
+limit 100;

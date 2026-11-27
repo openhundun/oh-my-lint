@@ -18,7 +18,8 @@ from
     customer_address,
     date_dim,
     item
-where 1 = 1
+where (
+    1 = 1
     and cs_sold_date_sk = d_date_sk
     and cs_item_sk = i_item_sk
     and cs_bill_cdemo_sk = cd1.cd_demo_sk
@@ -30,6 +31,7 @@ where 1 = 1
     and c_birth_month in (1, 6, 8, 9, 12, 2)
     and d_year = 1998
     and ca_state in ('MS', 'IN', 'ND', 'OK', 'NM', 'VA', 'MS')
+)
 group by rollup(
     i_item_id,
     ca_country,
@@ -44,4 +46,4 @@ order by
     grouping(ca_country) nulls first,
     grouping(ca_state) nulls first,
     grouping(ca_county) nulls first
-limit 100
+limit 100;

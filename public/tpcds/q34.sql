@@ -13,7 +13,8 @@ from
             date_dim,
             store,
             household_demographics
-        where 1 = 1
+        where (
+            1 = 1
             and store_sales.ss_sold_date_sk = date_dim.d_date_sk
             and store_sales.ss_store_sk = store.s_store_sk
             and store_sales.ss_hdemo_sk = household_demographics.hd_demo_sk
@@ -23,6 +24,7 @@ from
             and (case when household_demographics.hd_vehicle_count > 0 then (household_demographics.hd_dep_count * 1.000) / household_demographics.hd_vehicle_count else null end) > 1.2
             and date_dim.d_year in (1999, 1999 + 1, 1999 + 2)
             and store.s_county = 'Williamson County'
+        )
         group by ss_ticket_number, ss_customer_sk
     ) dn,
     customer
@@ -31,5 +33,5 @@ order by
     c_last_name nulls first,
     c_first_name nulls first,
     c_salutation nulls first,
-    c_preferred_cust_flag desc nulls first,
-    ss_ticket_number nulls first
+    c_preferred_cust_flag desc,
+    ss_ticket_number nulls first;

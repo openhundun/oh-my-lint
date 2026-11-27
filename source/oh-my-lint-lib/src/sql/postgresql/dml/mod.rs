@@ -5,7 +5,7 @@ use sqlparser::ast::{SetExpr, Statement};
 use crate::sql::decision;
 use crate::sql::lexer::{self, Kind};
 use crate::sql::parse::{self, Dialect};
-use crate::sql::splitter::{self, Connector, Element};
+use crate::sql::splitter::{self, Element};
 use crate::sql::token;
 
 mod delete;
@@ -77,45 +77,34 @@ pub(super) struct Word {
     pub(super) text: String,
 }
 
-/// `where` 按 R8/R19：≥4 个条件或复杂时逐条件断行，否则整行并丢弃锚点。
+/// `where`：与 DQL 共用条件块；内联不包，断行时整块加括号。
 pub(super) fn where_lines(body: &str) -> Vec<String> {
-    let elements = splitter::split_elements("where", body);
-    if elements.len() <= 1 || is_current_of(body) {
-        return vec![format!("where {}", collapse(body))];
+    let condition = crate::sql::postgresql::dql::r#where::parse(body);
+    let inner = condition.inner;
+    let elements: Vec<Element> = condition
+        .elements
+        .iter()
+        .map(|element| Element { text: collapse(&element.text), connector: element.connector })
+        .collect();
+    if elements.len() <= 1 || is_current_of(inner) {
+        return vec![format!("where {}", collapse(inner))];
     }
-    let broken = elements.len() >= 4 || elements.iter().any(|element| decision::is_complex(&element.text, "where"));
-    if !broken {
-        return vec![format!("where {}", join_conditions(&elements))];
+    match crate::sql::postgresql::dql::r#where::mode(&elements) {
+        crate::sql::postgresql::dql::Mode::Inline => vec![format!("where {}", crate::sql::postgresql::dql::r#where::inline_text(&elements))],
+        crate::sql::postgresql::dql::Mode::Break => {
+            let mut lines = vec!["where (".to_owned()];
+            for line in crate::sql::postgresql::dql::r#where::block_lines(&elements) {
+                lines.push(format!("    {line}"));
+            }
+            lines.push(")".to_owned());
+            lines
+        }
     }
-    let mut lines = vec![format!("where {}", anchor(&elements))];
-    for element in &elements {
-        let connector = if element.connector == Connector::None { Connector::And } else { element.connector };
-        lines.push(format!("    {} {}", decision::connector_word(connector), collapse(&element.text)));
-    }
-    lines
 }
 
 fn is_current_of(body: &str) -> bool {
     let mut words = lexer::tokens(body).into_iter().filter(|token| token.kind == Kind::Word).map(|token| token.text.to_ascii_lowercase());
     words.next().as_deref() == Some("current") && words.next().as_deref() == Some("of")
-}
-
-fn anchor(elements: &[Element]) -> &'static str {
-    let oracle = elements.get(1).or_else(|| elements.first());
-    if oracle.is_some_and(|element| element.connector == Connector::Or) { "1 = 0" } else { "1 = 1" }
-}
-
-fn join_conditions(elements: &[Element]) -> String {
-    let mut joined = String::new();
-    for (index, element) in elements.iter().enumerate() {
-        if index > 0 {
-            joined.push(' ');
-            joined.push_str(decision::connector_word(element.connector));
-            joined.push(' ');
-        }
-        joined.push_str(&collapse(&element.text));
-    }
-    joined
 }
 
 /// `returning` 按 R7；别名必须写 `as`。
@@ -307,18 +296,20 @@ mod tests {
             render(sql),
             "delete from films f\n\
              using producers p, actors a\n\
-             where 1 = 1\n\
+             where (\n\
+             \u{20}   1 = 1\n\
              \u{20}   and f.producer_id = p.id\n\
              \u{20}   and p.name = 'foo'\n\
              \u{20}   and f.actor_id = a.id\n\
-             \u{20}   and a.name = 'joe cool'"
+             \u{20}   and a.name = 'joe cool'\n\
+             )"
         );
     }
 
     #[test]
     fn or_conditions_use_zero_anchor() {
         let sql = "delete from t where a = 1 or b = 2 or c = 3 or d = 4";
-        assert_eq!(render(sql), "delete from t\nwhere 1 = 0\n    and a = 1\n    or b = 2\n    or c = 3\n    or d = 4");
+        assert_eq!(render(sql), "delete from t\nwhere (\n    1 = 0\n    or a = 1\n    or b = 2\n    or c = 3\n    or d = 4\n)");
     }
 
     #[test]
@@ -467,11 +458,7 @@ mod tests {
         assert_eq!(
             render("with ranked as (select id from t where status = 'RUNNING') update t set status = 'FAILED' where id in (select id from ranked)"),
             "with\n\
-             ranked as (\n\
-             \u{20}   select id\n\
-             \u{20}   from t\n\
-             \u{20}   where status = 'RUNNING'\n\
-             )\n\
+             ranked as (select id from t where status = 'RUNNING')\n\
              update t\n\
              set status = 'FAILED'\n\
              where id in (select id from ranked)"

@@ -18,11 +18,13 @@ where f.producer_id = p.id and p.name = 'foo';
 
 delete from films f
 using producers p, actors a
-where 1 = 1
+where (
+    1 = 1
     and f.producer_id = p.id
     and p.name = 'foo'
     and f.actor_id = a.id
-    and a.name = 'joe cool';
+    and a.name = 'joe cool'
+);
 
 delete from films f
 using producers p
@@ -30,11 +32,13 @@ where f.producer_id = p.id and p.name = 'foo';
 
 delete from films f
 using producers p, actors a
-where 1 = 1
+where (
+    1 = 1
     and f.producer_id = p.id
     and p.name = 'foo'
     and f.actor_id = a.id
-    and a.name = 'joe cool';
+    and a.name = 'joe cool'
+);
 
 delete from tasks where current of c_tasks;
 

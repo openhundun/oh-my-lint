@@ -18,7 +18,8 @@ my_customers as (
         item,
         date_dim,
         customer
-    where 1 = 1
+    where (
+        1 = 1
         and sold_date_sk = d_date_sk
         and item_sk = i_item_sk
         and i_category = 'Women'
@@ -26,6 +27,7 @@ my_customers as (
         and c_customer_sk = cs_or_ws_sales.customer_sk
         and d_moy = 12
         and d_year = 1998
+    )
 ),
 my_revenue as (
     select c_customer_sk, sum(ss_ext_sales_price) as revenue
@@ -35,7 +37,8 @@ my_revenue as (
         customer_address,
         store,
         date_dim
-    where 1 = 1
+    where (
+        1 = 1
         and c_current_addr_sk = ca_address_sk
         and ca_county = s_county
         and ca_state = s_state
@@ -52,6 +55,7 @@ my_revenue as (
                 where d_year = 1998 and d_moy = 12
             )
         )
+    )
     group by c_customer_sk
 ),
 segments as (select cast(round(revenue / 50) as int) as segment from my_revenue)
@@ -59,4 +63,4 @@ select segment, count(*) as num_customers, segment * 50 as segment_base
 from segments
 group by segment
 order by segment nulls first, num_customers nulls first, segment_base
-limit 100
+limit 100;

@@ -111,8 +111,8 @@ pub(super) fn render_from_join(text: &str, violation: &Violation) -> Option<Stri
     Some(format!("{}{pad}{clause}", if at_line_start { "" } else { "\n" }))
 }
 
-/// 首表原在下一行时，重排整个 `from` 正文。
-fn render_from_body(body: &str, indent: usize) -> Option<String> {
+/// 深度 0 的 join 起点；包含 `left`/`outer` 等修饰词。
+pub(super) fn join_starts(body: &str) -> Vec<usize> {
     let tokens = crate::sql::lexer::tokens(body);
     let mut depth = 0i32;
     let mut starts = Vec::new();
@@ -140,6 +140,12 @@ fn render_from_body(body: &str, indent: usize) -> Option<String> {
             _ => {}
         }
     }
+    starts
+}
+
+/// 首表原在下一行时，重排整个 `from` 正文。
+fn render_from_body(body: &str, indent: usize) -> Option<String> {
+    let starts = join_starts(body);
     if starts.is_empty() {
         return None;
     }

@@ -5,7 +5,8 @@ from
     store_sales s,
     date_dim d,
     item i
-where 1 = 1
+where (
+    1 = 1
     and a.ca_address_sk = c.c_current_addr_sk
     and c.c_customer_sk = s.ss_customer_sk
     and s.ss_sold_date_sk = d.d_date_sk
@@ -16,7 +17,8 @@ where 1 = 1
         where d_year = 2001 and d_moy = 1
     )
     and i.i_current_price > 1.2 * (select avg(j.i_current_price) from item j where j.i_category = i.i_category)
+)
 group by a.ca_state
 having count(*) >= 10
 order by cnt nulls first, a.ca_state nulls first
-limit 100
+limit 100;

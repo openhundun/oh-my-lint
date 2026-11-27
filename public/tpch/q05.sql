@@ -6,7 +6,8 @@ from
     supplier,
     nation,
     region
-where 1 = 1
+where (
+    1 = 1
     and c_custkey = o_custkey
     and l_orderkey = o_orderkey
     and l_suppkey = s_suppkey
@@ -14,7 +15,8 @@ where 1 = 1
     and s_nationkey = n_nationkey
     and n_regionkey = r_regionkey
     and r_name = 'ASIA'
-    and o_orderdate >= date '1994-01-01'
-    and o_orderdate < date '1995-01-01'
+    and o_orderdate >= '1994-01-01'::date
+    and o_orderdate < '1995-01-01'::date
+)
 group by n_name
-order by revenue desc
+order by revenue desc;

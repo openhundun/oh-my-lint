@@ -14,7 +14,8 @@ from (
         store_sales,
         date_dim,
         store
-    where 1 = 1
+    where (
+        1 = 1
         and ss_item_sk = i_item_sk
         and ss_sold_date_sk = d_date_sk
         and ss_store_sk = s_store_sk
@@ -24,6 +25,7 @@ from (
             or (i_category in ('Books', 'Electronics', 'Sports') and i_class in ('computers', 'stereo', 'football'))
             or (i_category in ('Men', 'Jewelry', 'Women') and i_class in ('shirts', 'birdal', 'dresses'))
         )
+    )
     group by
         i_category,
         i_class,
@@ -47,4 +49,4 @@ order by
     6,
     7,
     8
-limit 100
+limit 100;

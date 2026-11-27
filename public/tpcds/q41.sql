@@ -1,11 +1,14 @@
 select distinct i_product_name
 from item i1
-where 1 = 1
+where (
+    1 = 1
     and (i_manufact_id between 738 and 738 + 40)
     and (
         select count(*) as item_cnt
         from item
         where (
+            1 = 0
+            or (
             1 = 1
             and i_manufact = i1.i_manufact
             and (
@@ -40,7 +43,7 @@ where 1 = 1
                 )
             )
         )
-        or (
+            or (
             1 = 1
             and i_manufact = i1.i_manufact
             and (
@@ -75,6 +78,8 @@ where 1 = 1
                 )
             )
         )
+        )
     ) > 0
+)
 order by i_product_name
-limit 100
+limit 100;

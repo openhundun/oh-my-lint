@@ -12,4 +12,4 @@ from (
 ) t
 group by ss_customer_sk
 order by sumsales nulls first, ss_customer_sk nulls first
-limit 100
+limit 100;

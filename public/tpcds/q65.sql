@@ -24,14 +24,16 @@ from
         where ss_sold_date_sk = d_date_sk and (d_month_seq between 1176 and 1176 + 11)
         group by ss_store_sk, ss_item_sk
     ) sc
-where 1 = 1
+where (
+    1 = 1
     and sb.ss_store_sk = sc.ss_store_sk
     and sc.revenue <= 0.1 * sb.ave
     and s_store_sk = sc.ss_store_sk
     and i_item_sk = sc.ss_item_sk
+)
 order by
     s_store_name nulls first,
     i_item_desc nulls first,
     s_store_sk nulls first,
     i_item_sk nulls first
-limit 100
+limit 100;

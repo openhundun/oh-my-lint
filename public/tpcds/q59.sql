@@ -58,4 +58,4 @@ from
     ) x
 where s_store_id1 = s_store_id2 and d_week_seq1 = d_week_seq2 - 52
 order by s_store_name1 nulls first, s_store_id1 nulls first, d_week_seq1 nulls first
-limit 100
+limit 100;

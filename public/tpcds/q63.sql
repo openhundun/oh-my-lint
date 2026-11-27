@@ -1,15 +1,13 @@
 select *
 from (
-    select
-        i_manager_id,
-        sum(ss_sales_price) as sum_sales,
-        avg(sum(ss_sales_price)) over(partition by i_manager_id) as avg_monthly_sales
+    select i_manager_id, sum(ss_sales_price) as sum_sales, avg(sum(ss_sales_price)) over(partition by i_manager_id) as avg_monthly_sales
     from
         item,
         store_sales,
         date_dim,
         store
-    where 1 = 1
+    where (
+        1 = 1
         and ss_item_sk = i_item_sk
         and ss_sold_date_sk = d_date_sk
         and ss_store_sk = s_store_sk
@@ -29,6 +27,7 @@ from (
                 and i_brand in ('amalgimporto #1', 'edu packscholar #1', 'exportiimporto #1', 'importoamalg #1')
             )
         )
+    )
     group by i_manager_id, d_moy
 ) tmp1
 where (case
@@ -37,4 +36,4 @@ where (case
     else null
 end) > 0.1
 order by i_manager_id, avg_monthly_sales, sum_sales
-limit 100
+limit 100;

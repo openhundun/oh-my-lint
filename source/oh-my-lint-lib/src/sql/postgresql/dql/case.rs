@@ -1,20 +1,38 @@
-//! 独立 `case` 表达式：分支复杂时展开，函数实参内的 `case` 不展开。
+//! 独立 `case` 表达式：分支复杂时展开，函数实参与窗口内的 `case` 不展开。
 
-use crate::sql::core::spans::{case_spans, function_paren_spans, outermost};
+use crate::sql::core::spans::{case_spans, function_paren_spans, outermost, over_paren_spans};
 use crate::sql::postgresql::dql::checker::Violation;
 use crate::sql::postgresql::dql::clause::Mode;
 use crate::sql::postgresql::dql::util::line_indent;
 
-/// 独立 `case`：分支复杂则展开；函数实参内的 `case` 不展开。
+/// 独立 `case`：分支复杂则展开；函数实参或窗口内的 `case` 不展开。
 pub(super) fn check(statement_start: usize, statement_text: &str, body_base: usize, body: &str, found: &mut Vec<Violation>) {
     let nested: Vec<crate::span::Span> = crate::sql::splitter::all_statements(body).into_iter().skip(1).collect();
     let functions = function_paren_spans(body);
+    let windows = over_paren_spans(body);
     let cases = outermost(case_spans(body));
     for case in cases {
-        if nested.iter().any(|block| block.start <= case.start && case.end <= block.end) || functions.iter().any(|span| span.start <= case.start && case.end <= span.end) {
+        if nested.iter().any(|block| block.start <= case.start && case.end <= block.end) {
             continue;
         }
         let text = &body[case.start..case.end];
+        if windows.iter().any(|span| span.start <= case.start && case.end <= span.end) {
+            if crate::sql::splitter::has_top_level_newline(text) {
+                found.push(Violation {
+                    kind: "case",
+                    element_count: 0,
+                    expected: Mode::Inline,
+                    span: crate::span::Span::new(statement_start + body_base + case.start, statement_start + body_base + case.end),
+                    indent: line_indent(statement_text, body_base + case.start),
+                    next_indent: None,
+                    message: "window case should stay inline".to_owned(),
+                });
+            }
+            continue;
+        }
+        if functions.iter().any(|span| span.start <= case.start && case.end <= span.end) {
+            continue;
+        }
         let expected = if crate::sql::decision::branches_complex(text) { Mode::Break } else { Mode::Inline };
         let actual = crate::sql::splitter::has_top_level_newline(text);
         if (expected == Mode::Break) == actual {

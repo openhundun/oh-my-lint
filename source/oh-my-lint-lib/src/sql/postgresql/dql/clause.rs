@@ -24,11 +24,13 @@ impl Mode {
     }
 }
 
-/// 子句输出：内联文本，或逐元素行；行内不带缩进，由调用方统一加前缀。
+/// 子句输出：内联文本、逐元素行，或带结构括号的条件块。
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClauseOutput {
     Inline(String),
     Exline(Vec<String>),
+    /// 条件块：行内不含缩进；调用方补 `(` / `)` 与 +4 缩进。
+    Block(Vec<String>),
 }
 
 /// 子句是否必须一元素一行；未识别的子句沿用通用阈值。

@@ -200,3 +200,15 @@ git diff --check
 | P5 DDL | done | — | create_table/misc/realign；白名单 2 findings（基线 57） |
 | P6 file | done | — | reorder/comments/realign；fix 无 changes |
 | P7 清理 | done | — | check=render-diff；旧 check 分支删除；215 tests |
+| P8 条件块 | done | — | Break 整块加括号；where/having/on/DML 共用；231 tests；公司 0；PG 2 |
+
+## P8 条件块
+
+- `where` / `having` / `on` 使用同一个 `where` 条件解析器；断行时整块加 `(` / `)`，锚点放在块内，闭括号回关键字缩进。
+- 内联条件不保留结构化外层括号；`ON (a = b)` 这类单条件包裹会被解开。
+- DML 的 `where` 复用同一渲染；CTAS 的简单判定会先解开结构化外层括号，避免把条件块重新压回一行。
+- `on` 从 `join_starts` 之后的第一个深度 0 `on` 取正文，遇到下一个 join 或顶层逗号截止。
+- CTE 字段列表判定要求 `as` 后紧跟 `(`，避免 `with` 查询里的 `round(...) as alias` 被误判成 CTE 列而加空格。
+- `over (...)` 内的 `case` 强制内联，窗口整体仍按简单表达式处理；窗口外的独立 `case` 继续按分支复杂度展开。
+- 子查询只按 `is_simple` 判定是否内联，不再额外按子句数量强制断行；`select` / `from` / `where` 三个简单子句也保持一行。
+- 任意嵌套查询或条件布尔组都会使父级退出 simple；条件里任意层级的布尔组都会触发外层断行，避免 q07/q85/q88 这类嵌套条件被压成一行。

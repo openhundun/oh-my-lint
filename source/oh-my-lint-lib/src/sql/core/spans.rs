@@ -46,6 +46,19 @@ pub(crate) fn outermost(spans: Vec<Span>) -> Vec<Span> {
 
 /// 函数调用括号的区间（从函数名到闭括号）。
 pub(crate) fn function_paren_spans(text: &str) -> Vec<Span> {
+    name_paren_spans(text, |name| match name.kind {
+        crate::sql::lexer::Kind::Word => crate::sql::core::keywords::is_function_name(name.text),
+        crate::sql::lexer::Kind::QuotedIdent => true,
+        _ => false,
+    })
+}
+
+/// `over (...)` 窗口括号的区间；`over` 不是函数名，但内部表达式按窗口整体处理。
+pub(crate) fn over_paren_spans(text: &str) -> Vec<Span> {
+    name_paren_spans(text, |name| name.kind == crate::sql::lexer::Kind::Word && name.text.eq_ignore_ascii_case("over"))
+}
+
+fn name_paren_spans(text: &str, accepts: impl Fn(&crate::sql::lexer::Token<'_>) -> bool) -> Vec<Span> {
     let tokens = crate::sql::lexer::tokens(text);
     let mut spans = Vec::new();
     for (index, token) in tokens.iter().enumerate() {
@@ -60,12 +73,7 @@ pub(crate) fn function_paren_spans(text: &str) -> Vec<Span> {
             continue;
         }
         let name = tokens[probe - 1];
-        let is_name = match name.kind {
-            crate::sql::lexer::Kind::Word => crate::sql::core::keywords::is_function_name(name.text),
-            crate::sql::lexer::Kind::QuotedIdent => true,
-            _ => false,
-        };
-        if !is_name {
+        if !accepts(&name) {
             continue;
         }
         let mut depth = 0;

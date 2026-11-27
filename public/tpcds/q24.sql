@@ -19,7 +19,8 @@ ssales as (
         item,
         customer,
         customer_address
-    where 1 = 1
+    where (
+        1 = 1
         and ss_ticket_number = sr_ticket_number
         and ss_item_sk = sr_item_sk
         and ss_customer_sk = c_customer_sk
@@ -29,6 +30,7 @@ ssales as (
         and c_birth_country != upper(ca_country)
         and s_zip = ca_zip
         and s_market_id = 8
+    )
     group by
         c_last_name,
         c_first_name,
@@ -50,4 +52,4 @@ from ssales
 where i_color = 'peach'
 group by c_last_name, c_first_name, s_store_name
 having sum(netpaid) > (select 0.05 * avg(netpaid) from ssales)
-order by c_last_name, c_first_name, s_store_name
+order by c_last_name, c_first_name, s_store_name;

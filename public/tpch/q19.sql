@@ -1,6 +1,7 @@
 select sum(l_extendedprice * (1 - l_discount)) as revenue
 from lineitem, part
-where 1 = 0
+where (
+    1 = 0
     or (
         1 = 1
         and p_partkey = l_partkey
@@ -34,3 +35,4 @@ where 1 = 0
         and l_shipmode in ('AIR', 'AIR REG')
         and l_shipinstruct = 'DELIVER IN PERSON'
     )
+);

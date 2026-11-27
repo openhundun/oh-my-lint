@@ -18,4 +18,4 @@ order by
     i_brand nulls first,
     i_class nulls first,
     i_category nulls first
-limit 100
+limit 100;

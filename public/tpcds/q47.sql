@@ -15,7 +15,8 @@ v1 as (
         store_sales,
         date_dim,
         store
-    where 1 = 1
+    where (
+        1 = 1
         and ss_item_sk = i_item_sk
         and ss_sold_date_sk = d_date_sk
         and ss_store_sk = s_store_sk
@@ -25,6 +26,7 @@ v1 as (
             or (d_year = 1999 - 1 and d_moy = 12)
             or (d_year = 1999 + 1 and d_moy = 1)
         )
+    )
     group by
         i_category,
         i_brand,
@@ -46,7 +48,8 @@ v2 as (
         v1_lag.sum_sales as psum,
         v1_lead.sum_sales as nsum
     from v1, v1 v1_lag, v1 v1_lead
-    where 1 = 1
+    where (
+        1 = 1
         and v1.i_category = v1_lag.i_category
         and v1.i_category = v1_lead.i_category
         and v1.i_brand = v1_lag.i_brand
@@ -57,10 +60,12 @@ v2 as (
         and v1.s_company_name = v1_lead.s_company_name
         and v1.rn = v1_lag.rn + 1
         and v1.rn = v1_lead.rn - 1
+    )
 )
 select *
 from v2
-where 1 = 1
+where (
+    1 = 1
     and d_year = 1999
     and avg_monthly_sales > 0
     and (case
@@ -68,6 +73,7 @@ where 1 = 1
         then abs(sum_sales - avg_monthly_sales) / avg_monthly_sales
         else null
     end) > 0.1
+)
 order by
     sum_sales - avg_monthly_sales,
     1,
@@ -80,4 +86,4 @@ order by
     8,
     9,
     10
-limit 100
+limit 100;

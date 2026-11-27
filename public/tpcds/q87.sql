@@ -17,4 +17,4 @@ from (
         from web_sales, date_dim, customer
         where web_sales.ws_sold_date_sk = date_dim.d_date_sk and web_sales.ws_bill_customer_sk = customer.c_customer_sk and (d_month_seq between 1200 and 1200 + 11)
     )
-) cool_cust
+) cool_cust;

@@ -5,7 +5,8 @@ from
     customer_demographics,
     customer_address,
     date_dim
-where 1 = 1
+where (
+    1 = 1
     and s_store_sk = ss_store_sk
     and ss_sold_date_sk = d_date_sk
     and d_year = 2000
@@ -57,3 +58,4 @@ where 1 = 1
             and (ss_net_profit between 50 and 25000)
         )
     )
+);

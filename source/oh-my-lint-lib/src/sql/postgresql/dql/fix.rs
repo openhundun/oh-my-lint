@@ -1,11 +1,12 @@
 //! 修复：只重写违规区间，块内其余字节原样保留。
 
 /// 目前能正确渲染的违规类型。
-const SUPPORTED_FIXES: [&str; 21] = [
+const SUPPORTED_FIXES: [&str; 22] = [
     "select",
     "from",
     "where",
     "having",
+    "on",
     "group by",
     "order by",
     "clause-start",
@@ -95,6 +96,12 @@ fn render(text: &str, violation: &crate::sql::checker::Violation, dialect: crate
     if violation.kind == "from-join" {
         return super::join::render_from_join(text, violation);
     }
+    if matches!(violation.kind, "where" | "having") {
+        return render_condition_body(text, violation);
+    }
+    if violation.kind == "on" {
+        return render_condition_body(text, violation);
+    }
     let body = &text[violation.span.start..violation.span.end];
     let elements = crate::sql::splitter::split_elements(violation.kind, body);
     let output = crate::sql::postgresql::dql::clause::render(violation.kind, &elements, violation.expected)?;
@@ -109,18 +116,59 @@ fn render(text: &str, violation: &crate::sql::checker::Violation, dialect: crate
                 String::new()
             };
             let content = lines.iter().map(|line| format!("{padding}{line}")).collect::<Vec<_>>().join("\n");
-            if matches!(violation.kind, "where" | "having") {
-                let anchor = &lines[0];
-                Some(format!(" {anchor}\n{content}{suffix}", content = content.split_once('\n').map(|(_, rest)| rest).unwrap_or("")))
-            } else {
-                Some(format!("\n{content}{suffix}"))
-            }
+            Some(format!("\n{content}{suffix}"))
         }
         crate::sql::postgresql::dql::clause::ClauseOutput::Inline(joined) => {
             let suffix = if has_next { " " } else { "" };
             Some(format!(" {joined}{suffix}"))
         }
+        crate::sql::postgresql::dql::clause::ClauseOutput::Block(lines) => Some(render_block(&lines, violation.indent, has_next, violation.next_indent.unwrap_or(violation.indent))),
     }
+}
+
+/// `where` / `having` / `on`：解析条件正文，统一产出 inline 或括号块。
+fn render_condition_body(text: &str, violation: &crate::sql::checker::Violation) -> Option<String> {
+    let body = &text[violation.span.start..violation.span.end];
+    let condition = crate::sql::postgresql::dql::r#where::parse(body);
+    if condition.elements.is_empty() {
+        return None;
+    }
+    let has_next = violation.span.end < text.len();
+    let next_indent = violation.next_indent.unwrap_or(violation.indent);
+    let next = text.get(violation.span.end..).and_then(|tail| tail.trim_start().chars().next());
+    let next_is_comma = next == Some(',');
+    let next_is_semicolon = next == Some(';');
+    let multiline = !crate::sql::decision::is_simple(text);
+    match crate::sql::postgresql::dql::r#where::mode(&condition.elements) {
+        crate::sql::postgresql::dql::Mode::Inline => {
+            let suffix = if !has_next || next_is_comma || next_is_semicolon {
+                String::new()
+            } else if multiline && next != Some(')') {
+                format!("\n{}", " ".repeat(next_indent))
+            } else {
+                " ".to_owned()
+            };
+            Some(format!(" {}{suffix}", crate::sql::postgresql::dql::r#where::inline_text(&condition.elements)))
+        }
+        crate::sql::postgresql::dql::Mode::Break => Some(render_block(
+            &crate::sql::postgresql::dql::r#where::block_lines(&condition.elements),
+            violation.indent,
+            has_next && !next_is_comma,
+            next_indent,
+        )),
+    }
+}
+
+/// 条件块：` (` 与关键字同行，内容 +4，闭括号回关键字缩进。
+fn render_block(lines: &[String], indent: usize, has_next: bool, next_indent: usize) -> String {
+    let padding = " ".repeat(indent + 4);
+    let content = lines.iter().map(|line| format!("{padding}{line}")).collect::<Vec<_>>().join("\n");
+    let mut output = format!(" (\n{content}\n{})", " ".repeat(indent));
+    if has_next {
+        output.push('\n');
+        output.push_str(&" ".repeat(next_indent));
+    }
+    output
 }
 
 #[cfg(test)]
@@ -154,14 +202,22 @@ mod tests {
         let fixed = crate::sql::format(sql).expect("format");
         assert_eq!(
             fixed,
-            "select a\nfrom t\nwhere 1 = 1\n    and a = 1\n    and (\n        x between (\n            select 1\n            from u\n            where p = 1 and q = 2\n        ) and (select 2 from u)\n    );"
+            "select a\nfrom t\nwhere (\n    1 = 1\n    and a = 1\n    and (\n        x between (\n            select 1\n            from u\n            where p = 1 and q = 2\n        ) and (select 2 from u)\n    )\n);"
         );
         assert_eq!(crate::sql::format(&fixed).expect("second"), fixed);
     }
 
     #[test]
-    fn leaves_compliant_sql_untouched() {
+    fn wraps_break_where_and_stays_idempotent() {
         let sql = "select a, b\nfrom t\nwhere 1 = 1\n    and a = 1\n    and b = 2\n    and c = 3\n    and d = 4";
+        let expected = "select a, b\nfrom t\nwhere (\n    1 = 1\n    and a = 1\n    and b = 2\n    and c = 3\n    and d = 4\n)";
+        assert_eq!(crate::sql::fix::format(sql).expect("format"), expected);
+        assert_eq!(crate::sql::fix::format(expected).expect("second"), expected);
+    }
+
+    #[test]
+    fn keeps_canonical_break_where_untouched() {
+        let sql = "select a, b\nfrom t\nwhere (\n    1 = 1\n    and a = 1\n    and b = 2\n    and c = 3\n    and d = 4\n)";
         assert_eq!(crate::sql::fix::format(sql).expect("format"), sql);
     }
 
@@ -217,10 +273,10 @@ mod tests {
     }
 
     #[test]
-    fn inlines_simple_group() {
+    fn breaks_where_with_nested_group() {
         let sql = "select a\nfrom t\nwhere 1 = 1\n    and (\n        1 = 0\n        or x = 1\n        or y = 2\n    )\n    and b = 2\n    and c = 3";
         let fixed = crate::sql::fix::format(sql).expect("format");
-        assert!(fixed.contains("where (x = 1 or y = 2) and b = 2 and c = 3"), "{fixed}");
+        assert!(fixed.contains("where (\n    1 = 1\n    and (x = 1 or y = 2)\n    and b = 2\n    and c = 3\n)"), "{fixed}");
         assert!(check_complete(&fixed), "{fixed}");
     }
 
@@ -278,7 +334,7 @@ mod tests {
 
     #[test]
     fn aligns_cte_closing_paren() {
-        let sql = "with\nx as (\n    select a\n    from t\n    )\nselect a from x";
+        let sql = "with\nx as (\n    select a\n    from t\n    where a = 1 and b = 2 and c = 3 and d = 4\n    )\nselect a from x";
         let fixed = crate::sql::fix::format(sql).expect("format");
         assert!(fixed.contains("\n)\nselect a"), "{fixed}");
         assert!(check_complete(&fixed), "{fixed}");

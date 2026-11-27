@@ -17,4 +17,4 @@ select
     sum(case when ssci.customer_sk is not null and csci.customer_sk is not null then 1 else 0 end) as store_and_catalog
 from ssci
 full join csci on ssci.customer_sk = csci.customer_sk and ssci.item_sk = csci.item_sk
-limit 100
+limit 100;

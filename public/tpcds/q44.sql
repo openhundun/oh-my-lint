@@ -3,9 +3,7 @@ from
     (
         select *
         from (
-            select
-                item_sk,
-                rank() over(order by rank_col) as rnk
+            select item_sk, rank() over(order by rank_col) as rnk
             from (
                 select ss_item_sk as item_sk, avg(ss_net_profit) as rank_col
                 from store_sales ss1
@@ -24,9 +22,7 @@ from
     (
         select *
         from (
-            select
-                item_sk,
-                rank() over(order by rank_col desc) as rnk
+            select item_sk, rank() over(order by rank_col desc) as rnk
             from (
                 select ss_item_sk as item_sk, avg(ss_net_profit) as rank_col
                 from store_sales ss1
@@ -46,4 +42,4 @@ from
     item i2
 where asceding.rnk = descending.rnk and i1.i_item_sk = asceding.item_sk and i2.i_item_sk = descending.item_sk
 order by asceding.rnk, i1.i_product_name desc, i2.i_product_name desc
-limit 100
+limit 100;

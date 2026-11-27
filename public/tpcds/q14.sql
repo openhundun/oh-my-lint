@@ -53,12 +53,14 @@ from (
         sum(ss_quantity * ss_list_price) as sales,
         count(*) as number_sales
     from store_sales, item, date_dim
-    where 1 = 1
+    where (
+        1 = 1
         and ss_item_sk in (select ss_item_sk from cross_items)
         and ss_item_sk = i_item_sk
         and ss_sold_date_sk = d_date_sk
         and d_year = 1999 + 2
         and d_moy = 11
+    )
     group by i_brand_id, i_class_id, i_category_id
     having sum(ss_quantity * ss_list_price) > (select average_sales from avg_sales)
     union all
@@ -70,12 +72,14 @@ from (
         sum(cs_quantity * cs_list_price) as sales,
         count(*) as number_sales
     from catalog_sales, item, date_dim
-    where 1 = 1
+    where (
+        1 = 1
         and cs_item_sk in (select ss_item_sk from cross_items)
         and cs_item_sk = i_item_sk
         and cs_sold_date_sk = d_date_sk
         and d_year = 1999 + 2
         and d_moy = 11
+    )
     group by i_brand_id, i_class_id, i_category_id
     having sum(cs_quantity * cs_list_price) > (select average_sales from avg_sales)
     union all
@@ -87,12 +91,14 @@ from (
         sum(ws_quantity * ws_list_price) as sales,
         count(*) as number_sales
     from web_sales, item, date_dim
-    where 1 = 1
+    where (
+        1 = 1
         and ws_item_sk in (select ss_item_sk from cross_items)
         and ws_item_sk = i_item_sk
         and ws_sold_date_sk = d_date_sk
         and d_year = 1999 + 2
         and d_moy = 11
+    )
     group by i_brand_id, i_class_id, i_category_id
     having sum(ws_quantity * ws_list_price) > (select average_sales from avg_sales)
 ) y
@@ -107,4 +113,4 @@ order by
     i_brand_id nulls first,
     i_class_id nulls first,
     i_category_id nulls first
-limit 100
+limit 100;

@@ -13,12 +13,14 @@ results as (
         date_dim d1,
         item,
         store
-    where 1 = 1
+    where (
+        1 = 1
         and d1.d_year = 2001
         and d1.d_date_sk = ss_sold_date_sk
         and i_item_sk = ss_item_sk
         and s_store_sk = ss_store_sk
         and s_state = 'TN'
+    )
     group by i_category, i_class
 ),
 results_rollup as (
@@ -58,7 +60,7 @@ select
     rank() over(partition by lochierarchy, (case when t_class = 0 then i_category end) order by gross_margin) as rank_within_parent
 from results_rollup
 order by
-    lochierarchy desc nulls first,
+    lochierarchy desc,
     (case when lochierarchy = 0 then i_category end) nulls first,
     rank_within_parent nulls first
-limit 100
+limit 100;

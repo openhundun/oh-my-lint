@@ -5,7 +5,8 @@ from
     customer_address,
     date_dim,
     item
-where 1 = 1
+where (
+    1 = 1
     and ws_bill_customer_sk = c_customer_sk
     and c_current_addr_sk = ca_address_sk
     and ws_item_sk = i_item_sk
@@ -17,6 +18,7 @@ where 1 = 1
     and ws_sold_date_sk = d_date_sk
     and d_qoy = 2
     and d_year = 2001
+)
 group by ca_zip, ca_city
 order by ca_zip, ca_city
-limit 100
+limit 100;

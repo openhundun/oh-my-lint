@@ -11,7 +11,8 @@ from (
         partsupp,
         orders,
         nation
-    where 1 = 1
+    where (
+        1 = 1
         and s_suppkey = l_suppkey
         and ps_suppkey = l_suppkey
         and ps_partkey = l_partkey
@@ -19,6 +20,7 @@ from (
         and o_orderkey = l_orderkey
         and s_nationkey = n_nationkey
         and p_name like '%green%'
+    )
 ) profit
 group by nation, o_year
-order by nation, o_year desc
+order by nation, o_year desc;

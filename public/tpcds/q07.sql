@@ -10,7 +10,8 @@ from
     date_dim,
     item,
     promotion
-where 1 = 1
+where (
+    1 = 1
     and ss_sold_date_sk = d_date_sk
     and ss_item_sk = i_item_sk
     and ss_cdemo_sk = cd_demo_sk
@@ -20,6 +21,7 @@ where 1 = 1
     and cd_education_status = 'College'
     and (p_channel_email = 'N' or p_channel_event = 'N')
     and d_year = 2000
+)
 group by i_item_id
 order by i_item_id
-limit 100
+limit 100;

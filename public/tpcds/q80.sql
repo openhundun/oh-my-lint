@@ -11,7 +11,8 @@ ssr as (
     cross join store
     cross join item
     cross join promotion
-    where 1 = 1
+    where (
+        1 = 1
         and ss_sold_date_sk = d_date_sk
         and (d_date between cast('2000-08-23' as date) and cast('2000-09-22' as date))
         and ss_store_sk = s_store_sk
@@ -19,6 +20,7 @@ ssr as (
         and i_current_price > 50
         and ss_promo_sk = p_promo_sk
         and p_channel_tv = 'N'
+    )
     group by s_store_id
 ),
 csr as (
@@ -33,7 +35,8 @@ csr as (
     cross join catalog_page
     cross join item
     cross join promotion
-    where 1 = 1
+    where (
+        1 = 1
         and cs_sold_date_sk = d_date_sk
         and (d_date between cast('2000-08-23' as date) and cast('2000-09-22' as date))
         and cs_catalog_page_sk = cp_catalog_page_sk
@@ -41,6 +44,7 @@ csr as (
         and i_current_price > 50
         and cs_promo_sk = p_promo_sk
         and p_channel_tv = 'N'
+    )
     group by cp_catalog_page_id
 ),
 wsr as (
@@ -55,7 +59,8 @@ wsr as (
     cross join web_site
     cross join item
     cross join promotion
-    where 1 = 1
+    where (
+        1 = 1
         and ws_sold_date_sk = d_date_sk
         and (d_date between cast('2000-08-23' as date) and cast('2000-09-22' as date))
         and ws_web_site_sk = web_site_sk
@@ -63,6 +68,7 @@ wsr as (
         and i_current_price > 50
         and ws_promo_sk = p_promo_sk
         and p_channel_tv = 'N'
+    )
     group by web_site_id
 )
 select
@@ -98,4 +104,4 @@ from (
 ) x
 group by rollup(channel, id)
 order by channel nulls first, id nulls first
-limit 100
+limit 100;

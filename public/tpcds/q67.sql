@@ -27,11 +27,13 @@ from (
             date_dim,
             store,
             item
-        where 1 = 1
+        where (
+            1 = 1
             and ss_sold_date_sk = d_date_sk
             and ss_item_sk = i_item_sk
             and ss_store_sk = s_store_sk
             and (d_month_seq between 1200 and 1200 + 11)
+        )
         group by rollup(
             i_category,
             i_class,
@@ -56,4 +58,4 @@ order by
     s_store_id nulls first,
     sumsales nulls first,
     rk nulls first
-limit 100
+limit 100;

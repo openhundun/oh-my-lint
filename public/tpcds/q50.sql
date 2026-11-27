@@ -20,7 +20,8 @@ from
     store,
     date_dim d1,
     date_dim d2
-where 1 = 1
+where (
+    1 = 1
     and d2.d_year = 2001
     and d2.d_moy = 8
     and ss_ticket_number = sr_ticket_number
@@ -29,6 +30,7 @@ where 1 = 1
     and sr_returned_date_sk = d2.d_date_sk
     and ss_customer_sk = sr_customer_sk
     and ss_store_sk = s_store_sk
+)
 group by
     s_store_name,
     s_company_id,
@@ -51,4 +53,4 @@ order by
     s_county,
     s_state,
     s_zip
-limit 100
+limit 100;

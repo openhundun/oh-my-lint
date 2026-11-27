@@ -10,7 +10,8 @@ from
             customer,
             customer_address,
             item
-        where 1 = 1
+        where (
+            1 = 1
             and ss_sold_date_sk = d_date_sk
             and ss_store_sk = s_store_sk
             and ss_promo_sk = p_promo_sk
@@ -23,6 +24,7 @@ from
             and s_gmt_offset = -5
             and d_year = 1998
             and d_moy = 11
+        )
     ) promotional_sales,
     (
         select sum(ss_ext_sales_price) as total
@@ -33,7 +35,8 @@ from
             customer,
             customer_address,
             item
-        where 1 = 1
+        where (
+            1 = 1
             and ss_sold_date_sk = d_date_sk
             and ss_store_sk = s_store_sk
             and ss_customer_sk = c_customer_sk
@@ -44,6 +47,7 @@ from
             and s_gmt_offset = -5
             and d_year = 1998
             and d_moy = 11
+        )
     ) all_sales
 order by promotions, total
-limit 100
+limit 100;

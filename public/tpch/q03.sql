@@ -4,12 +4,14 @@ select
     o_orderdate,
     o_shippriority
 from customer, orders, lineitem
-where 1 = 1
+where (
+    1 = 1
     and c_mktsegment = 'BUILDING'
     and c_custkey = o_custkey
     and l_orderkey = o_orderkey
-    and o_orderdate < date '1995-03-15'
-    and l_shipdate > date '1995-03-15'
+    and o_orderdate < '1995-03-15'::date
+    and l_shipdate > '1995-03-15'::date
+)
 group by l_orderkey, o_orderdate, o_shippriority
 order by revenue desc, o_orderdate
-limit 10
+limit 10;

@@ -49,4 +49,4 @@ order by
     d_year nulls first,
     d_qoy nulls first,
     i_category nulls first
-limit 100
+limit 100;

@@ -4,7 +4,8 @@ from
     household_demographics,
     time_dim,
     store
-where 1 = 1
+where (
+    1 = 1
     and ss_sold_time_sk = time_dim.t_time_sk
     and ss_hdemo_sk = household_demographics.hd_demo_sk
     and ss_store_sk = s_store_sk
@@ -12,5 +13,6 @@ where 1 = 1
     and time_dim.t_minute >= 30
     and household_demographics.hd_dep_count = 7
     and store.s_store_name = 'ese'
+)
 order by count(*)
-limit 100
+limit 100;

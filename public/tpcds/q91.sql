@@ -11,7 +11,8 @@ from
     customer_address,
     customer_demographics,
     household_demographics
-where 1 = 1
+where (
+    1 = 1
     and cr_call_center_sk = cc_call_center_sk
     and cr_returned_date_sk = d_date_sk
     and cr_returning_customer_sk = c_customer_sk
@@ -27,10 +28,11 @@ where 1 = 1
     )
     and hd_buy_potential like 'Unknown%'
     and ca_gmt_offset = -7
+)
 group by
     cc_call_center_id,
     cc_name,
     cc_manager,
     cd_marital_status,
     cd_education_status
-order by sum(cr_net_loss) desc
+order by sum(cr_net_loss) desc;

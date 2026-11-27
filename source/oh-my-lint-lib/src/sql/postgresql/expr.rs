@@ -4,28 +4,23 @@ use crate::sql::core::keywords::is_function_name;
 
 static ALIAS: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new(r#"(?i)\bas\s+(\w+|"[^"]+"|`[^`]+`)\s*$"#).expect("alias"));
 
-/// 元素是否复杂：子查询、case、窗口函数、条件里的复杂函数、布尔组、超长 in 列表。
+/// 元素是否复杂：子查询、case、窗口函数、条件里的复杂函数、任意布尔组、超长 in 列表。
 pub fn is_complex(element: &str, kind: &str) -> bool {
     has_word(element, "case")
         || has_subquery(element)
         || (!matches!(kind, "select" | "order by") && has_complex_function_call(element))
         || has_oversized_in_list(element)
-        || has_breaking_boolean_group(element)
+        || (is_condition_context(kind) && has_boolean_group(element))
 }
 
-/// 只有组内条件超过 3 个或本身复杂时才把外层条件一起拉断。
-fn has_breaking_boolean_group(text: &str) -> bool {
-    for group in crate::sql::splitter::boolean_group_spans(text) {
-        let conditions = crate::sql::splitter::split_elements("where", &text[group.start..group.end]);
-        if conditions.len() > 3
-            || conditions
-                .iter()
-                .any(|condition| has_subquery(&condition.text) || has_word(&condition.text, "case") || has_complex_function_call(&condition.text) || has_oversized_in_list(&condition.text))
-        {
-            return true;
-        }
-    }
-    false
+/// 条件上下文才把布尔组视为复杂；select / order by 的算术括号不参与。
+fn is_condition_context(kind: &str) -> bool {
+    matches!(kind, "where" | "having" | "on" | "")
+}
+
+/// 任意布尔组；嵌套组和外层组都算，父级据此退出简单判定。
+fn has_boolean_group(text: &str) -> bool {
+    !crate::sql::splitter::boolean_group_spans(text).is_empty()
 }
 
 /// 是否以 `as <标识符>` 结尾。
@@ -70,9 +65,12 @@ pub fn needs_break(kind: &str, elements: &[crate::sql::splitter::Element]) -> bo
     crate::sql::postgresql::dql::clause::needs_break(kind, elements)
 }
 
-/// 简单语句块：select ≤3、其他子句 ≤1、无 with 与集合运算、每子句不断行、嵌套体简单。
+/// 简单语句块：select ≤3、其他子句 ≤1、无 with/集合运算、无嵌套查询、无条件布尔组。
 pub fn is_simple(text: &str) -> bool {
     if starts_with_word(text, "with") {
+        return false;
+    }
+    if crate::sql::splitter::all_statements(text).into_iter().nth(1).is_some() {
         return false;
     }
     let clauses = crate::sql::splitter::clause_spans(text);
@@ -83,17 +81,19 @@ pub fn is_simple(text: &str) -> bool {
         return false;
     }
     for clause in &clauses {
-        let elements = crate::sql::splitter::split_elements(clause.kind, &text[clause.body_start..clause.body_end]);
+        let body = &text[clause.body_start..clause.body_end];
+        if matches!(clause.kind, "where" | "having" | "from") && has_boolean_group(body) {
+            return false;
+        }
+        let condition = matches!(clause.kind, "where" | "having").then(|| crate::sql::postgresql::dql::r#where::parse(body));
+        let elements = condition
+            .as_ref()
+            .map_or_else(|| crate::sql::splitter::split_elements(clause.kind, body), |condition| condition.elements.clone());
         let limit = if clause.kind == "select" { 3 } else { 1 };
         if elements.len() > limit {
             return false;
         }
         if !elements.is_empty() && needs_break(clause.kind, &elements) {
-            return false;
-        }
-    }
-    for inner in crate::sql::splitter::all_statements(text).into_iter().skip(1) {
-        if !is_simple(&text[inner.start..inner.end]) {
             return false;
         }
     }
@@ -441,6 +441,16 @@ mod tests {
         assert!(crate::sql::decision::is_simple("select count(*) from t where a = 1"));
         assert!(!crate::sql::decision::is_simple("select a from t1, t2"));
         assert!(!crate::sql::decision::is_simple("with x as (select a from t) select a from x"));
+        assert!(!crate::sql::decision::is_simple("select a from t where (a = 1 or b = 2)"));
+        assert!(!crate::sql::decision::is_simple("select a from t where x < (select y from u)"));
+        assert!(crate::sql::decision::is_simple("select 0.2 * avg(l_quantity) from lineitem where l_partkey = p_partkey"));
+    }
+
+    #[test]
+    fn boolean_groups_are_complex_in_conditions() {
+        assert!(crate::sql::decision::is_complex("(a = 1 or b = 2)", "where"));
+        assert!(crate::sql::decision::is_complex("(a = 1 and b = 2) or (c = 3 and d = 4)", "where"));
+        assert!(!crate::sql::decision::is_complex("(a + b)", "select"));
     }
 
     #[test]

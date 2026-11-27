@@ -18,17 +18,20 @@ select
     max(cd_dep_college_count),
     avg(cd_dep_college_count)
 from customer c, customer_address ca, customer_demographics
-where 1 = 1
+where (
+    1 = 1
     and c.c_current_addr_sk = ca.ca_address_sk
     and cd_demo_sk = c.c_current_cdemo_sk
     and exists (
         select *
         from store_sales, date_dim
-        where 1 = 1
+        where (
+            1 = 1
             and c.c_customer_sk = ss_customer_sk
             and ss_sold_date_sk = d_date_sk
             and d_year = 2002
             and d_qoy < 4
+        )
     )
     and (
         exists (
@@ -45,13 +48,16 @@ where 1 = 1
         or exists (
             select *
             from catalog_sales, date_dim
-            where 1 = 1
+            where (
+                1 = 1
                 and c.c_customer_sk = cs_ship_customer_sk
                 and cs_sold_date_sk = d_date_sk
                 and d_year = 2002
                 and d_qoy < 4
+            )
         )
     )
+)
 group by
     ca_state,
     cd_gender,
@@ -66,4 +72,4 @@ order by
     cd_dep_count nulls first,
     cd_dep_employed_count nulls first,
     cd_dep_college_count nulls first
-limit 100
+limit 100;

@@ -4,7 +4,8 @@ from
     lineitem l1,
     orders,
     nation
-where 1 = 1
+where (
+    1 = 1
     and s_suppkey = l1.l_suppkey
     and o_orderkey = l1.l_orderkey
     and o_orderstatus = 'F'
@@ -21,6 +22,7 @@ where 1 = 1
     )
     and s_nationkey = n_nationkey
     and n_name = 'SAUDI ARABIA'
+)
 group by s_name
 order by numwait desc, s_name
-limit 100
+limit 100;

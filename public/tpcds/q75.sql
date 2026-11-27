@@ -70,7 +70,8 @@ select
     curr_yr.sales_cnt - prev_yr.sales_cnt as sales_cnt_diff,
     curr_yr.sales_amt - prev_yr.sales_amt as sales_amt_diff
 from all_sales curr_yr, all_sales prev_yr
-where 1 = 1
+where (
+    1 = 1
     and curr_yr.i_brand_id = prev_yr.i_brand_id
     and curr_yr.i_class_id = prev_yr.i_class_id
     and curr_yr.i_category_id = prev_yr.i_category_id
@@ -78,5 +79,6 @@ where 1 = 1
     and curr_yr.d_year = 2002
     and prev_yr.d_year = 2002 - 1
     and cast(curr_yr.sales_cnt as decimal(17, 2)) / cast(prev_yr.sales_cnt as decimal(17, 2)) < 0.9
+)
 order by sales_cnt_diff, sales_amt_diff
-limit 100
+limit 100;

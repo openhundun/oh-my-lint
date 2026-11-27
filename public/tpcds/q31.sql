@@ -33,7 +33,8 @@ from
     ws ws1,
     ws ws2,
     ws ws3
-where 1 = 1
+where (
+    1 = 1
     and ss1.d_qoy = 1
     and ss1.d_year = 2000
     and ss1.ca_county = ss2.ca_county
@@ -53,4 +54,5 @@ where 1 = 1
     and ws3.d_year = 2000
     and (case when ws1.web_sales > 0 then (ws2.web_sales * 1.0000) / ws1.web_sales else null end) > (case when ss1.store_sales > 0 then (ss2.store_sales * 1.0000) / ss1.store_sales else null end)
     and (case when ws2.web_sales > 0 then (ws3.web_sales * 1.0000) / ws2.web_sales else null end) > (case when ss2.store_sales > 0 then (ss3.store_sales * 1.0000) / ss2.store_sales else null end)
-order by ss1.ca_county
+)
+order by ss1.ca_county;

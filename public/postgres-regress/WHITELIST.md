@@ -79,6 +79,7 @@ done
 - 48 个文件零 findings；
 - 1 个文件共 2 条结构 finding：`collate.sql`（`cte close should align with with`、`from should start a new line`）。
 - 相比 2026-11-26 的 14 文件 / 57 findings，残留减少到 1 文件 / 2 findings。
+- 同日落地条件块规则（`where` / `having` / `on` 断行整块加括号）后复验，仍为 48 个零 finding 文件 / 1 文件 2 findings；没有新增回归。
 - 本轮同时修复了整文件 tokenizer 失败导致 `insert/values/on conflict` 全文件跳过的问题；残留在 `with ... as (...)` 的闭括号缩进与主查询 `from` 断行，属于已知布局缺口。
 
 因此 Tier A/B 是**导入白名单**，不保证整文件零 finding；严格 CI 门禁应只跑文件中的 DDL 语句，或继续使用现有小型 fixture。

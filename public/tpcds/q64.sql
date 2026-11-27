@@ -46,7 +46,8 @@ cross_sales as (
         income_band ib1,
         income_band ib2,
         item
-    where 1 = 1
+    where (
+        1 = 1
         and ss_store_sk = s_store_sk
         and ss_sold_date_sk = d1.d_date_sk
         and ss_customer_sk = c_customer_sk
@@ -69,6 +70,7 @@ cross_sales as (
         and i_color in ('purple', 'burlywood', 'indian', 'spring', 'floral', 'medium')
         and (i_current_price between 64 and 64 + 10)
         and (i_current_price between 64 + 1 and 64 + 15)
+    )
     group by
         i_product_name,
         i_item_sk,
@@ -109,16 +111,18 @@ select
     cs2.syear,
     cs2.cnt
 from cross_sales cs1, cross_sales cs2
-where 1 = 1
+where (
+    1 = 1
     and cs1.item_sk = cs2.item_sk
     and cs1.syear = 1999
     and cs2.syear = 1999 + 1
     and cs2.cnt <= cs1.cnt
     and cs1.store_name = cs2.store_name
     and cs1.store_zip = cs2.store_zip
+)
 order by
     cs1.product_name,
     cs1.store_name,
     cs2.cnt,
     cs1.s1,
-    cs2.s1
+    cs2.s1;

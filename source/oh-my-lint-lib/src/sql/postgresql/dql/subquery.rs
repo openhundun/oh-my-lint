@@ -34,10 +34,20 @@ pub(super) fn is_query_block(text: &str) -> bool {
     first.is_some_and(|token| token.kind == crate::sql::lexer::Kind::Word && (token.text.eq_ignore_ascii_case("select") || token.text.eq_ignore_ascii_case("with")))
 }
 
-/// 内联子查询体展开：按 DQL 递归渲染，每个子句独占一行，闭括号回到元素缩进。
+/// 子查询渲染：复杂块展开，简单块压回一行。
 pub(super) fn render(text: &str, violation: &Violation, dialect: Dialect) -> Option<String> {
     let block = &text[violation.span.start..violation.span.end];
-    format_nested(block, violation.indent, dialect)
+    match violation.expected {
+        crate::sql::postgresql::dql::clause::Mode::Break => format_nested(block, violation.indent, dialect),
+        crate::sql::postgresql::dql::clause::Mode::Inline => {
+            let flat = crate::sql::postgresql::dql::util::collapse_whitespace(block);
+            if flat.trim().is_empty() {
+                return None;
+            }
+            let formatted = crate::sql::postgresql::dql::fix::format_with(&flat, dialect).ok()?;
+            Some(crate::sql::postgresql::dql::util::collapse_whitespace(&formatted))
+        }
+    }
 }
 
 /// 把子查询体压平后按 DQL 重排，并统一加一级缩进；检查与修复共用。
@@ -47,27 +57,7 @@ pub(super) fn format_nested(block: &str, indent: usize, dialect: Dialect) -> Opt
         return None;
     }
     let body = crate::sql::postgresql::dql::fix::format_with(&flat, dialect).ok()?;
-    let body = break_simple_clauses(&body);
     Some(indent_block(&body, indent))
-}
-
-/// 三层及以上的简单子查询也逐子句成行，避免 select/from 与 where 混排。
-fn break_simple_clauses(body: &str) -> String {
-    if body.contains('\n') {
-        return body.to_owned();
-    }
-    let clauses = crate::sql::splitter::clause_spans(body);
-    if clauses.len() < 3 {
-        return body.to_owned();
-    }
-    clauses
-        .iter()
-        .map(|clause| {
-            let text = body[clause.body_start..clause.body_end].trim();
-            if text.is_empty() { clause.kind.to_owned() } else { format!("{} {text}", clause.kind) }
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
 }
 
 /// 子查询/函数实参展开后的缩进：正文 +4，闭括号回到起始缩进。

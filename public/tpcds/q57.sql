@@ -14,7 +14,8 @@ v1 as (
         catalog_sales,
         date_dim,
         call_center
-    where 1 = 1
+    where (
+        1 = 1
         and cs_item_sk = i_item_sk
         and cs_sold_date_sk = d_date_sk
         and cc_call_center_sk = cs_call_center_sk
@@ -24,6 +25,7 @@ v1 as (
             or (d_year = 1999 - 1 and d_moy = 12)
             or (d_year = 1999 + 1 and d_moy = 1)
         )
+    )
     group by
         i_category,
         i_brand,
@@ -43,7 +45,8 @@ v2 as (
         v1_lag.sum_sales as psum,
         v1_lead.sum_sales as nsum
     from v1, v1 v1_lag, v1 v1_lead
-    where 1 = 1
+    where (
+        1 = 1
         and v1.i_category = v1_lag.i_category
         and v1.i_category = v1_lead.i_category
         and v1.i_brand = v1_lag.i_brand
@@ -52,10 +55,12 @@ v2 as (
         and v1.cc_name = v1_lead.cc_name
         and v1.rn = v1_lag.rn + 1
         and v1.rn = v1_lead.rn - 1
+    )
 )
 select *
 from v2
-where 1 = 1
+where (
+    1 = 1
     and d_year = 1999
     and avg_monthly_sales > 0
     and (case
@@ -63,6 +68,7 @@ where 1 = 1
         then abs(sum_sales - avg_monthly_sales) / avg_monthly_sales
         else null
     end) > 0.1
+)
 order by
     sum_sales - avg_monthly_sales nulls first,
     1,
@@ -74,4 +80,4 @@ order by
     7,
     8,
     9
-limit 100
+limit 100;

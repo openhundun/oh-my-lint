@@ -14,7 +14,8 @@ results as (
         date_dim,
         store,
         item
-    where 1 = 1
+    where (
+        1 = 1
         and ss_sold_date_sk = d_date_sk
         and ss_item_sk = i_item_sk
         and ss_store_sk = s_store_sk
@@ -24,6 +25,7 @@ results as (
         and cd_education_status = 'College'
         and d_year = 2002
         and s_state = 'TN'
+    )
 )
 select
     i_item_id,
@@ -67,4 +69,4 @@ from (
     from results
 ) foo
 order by i_item_id nulls first, s_state nulls first
-limit 100
+limit 100;

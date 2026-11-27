@@ -6,7 +6,8 @@ from
     household_demographics,
     income_band,
     store_returns
-where 1 = 1
+where (
+    1 = 1
     and ca_city = 'Edgewood'
     and c_current_addr_sk = ca_address_sk
     and ib_lower_bound >= 38128
@@ -15,5 +16,6 @@ where 1 = 1
     and cd_demo_sk = c_current_cdemo_sk
     and hd_demo_sk = c_current_hdemo_sk
     and sr_cdemo_sk = cd_demo_sk
+)
 order by c_customer_id nulls first
-limit 100
+limit 100;

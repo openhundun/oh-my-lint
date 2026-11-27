@@ -16,7 +16,8 @@ from (
         customer,
         nation n1,
         nation n2
-    where 1 = 1
+    where (
+        1 = 1
         and s_suppkey = l_suppkey
         and o_orderkey = l_orderkey
         and c_custkey = o_custkey
@@ -27,7 +28,8 @@ from (
             or (n1.n_name = 'FRANCE' and n2.n_name = 'GERMANY')
             or (n1.n_name = 'GERMANY' and n2.n_name = 'FRANCE')
         )
-        and (l_shipdate between date '1995-01-01' and date '1996-12-31')
+        and (l_shipdate between '1995-01-01'::date and '1996-12-31'::date)
+    )
 ) shipping
 group by supp_nation, cust_nation, l_year
-order by supp_nation, cust_nation, l_year
+order by supp_nation, cust_nation, l_year;

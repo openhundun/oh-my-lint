@@ -200,7 +200,7 @@ git diff --check
 | P5 DDL | done | — | create_table/misc/realign；白名单 2 findings（基线 57） |
 | P6 file | done | — | reorder/comments/realign；fix 无 changes |
 | P7 清理 | done | — | check=render-diff；旧 check 分支删除；215 tests |
-| P8 条件块 | done | — | Break 整块加括号；where/having/on/DML 共用；243 tests；公司 0；PG 2 |
+| P8 条件块 | done | — | Break 整块加括号；where/having/on/DML 共用；245 tests；公司 0；PG 2 |
 
 ## P8 条件块
 
@@ -223,3 +223,4 @@ git diff --check
 - CTE 分隔符 `),` 后的下一个 CTE 名必须另起一行；`with` 检查新增 `with-separator` 违规与修复。
 - DML `from`/`using` 的单元素派生表若子查询非简单，按 DQL 子查询版式展开；不再把 `select ... order by ...` 压回表别名一行。
 - 多行 `insert ... values` 的 `values` 独立成行、与 `insert into` 头同缩进，元组与 `values` 同缩进；单行仍保持 `insert ... values (...)` 同行。
+- 多行 `values` 元组按列左对齐，列宽用 Unicode display width（ASCII 1、CJK 2）；末列补空格，右括号对齐。

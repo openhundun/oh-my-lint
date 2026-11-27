@@ -4,6 +4,7 @@ use crate::span::Span;
 use crate::sql::lexer::{self, Kind, Token};
 use crate::sql::parse::{Dialect, classify_one};
 use crate::sql::splitter;
+use unicode_width::UnicodeWidthStr;
 
 /// `values` 出现的上下文；决定是否折叠元组以及派生表缩进。
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -276,17 +277,46 @@ fn layout_values(input: ValuesInput, text: &str, values_end: usize, tuples: &[(u
         return ValuesOutput::Inline { text: replacement, span: Span::new(start, end) };
     }
 
+    let rows = tuples
+        .iter()
+        .map(|(start, end)| {
+            let tuple = &text[*start..*end];
+            let inner = tuple.strip_prefix('(').and_then(|tuple| tuple.strip_suffix(')')).unwrap_or(tuple);
+            splitter::split_elements("values", inner)
+                .into_iter()
+                .map(|element| collapse_whitespace(&element.text))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+    let columns = rows.iter().map(Vec::len).max().unwrap_or(0);
+    let widths = (0..columns)
+        .map(|column| rows.iter().filter_map(|row| row.get(column)).map(|cell| display_width(cell)).max().unwrap_or(0))
+        .collect::<Vec<_>>();
     let mut replacement = String::new();
-    for (position, (start, end)) in tuples.iter().enumerate() {
+    for (position, row) in rows.iter().enumerate() {
         if position > 0 {
             replacement.push(',');
         }
         replacement.push('\n');
         replacement.push_str(indent);
-        replacement.push_str(&collapse_whitespace(&text[*start..*end]));
+        replacement.push('(');
+        for (column, cell) in row.iter().enumerate() {
+            replacement.push_str(cell);
+            let padding = widths.get(column).copied().unwrap_or(0).saturating_sub(display_width(cell));
+            if column + 1 < row.len() {
+                replacement.push(',');
+                replacement.push(' ');
+            }
+            replacement.extend(std::iter::repeat_n(' ', padding));
+        }
+        replacement.push(')');
     }
     let last_end = tuples.last().map_or(values_end, |(_, end)| *end);
     ValuesOutput::Exline { text: replacement, span: Span::new(values_end, last_end) }
+}
+
+fn display_width(text: &str) -> usize {
+    UnicodeWidthStr::width(text)
 }
 
 fn tuple_spans(tokens: &[Token<'_>], start: usize) -> Option<Vec<(usize, usize)>> {
@@ -475,6 +505,24 @@ mod tests {
         let sql = "insert into t (a, b) values (1, 2), (3, 4);";
         let expected = "insert into t (a, b)\nvalues\n(1, 2),\n(3, 4);";
         assert!(!crate::sql::check(sql).is_empty(), "check should report values on the header line");
+        assert_eq!(format(sql), expected);
+        assert_eq!(format(expected), expected);
+        assert!(crate::sql::check(expected).is_empty(), "{:?}", crate::sql::check(expected));
+    }
+
+    #[test]
+    fn aligns_multi_row_insert_values_by_display_width() {
+        let sql = "insert into t (a, b, c) values (1, 'a', '中'), (100, 'bb', 'x');";
+        let expected = "insert into t (a, b, c)\nvalues\n(1,   'a',  '中'),\n(100, 'bb', 'x' );";
+        assert_eq!(format(sql), expected);
+        assert_eq!(format(expected), expected);
+        assert!(crate::sql::check(expected).is_empty(), "{:?}", crate::sql::check(expected));
+    }
+
+    #[test]
+    fn aligns_multi_row_derived_values_by_display_width() {
+        let sql = "select * from (values (1, '中'), (100, 'x')) t(a, b);";
+        let expected = "select * from (\n    values\n    (1,   '中'),\n    (100, 'x' )\n) t (a, b);";
         assert_eq!(format(sql), expected);
         assert_eq!(format(expected), expected);
         assert!(crate::sql::check(expected).is_empty(), "{:?}", crate::sql::check(expected));

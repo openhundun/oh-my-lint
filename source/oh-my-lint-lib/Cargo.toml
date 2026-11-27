@@ -8,3 +8,4 @@ regex      = { workspace = true }
 serde      = { workspace = true }
 similar    = { workspace = true }
 sqlparser  = { workspace = true }
+unicode-width = { workspace = true }

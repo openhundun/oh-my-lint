@@ -59,8 +59,12 @@ impl Engine {
         let mut found = Vec::new();
         for block in &document.blocks {
             for rule in &self.rules {
+                let findings = rule.check(block);
+                if findings.is_empty() {
+                    continue;
+                }
                 let fixable = rule.fix(block).is_some();
-                for finding in rule.check(block) {
+                for finding in findings {
                     found.push(LocatedFinding { block_span: block.span, finding, fixable });
                 }
             }

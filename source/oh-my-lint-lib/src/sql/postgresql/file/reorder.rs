@@ -350,6 +350,10 @@ fn index_parts(statement: &str) -> Option<IndexParts<'_>> {
         return None;
     }
     let head_end = token_end(&toks[index_token]);
+    if name.start < head_end {
+        // `create index on t (...)` 没有索引名；只做 token 规范化，不参与组内对齐。
+        return None;
+    }
     let head = statement[..head_end].trim_end();
     let options = statement[head_end..name.start].trim();
     let where_token = depth_zero_word(&toks, "where", on_token + 1);
@@ -464,6 +468,13 @@ comment on column t.b is 'b';\n";
 comment on column t.b is 'b';\n\
 comment on column t.a is 'a';\n";
         assert_eq!(format(sql), expected);
+    }
+
+    #[test]
+    fn skips_unnamed_index_without_panicking() {
+        let sql = "create table t (a bigint);\ncreate index on t (a);\n";
+        let formatted = format(sql);
+        assert!(formatted.contains("create index on t (a);"), "{formatted}");
     }
 
     #[test]

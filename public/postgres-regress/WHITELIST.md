@@ -74,11 +74,12 @@ done
 
 ## 验证快照
 
-2026-11-26 用当前 formatter 对 49 个白名单文件跑 `fix --write` 后再 `check`：
+2026-11-27 用当前 formatter 对 49 个白名单文件跑 `fix --write` 后再 `check`：
 
-- 35 个文件零 findings；
-- 14 个文件共 57 条结构 finding：`rowsecurity.sql`、`inherit.sql`、`identity.sql`、`tsearch.sql`、`alter_column_type.sql`、`alter_table.sql`、`comments.sql`、`tablespace.sql`、`collate.sql`、`create_index.sql`、`foreign_data.sql`、`select_into.sql`、`create_view.sql`、`domain.sql`。
-- 残留主要来自官方文件里夹带的 DQL/EXPLAIN 或已记录的布局缺口，不是 DDL 语句解析失败。
+- 48 个文件零 findings；
+- 1 个文件共 2 条结构 finding：`collate.sql`（`cte close should align with with`、`from should start a new line`）。
+- 相比 2026-11-26 的 14 文件 / 57 findings，残留减少到 1 文件 / 2 findings。
+- 本轮同时修复了整文件 tokenizer 失败导致 `insert/values/on conflict` 全文件跳过的问题；残留在 `with ... as (...)` 的闭括号缩进与主查询 `from` 断行，属于已知布局缺口。
 
 因此 Tier A/B 是**导入白名单**，不保证整文件零 finding；严格 CI 门禁应只跑文件中的 DDL 语句，或继续使用现有小型 fixture。
 

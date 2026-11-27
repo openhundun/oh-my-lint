@@ -1,19 +1,14 @@
 //! SQL 断行规则：检查与增量修复。
 
-mod astmap;
-mod checker;
-mod comments;
-mod ddl;
-mod ddl_misc;
-mod decision;
-mod dml;
-mod fix;
-mod groups;
-mod lexer;
-mod parse;
-mod splitter;
-mod token;
-mod values;
+mod core;
+mod postgresql;
+
+pub(crate) use core::{astmap, lexer, parse, splitter, token};
+use postgresql::dml::on_conflict;
+use postgresql::dql::values;
+pub(crate) use postgresql::dql::{checker, fix};
+pub(crate) use postgresql::expr as decision;
+pub(crate) use postgresql::file::{comments, realign, reorder as groups};
 
 pub use parse::Dialect;
 
@@ -46,37 +41,17 @@ fn check_with_inner(sql: &str, dialect: Dialect) -> Vec<crate::model::Finding> {
             }
             continue;
         }
-        match kind {
-            StatementKind::Query => {
-                findings.extend(
-                    crate::sql::checker::violations_with(statement, dialect)
-                        .into_iter()
-                        .map(|violation| finding(violation.message, violation.span.shift(span.start))),
-                );
-                findings.extend(token_findings(statement, *span, dialect));
-            }
-            StatementKind::Other => {
-                findings.extend(token_findings(statement, *span, dialect));
-            }
-            StatementKind::Delete | StatementKind::Explain | StatementKind::Update | StatementKind::CreateTable | StatementKind::CreateIndex | StatementKind::AlterTable | StatementKind::Insert => {
-                findings.extend(token_findings(statement, *span, dialect));
-                if layout(kind, statement, dialect).is_some_and(|output| {
-                    let output = comments::trim_trailing_spaces(&output, dialect);
-                    let output = if matches!(kind, StatementKind::Insert | StatementKind::Update) {
-                        values::format(&output, dialect)
-                    } else {
-                        output
-                    };
-                    if kind == StatementKind::CreateIndex {
-                        // 同组索引的 `on` 对齐会引入额外空格；结构错误仍由 token 规则报告。
-                        comparable(&output) != comparable(statement)
-                    } else {
-                        output != statement
-                    }
-                }) {
-                    findings.push(finding(format!("{} layout differs", label(kind)), *span));
-                }
-            }
+        let Some(rendered) = check_statement(statement, kind, dialect) else {
+            continue;
+        };
+        let differs = if kind == StatementKind::CreateIndex {
+            // 同组索引的 `on` 对齐会引入额外空格；结构错误仍由 token 规则报告。
+            comparable(&rendered) != comparable(statement)
+        } else {
+            rendered != statement
+        };
+        if differs {
+            findings.extend(diff_findings(statement, kind, *span, dialect));
         }
     }
     let last_has_comment = spans.last().is_some_and(|span| crate::sql::lexer::has_comment(&sql[span.start..span.end]));
@@ -88,6 +63,34 @@ fn check_with_inner(sql: &str, dialect: Dialect) -> Vec<crate::model::Finding> {
         findings.push(finding("statement must end with a semicolon".to_owned(), crate::span::Span::empty(last.end)));
     }
     findings
+}
+
+/// 检查与修复共用同一条语句渲染管线；`check` 只比较渲染结果。
+fn check_statement(statement: &str, kind: StatementKind, dialect: Dialect) -> Option<String> {
+    let output = format_statement(statement, dialect)?;
+    let output = match kind {
+        StatementKind::Insert => on_conflict::format(&values::format(&output, dialect), dialect),
+        StatementKind::Update => values::format(&output, dialect),
+        _ => output,
+    };
+    Some(comments::trim_trailing_spaces(&output, dialect))
+}
+
+/// 渲染差异的诊断；DQL 仍用违规列表补足子句级定位。
+fn diff_findings(statement: &str, kind: StatementKind, span: crate::span::Span, dialect: Dialect) -> Vec<crate::model::Finding> {
+    if kind == StatementKind::Query {
+        let violations = crate::sql::checker::violations_with(statement, dialect);
+        if !violations.is_empty() {
+            return violations.into_iter().map(|violation| finding(violation.message, violation.span.shift(span.start))).collect();
+        }
+    }
+    if kind == StatementKind::Other {
+        let token = token_findings(statement, span, dialect);
+        if !token.is_empty() {
+            return token;
+        }
+    }
+    vec![finding(format!("{} layout differs", label(kind)), span)]
 }
 
 /// 忽略空白宽度差异的比较键。
@@ -119,10 +122,10 @@ fn finding(message: String, span: crate::span::Span) -> crate::model::Finding {
 /// 派发版式模块；`None` 表示该门类没有模块能渲染。
 fn layout(kind: StatementKind, sql: &str, dialect: Dialect) -> Option<String> {
     match kind {
-        StatementKind::Delete | StatementKind::Explain | StatementKind::Update => crate::sql::dml::layout(sql, dialect),
-        StatementKind::CreateTable => crate::sql::ddl::layout(sql, dialect).or_else(|| crate::sql::ddl_misc::layout(sql, dialect)),
-        StatementKind::CreateIndex | StatementKind::AlterTable => crate::sql::ddl_misc::layout(sql, dialect),
-        StatementKind::Insert => crate::sql::dml::layout(sql, dialect),
+        StatementKind::Delete | StatementKind::Explain | StatementKind::Update => crate::sql::postgresql::dml::layout(sql, dialect),
+        StatementKind::CreateTable => crate::sql::postgresql::ddl::create_table::layout(sql, dialect).or_else(|| crate::sql::postgresql::ddl::misc::layout(sql, dialect)),
+        StatementKind::CreateIndex | StatementKind::AlterTable => crate::sql::postgresql::ddl::misc::layout(sql, dialect),
+        StatementKind::Insert => crate::sql::postgresql::dml::layout(sql, dialect),
         StatementKind::Query | StatementKind::Other => None,
     }
 }
@@ -175,8 +178,9 @@ fn format_with_inner(sql: &str, dialect: Dialect) -> crate::error::Result<String
         output = ensure_final_semicolon(output, end);
     }
     let output = values::format(&output, dialect);
+    let output = on_conflict::format(&output, dialect);
     let output = groups::group_ddl(&output, dialect);
-    let output = comments::format_comment_blocks(&output, dialect);
+    let output = realign::format_comment_blocks(&output, dialect);
     let output = comments::trim_trailing_spaces(&output, dialect);
     Ok(comments::collapse_blank_lines(&output))
 }

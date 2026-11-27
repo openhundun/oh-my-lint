@@ -675,7 +675,7 @@ fn paren_hugs(tokens: &[Token], flavors: &[(Span, StatementFlavor)], index: usiz
             if matches!(lower.as_str(), "left" | "right") {
                 return Some(true);
             }
-            Some(crate::sql::decision::is_function_name(token.text))
+            Some(crate::sql::core::keywords::is_function_name(token.text))
         }
         _ => None,
     }
@@ -761,7 +761,7 @@ fn named_argument(tokens: &[Token], index: usize) -> bool {
             ) {
                 return false;
             }
-            crate::sql::decision::is_function_name(tokens[name].text)
+            crate::sql::core::keywords::is_function_name(tokens[name].text)
         }
         _ => false,
     }
@@ -1583,8 +1583,8 @@ fn field_alias_edits(body: &str, sql: &str, base: usize, edits: &mut Vec<Edit>) 
 
 /// 独立 `case` 补括号（函数实参内的不加）。
 fn case_paren_edits(sql: &str, edits: &mut Vec<Edit>) {
-    let functions = crate::sql::checker::function_paren_spans(sql);
-    let cases = crate::sql::checker::outermost(crate::sql::checker::case_spans(sql));
+    let functions = crate::sql::core::spans::function_paren_spans(sql);
+    let cases = crate::sql::core::spans::outermost(crate::sql::core::spans::case_spans(sql));
     for case in cases {
         if functions.iter().any(|span| span.start <= case.start && case.end <= span.end) {
             continue;

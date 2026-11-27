@@ -1,53 +1,6 @@
 //! 元素形态与断行判定：把 `complex` / `simple` / `decide` 固化成函数。
 
-/// 判定函数调用时必须排除的结构关键字：它们后面跟括号不是函数。
-const NON_FUNCTION_WORDS: [&str; 45] = [
-    "all",
-    "and",
-    "as",
-    "asc",
-    "between",
-    "by",
-    "case",
-    "cross",
-    "desc",
-    "distinct",
-    "else",
-    "end",
-    "exists",
-    "except",
-    "first",
-    "from",
-    "full",
-    "group",
-    "having",
-    "identity",
-    "in",
-    "inner",
-    "intersect",
-    "is",
-    "join",
-    "last",
-    "left",
-    "limit",
-    "not",
-    "null",
-    "on",
-    "options",
-    "or",
-    "order",
-    "outer",
-    "over",
-    "right",
-    "select",
-    "then",
-    "union",
-    "using",
-    "values",
-    "when",
-    "where",
-    "with",
-];
+use crate::sql::core::keywords::is_function_name;
 
 static ALIAS: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| regex::Regex::new(r#"(?i)\bas\s+(\w+|"[^"]+"|`[^`]+`)\s*$"#).expect("alias"));
 
@@ -112,23 +65,9 @@ pub fn has_join(element: &str) -> bool {
     false
 }
 
-/// 子句是否必须一元素一行。
+/// 子句是否必须一元素一行；实现由 DQL 子句模块提供。
 pub fn needs_break(kind: &str, elements: &[crate::sql::splitter::Element]) -> bool {
-    let count = elements.len();
-    if kind == "from" {
-        if count >= 4 || elements.iter().any(|element| has_join(&element.text)) {
-            return true;
-        }
-        return count >= 2 && elements.iter().any(|element| is_derived(&element.text));
-    }
-    if count <= 1 {
-        return kind == "select" && elements.first().is_some_and(|element| has_subquery(&element.text) || function_contains_subquery(&element.text));
-    }
-    let complex = elements.iter().any(|element| is_complex(&element.text, kind));
-    if kind == "select" {
-        return count >= 4 || complex || (count == 3 && elements.iter().all(|element| has_alias(&element.text)));
-    }
-    count >= 4 || complex
+    crate::sql::postgresql::dql::clause::needs_break(kind, elements)
 }
 
 /// 简单语句块：select ≤3、其他子句 ≤1、无 with 与集合运算、每子句不断行、嵌套体简单。
@@ -163,15 +102,7 @@ pub fn is_simple(text: &str) -> bool {
 
 /// 条件连接词转成文本；首元素为 `and`，保持 `where 1 = 1` 的语料形态。
 pub fn connector_word(connector: crate::sql::splitter::Connector) -> &'static str {
-    match connector {
-        crate::sql::splitter::Connector::Or => "or",
-        _ => "and",
-    }
-}
-
-/// 是否是函数名：非结构关键字都可以紧跟括号调用。
-pub fn is_function_name(word: &str) -> bool {
-    !NON_FUNCTION_WORDS.iter().any(|candidate| word.eq_ignore_ascii_case(candidate))
+    crate::sql::postgresql::dql::clause::connector_word(connector)
 }
 
 /// `case` 分支是否复杂：只按分支本身判定，不把 `case` 关键字算进去。
@@ -355,7 +286,7 @@ fn simple_operand(tokens: &[crate::sql::lexer::Token<'_>]) -> bool {
 }
 
 /// 函数实参内是否含子查询。
-fn function_contains_subquery(text: &str) -> bool {
+pub(crate) fn function_contains_subquery(text: &str) -> bool {
     let tokens = crate::sql::lexer::tokens(text);
     for (index, token) in tokens.iter().enumerate() {
         if token.kind != crate::sql::lexer::Kind::Punct || token.text != "(" {

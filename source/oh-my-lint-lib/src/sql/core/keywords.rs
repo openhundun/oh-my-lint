@@ -1,0 +1,55 @@
+//! 词法关键字分类：结构关键字后跟括号时不是函数调用。
+
+/// 判定函数调用时必须排除的结构关键字：它们后面跟括号不是函数。
+const NON_FUNCTION_WORDS: [&str; 45] = [
+    "all",
+    "and",
+    "as",
+    "asc",
+    "between",
+    "by",
+    "case",
+    "cross",
+    "desc",
+    "distinct",
+    "else",
+    "end",
+    "exists",
+    "except",
+    "first",
+    "from",
+    "full",
+    "group",
+    "having",
+    "identity",
+    "in",
+    "inner",
+    "intersect",
+    "is",
+    "join",
+    "last",
+    "left",
+    "limit",
+    "not",
+    "null",
+    "on",
+    "options",
+    "or",
+    "order",
+    "outer",
+    "over",
+    "right",
+    "select",
+    "then",
+    "union",
+    "using",
+    "values",
+    "when",
+    "where",
+    "with",
+];
+
+/// 是否是函数名：非结构关键字都可以紧跟括号调用。
+pub(crate) fn is_function_name(word: &str) -> bool {
+    !NON_FUNCTION_WORDS.iter().any(|candidate| word.eq_ignore_ascii_case(candidate))
+}

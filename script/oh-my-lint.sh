@@ -9,7 +9,6 @@ readonly TARGET_DIR="${REPO_DIR}/target"
 readonly DIST_DIR="${REPO_DIR}/dist"
 
 SMOKE_DIR=""
-FMT_CONFIG=""
 
 function help() {
     echo "USAGE: ${0} job__check [step__fmt|step__clippy|step__test|step__build|step__smoke]"
@@ -20,22 +19,14 @@ function cleanup() {
     if [[ -n "${SMOKE_DIR}" ]]; then
         rm -rf "${SMOKE_DIR}"
     fi
-    if [[ -n "${FMT_CONFIG}" ]]; then
-        rm -f "${FMT_CONFIG}"
-    fi
 }
 
 trap cleanup EXIT
 
 function step__fmt() {
     cd "${REPO_DIR}"
-    # 仓库不带 rustfmt.toml；用空配置压掉父目录的 workspace 配置，保证本地与 CI 一致。
-    FMT_CONFIG="$(mktemp)"
-    local fmt_path="${FMT_CONFIG}"
-    if command -v cygpath > /dev/null; then
-        fmt_path="$(cygpath -w "${FMT_CONFIG}")"
-    fi
-    cargo fmt --all -- --check --config-path "${fmt_path}"
+    # 仓库自带 rustfmt.toml，直接使用，避免本地继承父目录配置而 CI 用默认值。
+    cargo fmt --all -- --check
 }
 
 function step__clippy() {

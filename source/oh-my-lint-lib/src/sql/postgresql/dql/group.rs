@@ -33,6 +33,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, body_base: usi
             indent: line_indent(statement_text, body_base + group.start.saturating_sub(1)),
             next_indent: None,
             message: format!("group n={} expected={}", conditions.len(), expected.as_str()),
+            condition: None,
         });
     }
 }

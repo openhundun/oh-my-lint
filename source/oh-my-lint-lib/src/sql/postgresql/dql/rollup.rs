@@ -57,6 +57,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, body_base: usi
             indent: line_indent(statement_text, body_base + token.start),
             next_indent: None,
             message: format!("rollup n={} expected={}", args.len(), expected.as_str()),
+            condition: None,
         });
     }
 }

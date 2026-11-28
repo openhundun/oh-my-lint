@@ -48,12 +48,17 @@ pub struct Fix {
     pub edits: Vec<TextEdit>,
     pub scope: FixScope,
     pub safety: FixSafety,
+    /// 这次修复涵盖的稳定规则代码。
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub codes: Vec<String>,
 }
 
 /// 一条诊断；`span` 相对于所在块。
 #[derive(Clone, Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Finding {
     pub rule: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
     pub severity: Severity,
     pub message: String,
     pub span: crate::span::Span,
@@ -68,6 +73,19 @@ pub struct Block {
     pub language: Language,
 }
 
+/// 一个稳定规则代码的公开说明。
+#[derive(serde::Serialize)]
+pub struct RuleDoc {
+    pub code: &'static str,
+    pub description: &'static str,
+    pub applies_to: &'static str,
+    pub when: &'static str,
+    pub layout: &'static str,
+    pub rationale: &'static str,
+    pub before: &'static str,
+    pub after: &'static str,
+}
+
 /// 规则接口；实现者只关心块内文本，文件与范围由引擎处理。
 pub trait Rule: Send + Sync {
     /// 稳定 id，用于配置、输出与测试。
@@ -75,6 +93,11 @@ pub trait Rule: Send + Sync {
 
     /// 一行说明，供 `rules` 命令使用。
     fn description(&self) -> &'static str;
+
+    /// 规则族公开的稳定代码及其说明。
+    fn codes(&self) -> &'static [RuleDoc] {
+        &[]
+    }
 
     /// 检查一个块，返回块内坐标的诊断。
     fn check(&self, block: &Block) -> Vec<Finding>;

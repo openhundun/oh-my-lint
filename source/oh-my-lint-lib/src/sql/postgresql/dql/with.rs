@@ -34,6 +34,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, block: crate::
                 indent,
                 next_indent: None,
                 message: "with should start its own line".to_owned(),
+                condition: None,
             });
         }
     } else if let Some((_, close, _, _)) = &single
@@ -47,6 +48,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, block: crate::
             indent,
             next_indent: None,
             message: "single simple cte should stay on the with line".to_owned(),
+            condition: None,
         });
     }
     if single.is_none() {
@@ -91,6 +93,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, block: crate::
                             indent,
                             next_indent: None,
                             message: "cte should start a new line after comma".to_owned(),
+                            condition: None,
                         });
                     }
                 }
@@ -114,6 +117,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, block: crate::
                 indent,
                 next_indent: None,
                 message: "cte close should align with with".to_owned(),
+                condition: None,
             });
         }
     }
@@ -138,6 +142,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, block: crate::
             indent,
             next_indent: None,
             message: "query should start a new line".to_owned(),
+            condition: None,
         });
     }
 }

@@ -26,6 +26,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, body_base: usi
                     indent: line_indent(statement_text, body_base + case.start),
                     next_indent: None,
                     message: "window case should stay inline".to_owned(),
+                    condition: None,
                 });
             }
             continue;
@@ -46,6 +47,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, body_base: usi
             indent: line_indent(statement_text, body_base + case.start),
             next_indent: None,
             message: format!("case expected={}", expected.as_str()),
+            condition: None,
         });
     }
 }

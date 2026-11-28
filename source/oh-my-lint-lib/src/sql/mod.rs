@@ -12,6 +12,8 @@ pub(crate) use postgresql::file::{comments, realign, reorder as groups};
 
 pub use parse::Dialect;
 
+use postgresql::dql::condition_changes::{ConditionChange, ConditionChanges};
+
 use crate::sql::parse::StatementKind;
 
 /// 检查一段 SQL（Postgres 方言），返回块内坐标的诊断。
@@ -41,7 +43,7 @@ fn check_with_inner(sql: &str, dialect: Dialect) -> Vec<crate::model::Finding> {
             }
             continue;
         }
-        let Some(rendered) = check_statement(statement, kind, dialect) else {
+        let Some((rendered, changes)) = check_statement(statement, kind, dialect) else {
             continue;
         };
         let differs = if kind == StatementKind::CreateIndex {
@@ -51,7 +53,7 @@ fn check_with_inner(sql: &str, dialect: Dialect) -> Vec<crate::model::Finding> {
             rendered != statement
         };
         if differs {
-            findings.extend(diff_findings(statement, kind, *span, dialect));
+            findings.extend(diff_findings(statement, kind, *span, dialect, changes.confirmed(statement, &rendered)));
         }
     }
     let realigned = realign::format_comment_blocks(sql, dialect);
@@ -71,22 +73,38 @@ fn check_with_inner(sql: &str, dialect: Dialect) -> Vec<crate::model::Finding> {
 }
 
 /// 检查与修复共用同一条语句渲染管线；`check` 只比较渲染结果。
-fn check_statement(statement: &str, kind: StatementKind, dialect: Dialect) -> Option<String> {
-    let output = format_statement(statement, dialect)?;
+fn check_statement(statement: &str, kind: StatementKind, dialect: Dialect) -> Option<(String, ConditionChanges)> {
+    let (output, changes) = format_statement(statement, kind, dialect, true)?;
     let output = values::format(&output, dialect);
     let output = match kind {
         StatementKind::Insert => on_conflict::format(&output, dialect),
         _ => output,
     };
-    Some(comments::trim_trailing_spaces(&output, dialect))
+    Some((comments::trim_trailing_spaces(&output, dialect), changes))
 }
 
-/// 渲染差异的诊断；DQL 仍用违规列表补足子句级定位。
-fn diff_findings(statement: &str, kind: StatementKind, span: crate::span::Span, dialect: Dialect) -> Vec<crate::model::Finding> {
+/// 已迁移的条件诊断来自实际应用的决定；其他 DQL 布局仍沿用旧定位。
+fn diff_findings(statement: &str, kind: StatementKind, span: crate::span::Span, dialect: Dialect, changes: Vec<ConditionChange>) -> Vec<crate::model::Finding> {
     if kind == StatementKind::Query {
-        let violations = crate::sql::checker::violations_with(statement, dialect);
-        if !violations.is_empty() {
-            return violations.into_iter().map(|violation| finding(violation.message, violation.span.shift(span.start))).collect();
+        let mut findings: Vec<_> = changes
+            .into_iter()
+            .map(|change| {
+                let keyword = &statement[change.keyword.start..change.keyword.end];
+                let expected = change.strategy.mode().as_str();
+                let mut finding = finding(format!("{} condition layout should be {expected}", keyword.to_ascii_lowercase()), change.keyword.shift(span.start));
+                finding.code = Some(change.strategy.code().to_owned());
+                finding
+            })
+            .collect();
+        findings.extend(
+            checker::violations_with(statement, dialect)
+                .into_iter()
+                .filter(|violation| violation.condition.is_none())
+                .map(|violation| finding(violation.message, violation.span.shift(span.start))),
+        );
+        if !findings.is_empty() {
+            findings.sort_by_key(|finding| finding.span);
+            return findings;
         }
     }
     if kind == StatementKind::Other {
@@ -121,7 +139,14 @@ fn token_findings(statement: &str, span: crate::span::Span, dialect: Dialect) ->
 
 /// 一条块内诊断；语句级 span 已加基址。
 fn finding(message: String, span: crate::span::Span) -> crate::model::Finding {
-    crate::model::Finding { rule: "sql-break".to_owned(), severity: crate::model::Severity::Warning, message, span, fix: None }
+    crate::model::Finding {
+        rule: "sql-break".to_owned(),
+        code: None,
+        severity: crate::model::Severity::Warning,
+        message,
+        span,
+        fix: None,
+    }
 }
 
 /// 派发版式模块；`None` 表示该门类没有模块能渲染。
@@ -156,19 +181,30 @@ pub fn format(sql: &str) -> crate::error::Result<String> {
 
 /// 按指定方言格式化；无法解析的语句逐字节保留。
 pub fn format_with(sql: &str, dialect: Dialect) -> crate::error::Result<String> {
-    crate::sql::lexer::with_dialect(dialect, || format_with_inner(sql, dialect))
+    Ok(crate::sql::lexer::with_dialect(dialect, || format_with_inner(sql, dialect, None)))
 }
 
-fn format_with_inner(sql: &str, dialect: Dialect) -> crate::error::Result<String> {
+fn format_with_inner(sql: &str, dialect: Dialect, mut codes: Option<&mut Vec<String>>) -> String {
     let source = comments::strip_comments(sql, dialect);
     let spans = crate::sql::splitter::statements(&source);
     let mut output = source.clone();
     let mut last_processed = false;
     for (index, span) in spans.iter().enumerate().rev() {
         let statement = &source[span.start..span.end];
-        let Some(replacement) = format_statement(statement, dialect) else {
+        let Ok(kind) = crate::sql::parse::classify_one(statement, dialect) else {
             continue;
         };
+        let Some((replacement, changes)) = format_statement(statement, kind, dialect, codes.is_some()) else {
+            continue;
+        };
+        if let Some(codes) = codes.as_deref_mut() {
+            for change in changes.confirmed(statement, &replacement) {
+                let code = change.strategy.code();
+                if !codes.iter().any(|known| known == code) {
+                    codes.push(code.to_owned());
+                }
+            }
+        }
         output.replace_range(span.start..span.end, &replacement);
         if index + 1 == spans.len() {
             last_processed = true;
@@ -187,24 +223,25 @@ fn format_with_inner(sql: &str, dialect: Dialect) -> crate::error::Result<String
     let output = groups::group_ddl(&output, dialect);
     let output = realign::format_comment_blocks(&output, dialect);
     let output = comments::trim_trailing_spaces(&output, dialect);
-    Ok(comments::collapse_blank_lines(&output))
+    comments::collapse_blank_lines(&output)
 }
 
 /// 渲染一条语句；`None` 表示跳过该语句、逐字节保留原文。
-fn format_statement(statement: &str, dialect: Dialect) -> Option<String> {
+fn format_statement(statement: &str, kind: StatementKind, dialect: Dialect, track_conditions: bool) -> Option<(String, ConditionChanges)> {
+    let mut changes = ConditionChanges::default();
     if crate::sql::lexer::has_comment(statement) {
-        return token_only(statement, dialect).or_else(|| Some(statement.to_owned()));
+        return Some((token_only(statement, dialect).unwrap_or_else(|| statement.to_owned()), changes));
     }
-    let kind = crate::sql::parse::classify_one(statement, dialect).ok()?;
     let output = match kind {
         StatementKind::Query => {
             let mut current = crate::sql::token::normalize(statement);
             // token 规范化可能让原本布局器拒绝的表达式变得可布局；继续跑到不动点。
             for _ in 0..4 {
-                let Ok(formatted) = crate::sql::fix::format_with(&current, dialect) else {
+                let Ok((formatted, pass)) = fix::format_with_changes(&current, dialect, track_conditions) else {
                     break;
                 };
                 let next = crate::sql::token::normalize(&formatted);
+                changes.extend(pass);
                 if next == current {
                     break;
                 }
@@ -218,9 +255,9 @@ fn format_statement(statement: &str, dialect: Dialect) -> Option<String> {
         StatementKind::Other => token_only(statement, dialect).unwrap_or_else(|| statement.to_owned()),
     };
     if crate::sql::parse::classify_one(&output, dialect).is_err() {
-        return token_only(statement, dialect);
+        return token_only(statement, dialect).map(|text| (text, ConditionChanges::default()));
     }
-    Some(output)
+    Some((output, changes))
 }
 
 /// DQL 布局器不支持的语句仍执行 token 规范化；结构版式保持原样。
@@ -266,7 +303,11 @@ impl crate::model::Rule for SqlRule {
     }
 
     fn description(&self) -> &'static str {
-        "SQL 断行：子句与元素按数量/复杂度决定内联或逐元素换行"
+        "SQL layout and token normalization."
+    }
+
+    fn codes(&self) -> &'static [crate::model::RuleDoc] {
+        postgresql::dql::r#where::ConditionStrategy::DOCS
     }
 
     fn check(&self, block: &crate::model::Block) -> Vec<crate::model::Finding> {
@@ -274,14 +315,17 @@ impl crate::model::Rule for SqlRule {
     }
 
     fn fix(&self, block: &crate::model::Block) -> Option<crate::model::Fix> {
-        let formatted = crate::sql::format_with(&block.text, self.dialect).ok()?;
+        let mut codes = Vec::new();
+        let formatted = lexer::with_dialect(self.dialect, || format_with_inner(&block.text, self.dialect, Some(&mut codes)));
         if formatted == block.text {
             return None;
         }
+        codes.sort_unstable();
         Some(crate::model::Fix {
             edits: vec![crate::model::TextEdit { span: crate::span::Span::new(0, block.text.len()), replacement: formatted }],
             scope: crate::model::FixScope::Local,
             safety: crate::model::FixSafety::Safe,
+            codes,
         })
     }
 

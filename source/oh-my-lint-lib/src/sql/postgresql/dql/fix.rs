@@ -1,12 +1,11 @@
 //! 修复：只重写违规区间，块内其余字节原样保留。
 
+use super::condition_changes::ConditionChanges;
+
 /// 目前能正确渲染的违规类型。
-const SUPPORTED_FIXES: [&str; 24] = [
+const SUPPORTED_FIXES: [&str; 21] = [
     "select",
     "from",
-    "where",
-    "having",
-    "on",
     "group by",
     "order by",
     "clause-start",
@@ -36,35 +35,50 @@ pub fn format(sql: &str) -> crate::error::Result<String> {
 
 /// 按指定方言修复；每轮重算结构。
 pub fn format_with(sql: &str, dialect: crate::sql::parse::Dialect) -> crate::error::Result<String> {
-    crate::sql::lexer::with_dialect(dialect, || format_with_inner(sql, dialect))
+    format_with_changes(sql, dialect, false).map(|(text, _)| text)
 }
 
-fn format_with_inner(sql: &str, dialect: crate::sql::parse::Dialect) -> crate::error::Result<String> {
+pub(crate) fn format_with_changes(sql: &str, dialect: crate::sql::parse::Dialect, track_conditions: bool) -> crate::error::Result<(String, ConditionChanges)> {
+    crate::sql::lexer::with_dialect(dialect, || format_with_inner(sql, dialect, track_conditions))
+}
+
+fn format_with_inner(sql: &str, dialect: crate::sql::parse::Dialect, track_conditions: bool) -> crate::error::Result<(String, ConditionChanges)> {
     if crate::sql::lexer::has_comment(sql) {
         return Err(crate::error::Error::Rejected("comments are not supported in fix mode".to_owned()));
     }
-    let initial = crate::sql::checker::violations_with(sql, dialect);
-    if let Some(violation) = initial.iter().find(|violation| !SUPPORTED_FIXES.contains(&violation.kind)) {
+    let mut found = crate::sql::checker::violations_with(sql, dialect);
+    if let Some(violation) = found.iter().find(|violation| violation.condition.is_none() && !SUPPORTED_FIXES.contains(&violation.kind)) {
         return Err(crate::error::Error::Rejected(format!("{} layout is not supported yet", violation.kind)));
     }
     let mut current = sql.to_owned();
+    let mut changes = ConditionChanges::default();
     for _ in 0..256 {
-        let found = crate::sql::checker::violations_with(&current, dialect);
         let Some(violation) = found.iter().min_by_key(|violation| (violation.span.start, std::cmp::Reverse(violation.span.len()))) else {
             break;
         };
-        let Some(replacement) = render(&current, violation, dialect) else {
+        let mut nested = ConditionChanges::default();
+        let Some(replacement) = render(&current, violation, dialect, track_conditions, &mut nested) else {
             return Err(crate::error::Error::Rejected(format!("{} layout cannot be rendered in this context", violation.kind)));
         };
         if replacement == current[violation.span.start..violation.span.end] {
             break;
         }
+        if track_conditions {
+            if let Some(condition) = &violation.condition {
+                changes.record(&current, condition.keyword_span, condition.strategy);
+            }
+            changes.extend_nested(&current, violation.span.start, nested);
+        }
         current.replace_range(violation.span.start..violation.span.end, &replacement);
+        found = crate::sql::checker::violations_with(&current, dialect);
     }
-    Ok(current)
+    Ok((current, changes))
 }
 
-fn render(text: &str, violation: &crate::sql::checker::Violation, dialect: crate::sql::parse::Dialect) -> Option<String> {
+fn render(text: &str, violation: &crate::sql::checker::Violation, dialect: crate::sql::parse::Dialect, track_conditions: bool, nested: &mut ConditionChanges) -> Option<String> {
+    if let Some(condition) = &violation.condition {
+        return Some(condition.render(text, violation));
+    }
     if matches!(violation.kind, "set-op" | "set-op-branch" | "set-op-parens") {
         return super::set_op::render(text, violation);
     }
@@ -83,11 +97,10 @@ fn render(text: &str, violation: &crate::sql::checker::Violation, dialect: crate
     if violation.kind == "case" {
         return super::case::render(text, violation);
     }
-    if violation.kind == "subquery" {
-        return super::subquery::render(text, violation, dialect);
-    }
-    if violation.kind == "query-layout" {
-        return super::subquery::format_nested(&text[violation.span.start..violation.span.end], violation.indent, dialect);
+    if matches!(violation.kind, "subquery" | "query-layout") {
+        let (replacement, changes) = super::subquery::render(text, violation, dialect, track_conditions)?;
+        *nested = changes;
+        return Some(replacement);
     }
     if violation.kind == "function-args" {
         return super::function::render(text, violation);
@@ -97,12 +110,6 @@ fn render(text: &str, violation: &crate::sql::checker::Violation, dialect: crate
     }
     if violation.kind == "from-join" {
         return super::join::render_from_join(text, violation);
-    }
-    if matches!(violation.kind, "where" | "having") {
-        return render_condition_body(text, violation);
-    }
-    if violation.kind == "on" {
-        return render_condition_body(text, violation);
     }
     let body = &text[violation.span.start..violation.span.end];
     let elements = crate::sql::splitter::split_elements(violation.kind, body);
@@ -124,56 +131,7 @@ fn render(text: &str, violation: &crate::sql::checker::Violation, dialect: crate
             let suffix = if has_next { " " } else { "" };
             Some(format!(" {joined}{suffix}"))
         }
-        crate::sql::postgresql::dql::clause::ClauseOutput::Block(lines) => Some(render_block(&lines, violation.indent, has_next, violation.next_indent.unwrap_or(violation.indent))),
     }
-}
-
-/// `where` / `having` / `on`：解析条件正文，统一产出 inline 或括号块。
-fn render_condition_body(text: &str, violation: &crate::sql::checker::Violation) -> Option<String> {
-    let body = &text[violation.span.start..violation.span.end];
-    let condition = crate::sql::postgresql::dql::r#where::parse(body);
-    if condition.elements.is_empty() {
-        return None;
-    }
-    let has_next = violation.span.end < text.len();
-    let next_indent = violation.next_indent.unwrap_or(violation.indent);
-    let next = text.get(violation.span.end..).and_then(|tail| tail.trim_start().chars().next());
-    let next_is_comma = next == Some(',');
-    let next_is_semicolon = next == Some(';');
-    let next_starts_newline = text
-        .get(violation.span.end..)
-        .is_some_and(|tail| tail.chars().take_while(|character| character.is_whitespace()).any(|character| character == '\n'));
-    let multiline = !crate::sql::decision::is_simple(text);
-    match crate::sql::postgresql::dql::r#where::mode(&condition.elements) {
-        crate::sql::postgresql::dql::Mode::Inline => {
-            let suffix = if !has_next || next_is_comma || next_is_semicolon || next_starts_newline {
-                String::new()
-            } else if multiline && next != Some(')') {
-                format!("\n{}", " ".repeat(next_indent))
-            } else {
-                " ".to_owned()
-            };
-            Some(format!(" {}{suffix}", crate::sql::postgresql::dql::r#where::inline_text(&condition.elements)))
-        }
-        crate::sql::postgresql::dql::Mode::Break => Some(render_block(
-            &crate::sql::postgresql::dql::r#where::block_lines(&condition.elements),
-            violation.indent,
-            has_next && !next_is_comma && !next_starts_newline,
-            next_indent,
-        )),
-    }
-}
-
-/// 条件块：` (` 与关键字同行，内容 +4，闭括号回关键字缩进。
-fn render_block(lines: &[String], indent: usize, has_next: bool, next_indent: usize) -> String {
-    let padding = " ".repeat(indent + 4);
-    let content = lines.iter().map(|line| format!("{padding}{line}")).collect::<Vec<_>>().join("\n");
-    let mut output = format!(" (\n{content}\n{})", " ".repeat(indent));
-    if has_next {
-        output.push('\n');
-        output.push_str(&" ".repeat(next_indent));
-    }
-    output
 }
 
 #[cfg(test)]

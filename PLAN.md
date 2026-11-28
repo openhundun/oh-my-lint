@@ -201,6 +201,7 @@ git diff --check
 | P6 file | done | — | reorder/comments/realign；fix 无 changes |
 | P7 清理 | done | — | check=render-diff；旧 check 分支删除；215 tests |
 | P8 条件块 | done | — | Break 整块加括号；where/having/on/DML/CHECK 共用；SET/ADD COLUMN 对齐；261 tests；公司 0；PG 2 |
+| P9.1 条件策略编码 | done | — | `WHERE` / `HAVING` / `JOIN ON` 共用决策、渲染、归因与说明；不引入规则开关 |
 
 ## P8 条件块
 
@@ -232,3 +233,9 @@ git diff --check
 - complex `check` 正文按 `where` 条件块渲染：`check (` 后换行、内容 +4、`)` 回约束缩进；简单的 `check` 保持单行。
 - `coalesce`/`nullif` 的 JSON `->`/`->>` 提取视为简单操作数，避免嵌套条件组被误判为复杂而强制断行。
 - tokenizer 遇到 `DO $$ ... $$` 等正文会整段回退；fallback mask 现在扫描字符串、美元引用和注释，只保留 SQL 分号，DO 块不再吞掉后续语句。
+
+## P9 可枚举策略
+
+- 查询条件列表在 `dql/where.rs` 的 `ConditionStrategy` 中声明。每个枚举项用 `#[rule(...)]` 集中维护英文 kebab-case 编码、Rust 判据、输出模式和英文说明。`#[clause_rules(...)]` 从同一份声明生成按顺序选择的策略和 `rules --json` / `explain <code>` 所用的目录。`check` 与 `fix` 用同一策略归因；其它布局仍只报 `sql-break`。
+- 新行为优先挂在有明确职责的类型上：例如 `ConditionStrategy` 选版式，`ConditionLayout` 规划和渲染，`ConditionBody` 判断合规。只为命名不空造结构体，不批量搬迁无关函数。
+- 后续按列表子句、CTE / 集合运算、其它语句和文件层迁移；DML 条件与 DDL `CHECK` 的语法边界仍归各自模块。

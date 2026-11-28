@@ -20,6 +20,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, base: usize, c
             indent: from_indent,
             next_indent: None,
             message: "from should keep the first table on the keyword line".to_owned(),
+            condition: None,
         });
     }
     let tokens = crate::sql::lexer::tokens(body);
@@ -37,6 +38,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, base: usize, c
                     indent: from_indent,
                     next_indent: None,
                     message: "implicit cross join should be written as cross join".to_owned(),
+                    condition: None,
                 });
             }
             crate::sql::lexer::Kind::Word if depth == 0 && token.text.eq_ignore_ascii_case("join") => {
@@ -67,6 +69,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, base: usize, c
                     indent: from_indent,
                     next_indent: None,
                     message: "join should start a new line".to_owned(),
+                    condition: None,
                 });
             }
             _ => {}

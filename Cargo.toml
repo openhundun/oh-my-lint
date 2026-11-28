@@ -1,5 +1,5 @@
 [workspace]
-members  = ["source/oh-my-lint-cli", "source/oh-my-lint-lib"]
+members  = ["source/oh-my-lint-cli", "source/oh-my-lint-lib", "source/oh-my-lint-macros"]
 resolver = "3"
 
 [workspace.package]
@@ -8,11 +8,15 @@ version = "0.1.0"
 
 [workspace.dependencies]
 clap       = { version = "4.6.7", features = ["derive"] }
+oh-my-lint-macros = { path = "source/oh-my-lint-macros" }
+proc-macro2 = "1.0.107"
+quote = "1.0.47"
 regex      = { version = "1.13.1" }
 serde      = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.154" }
 similar    = { version = "3.1.2" }
 sqlparser  = { version = "0.64", features = ["visitor"] }
+syn = { version = "2.0.119", features = ["full"] }
 unicode-width = "0.2"
 
 [profile.release]

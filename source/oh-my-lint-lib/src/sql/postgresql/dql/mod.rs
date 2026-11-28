@@ -3,6 +3,7 @@
 mod case;
 pub(crate) mod checker;
 pub(crate) mod clause;
+pub(crate) mod condition_changes;
 pub(crate) mod fix;
 mod from;
 mod function;

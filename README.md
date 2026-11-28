@@ -8,9 +8,10 @@ v0.1 只实现 **SQL 断行与 token 规范化**（规则 `sql-break`）：DQL �
 
 | 路径                                | 说明                                                          |
 | ----------------------------------- | ------------------------------------------------------------- |
-| `Cargo.toml`                        | Cargo workspace（`source/oh-my-lint-lib`、`source/oh-my-lint-cli`） |
+| `Cargo.toml`                        | Cargo workspace                                               |
 | `source/oh-my-lint-lib/`            | 规则模型、块抽取、修复引擎、SQL 规则                          |
 | `source/oh-my-lint-cli/`            | 二进制 `oh-my-lint`：`check`、`fix`、`rules`、`explain`        |
+| `source/oh-my-lint-macros/`         | 从子句枚举的属性生成策略选择与规则说明                        |
 | `script/oh-my-lint.sh`              | 本地与 CI 共用入口：检查、构建、跨平台打包                    |
 | `.github/workflows/release.yaml`    | 只准备环境并调用 script；构建与打包逻辑在脚本里               |
 | `LICENSE`                           | UNLICENSE                                                     |
@@ -23,12 +24,18 @@ v0.1 只实现 **SQL 断行与 token 规范化**（规则 `sql-break`）：DQL �
 | `oh-my-lint fix <paths> [--dialect <name>] [--dry-run] [--diff] [--write] [--unsafe]` | 修复 SQL 块；默认 dry-run，只有 `--write` 才写回文件 |
 | `oh-my-lint fix --file <path> --range L:C-L:C [--dry-run] [--diff] [--json]`      | 只修复落在指定行列范围内的块                                                  |
 | `oh-my-lint fix --stdin [--stdin-filename <path>] [--lang sql]`                   | 从标准输入读代码，把修复后的块文本写到标准输出                                |
-| `oh-my-lint rules [--json]`                                                       | 列出已注册规则                                                                |
-| `oh-my-lint explain <rule>`                                                       | 输出一条规则的说明                                                            |
+| `oh-my-lint rules [--json]`                                                       | 列出内置规则名及说明                                                          |
+| `oh-my-lint explain <rule-or-code>`                                               | 按规则族或编码查说明，例如 `oh-my-lint explain break-many-conditions`          |
 
 退出码：`0` 干净或修复后无剩余发现；`1` 有 findings，或 dry-run 下会改动，或仍有 skipped；`2` 参数、I/O、解析或修复被拒绝。
 
 `check --json` 输出 `{ "findings": [...], "summary": {...} }`；`fix --json` 输出数组，每项为 `{ "file", "block_range", "fixed_text", "patch", "applied", "skipped", "remaining", "written" }`。
+
+查询的 `WHERE`、`HAVING`、`JOIN ... ON` 条件列表可以在诊断里带 `code`，在修复结果里带 `applied_codes`。`rule` 和 `applied` 仍使用规则族 `sql-break`。编码只用于归因、统计和查说明，不能开关规则或按编码选择修复。SQL 文本和 diff 输出不混入编码摘要。
+
+规则编码使用英文 kebab-case；命令帮助、诊断和规则说明只提供英文。
+
+维护条件规则时，改 [`ConditionStrategy`](source/oh-my-lint-lib/src/sql/postgresql/dql/where.rs) 对应枚举项的 `#[rule(...)]`。`when` 是判据，`output` 是版式；`#[clause_rules]` 按声明顺序选中第一条匹配规则，同时生成 `check`、`fix` 和说明目录使用的规则名。渲染逻辑仍由 `ConditionLayout` 共享。
 
 ## 支持范围
 

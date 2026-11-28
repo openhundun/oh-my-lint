@@ -46,6 +46,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, body_base: usi
             indent: line_indent(statement_text, body_base + call.start),
             next_indent: None,
             message: "function args with a subquery should break".to_owned(),
+            condition: None,
         });
     }
 }

@@ -22,6 +22,7 @@ pub struct BlockFix {
     pub original: String,
     pub fixed: String,
     pub applied: Vec<String>,
+    pub applied_codes: Vec<String>,
     pub skipped: Vec<Skipped>,
     pub remaining: Vec<crate::model::Finding>,
 }
@@ -94,6 +95,7 @@ impl Engine {
     fn fix_block(&self, block: &crate::model::Block, allow_unsafe: bool) -> Option<BlockFix> {
         let mut current = block.text.clone();
         let mut applied = Vec::new();
+        let mut applied_codes = Vec::new();
         let mut skipped = Vec::new();
 
         for rule in &self.rules {
@@ -117,6 +119,11 @@ impl Engine {
                 Ok(next) if next != current => {
                     current = next;
                     applied.push(rule.id().to_owned());
+                    if applied_codes.is_empty() {
+                        applied_codes = fix.codes;
+                    } else {
+                        applied_codes.extend(fix.codes);
+                    }
                 }
                 Ok(_) => {}
                 Err(reason) => skipped.push(Skipped { rule: rule.id().to_owned(), reason }),
@@ -129,7 +136,17 @@ impl Engine {
 
         let fixed_block = crate::model::Block { span: crate::span::Span::default(), text: current.clone(), language: block.language };
         let remaining = self.rules.iter().flat_map(|rule| rule.check(&fixed_block)).collect();
-        Some(BlockFix { block_span: block.span, original: block.text.clone(), fixed: current, applied, skipped, remaining })
+        applied_codes.sort_unstable();
+        applied_codes.dedup();
+        Some(BlockFix {
+            block_span: block.span,
+            original: block.text.clone(),
+            fixed: current,
+            applied,
+            applied_codes,
+            skipped,
+            remaining,
+        })
     }
 }
 
@@ -155,6 +172,7 @@ pub struct FileFix {
     pub original: String,
     pub fixed: String,
     pub applied: Vec<String>,
+    pub applied_codes: Vec<String>,
     pub skipped: Vec<Skipped>,
     pub remaining: Vec<crate::model::Finding>,
 }
@@ -170,6 +188,7 @@ impl Engine {
                 original: fix.original,
                 fixed: fix.fixed,
                 applied: fix.applied,
+                applied_codes: fix.applied_codes,
                 skipped: fix.skipped,
                 remaining: fix.remaining,
             })

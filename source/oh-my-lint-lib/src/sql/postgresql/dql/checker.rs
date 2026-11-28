@@ -1,6 +1,7 @@
 //! 断行检查：只产出违规与定位，不做任何文本修改。
 
 use crate::sql::postgresql::dql::util::{block_indent, line_indent, starts_with_word, trailing_indent};
+use crate::sql::postgresql::dql::r#where;
 
 /// 期望的版式。
 pub(crate) use crate::sql::postgresql::dql::Mode;
@@ -15,6 +16,7 @@ pub struct Violation {
     pub indent: usize,
     pub next_indent: Option<usize>,
     pub message: String,
+    pub(crate) condition: Option<r#where::ConditionLayout>,
 }
 
 const BREAK_KINDS: [&str; 6] = ["select", "from", "where", "having", "group by", "order by"];
@@ -48,6 +50,7 @@ fn violations_inner(sql: &str, dialect: crate::sql::parse::Dialect) -> Vec<Viola
                         indent: line_indent(statement_text, block_span.start),
                         next_indent: None,
                         message: format!("subquery n={count} expected=break"),
+                        condition: None,
                     });
                     continue;
                 }
@@ -67,6 +70,7 @@ fn violations_inner(sql: &str, dialect: crate::sql::parse::Dialect) -> Vec<Viola
                             indent,
                             next_indent: None,
                             message: "subquery body should align with its parentheses".to_owned(),
+                            condition: None,
                         });
                         continue;
                     }
@@ -84,6 +88,7 @@ fn violations_inner(sql: &str, dialect: crate::sql::parse::Dialect) -> Vec<Viola
                     indent: line_indent(statement_text, block_span.start),
                     next_indent: None,
                     message: "simple subquery should be inline".to_owned(),
+                    condition: None,
                 });
             }
             let _ = index;
@@ -154,6 +159,7 @@ pub(super) fn check_clauses(statement_start: usize, statement_text: &str, base: 
                 indent: block_indent,
                 next_indent: None,
                 message: format!("{} should start a new line", clause.kind),
+                condition: None,
             });
         }
     }
@@ -162,54 +168,42 @@ pub(super) fn check_clauses(statement_start: usize, statement_text: &str, base: 
             continue;
         }
         let body = &text[clause.body_start..clause.body_end];
-        let condition = matches!(clause.kind, "where" | "having").then(|| super::r#where::parse(body));
-        let elements = condition
-            .as_ref()
-            .map_or_else(|| crate::sql::splitter::split_elements(clause.kind, body), |condition| condition.elements.clone());
-        if elements.is_empty() {
-            continue;
-        }
-        let has_join = clause.kind == "from" && crate::sql::decision::has_join(body);
-        let expected = if crate::sql::decision::needs_break(clause.kind, &elements) { Mode::Break } else { Mode::Inline };
-        if let Some(condition) = &condition {
-            let indent = line_indent(statement_text, base + clause.keyword_start);
-            let actual = match expected {
-                Mode::Inline => !condition.wrapped && !crate::sql::splitter::has_top_level_newline(body.trim_end()),
-                Mode::Break => condition.wrapped && crate::sql::splitter::has_top_level_newline(condition.inner) && super::r#where::block_layout_ok(body, indent),
-            };
-            if !actual {
-                let message = match (expected, condition.wrapped) {
-                    (Mode::Break, false) => format!("{} should be wrapped", clause.kind),
-                    (Mode::Break, true) => format!("{} condition block is not aligned", clause.kind),
-                    (Mode::Inline, true) => format!("{} should not be wrapped", clause.kind),
-                    (Mode::Inline, false) => format!("{} should be inline", clause.kind),
-                };
-                found.push(Violation {
-                    kind: clause.kind,
-                    element_count: elements.len(),
-                    expected,
-                    span: crate::span::Span::new(statement_start + base + clause.body_start, statement_start + base + clause.body_end),
-                    indent,
-                    next_indent: trailing_indent(body),
-                    message,
-                });
+        let has_join;
+        if matches!(clause.kind, "where" | "having") {
+            let condition = r#where::parse(body);
+            if condition.elements.is_empty() {
+                continue;
             }
-        } else if !has_join {
-            let actual = if expected == Mode::Break {
-                body.starts_with('\n')
-            } else {
-                crate::sql::splitter::has_top_level_newline(body.trim_end())
-            };
-            if (expected == Mode::Break) != actual {
-                found.push(Violation {
-                    kind: clause.kind,
-                    element_count: elements.len(),
-                    expected,
-                    span: crate::span::Span::new(statement_start + base + clause.body_start, statement_start + base + clause.body_end),
-                    indent: line_indent(statement_text, base + clause.keyword_start),
-                    next_indent: trailing_indent(body),
-                    message: format!("{} n={} expected={}", clause.kind, elements.len(), expected.as_str()),
-                });
+            has_join = false;
+            let keyword_start = base + clause.keyword_start;
+            let keyword_span = crate::span::Span::new(statement_start + keyword_start, statement_start + base + clause.body_start);
+            let indent = line_indent(statement_text, keyword_start);
+            found.extend(r#where::ConditionLayout::plan(clause.kind, body, condition, keyword_span, indent, None));
+        } else {
+            let elements = crate::sql::splitter::split_elements(clause.kind, body);
+            if elements.is_empty() {
+                continue;
+            }
+            has_join = clause.kind == "from" && crate::sql::decision::has_join(body);
+            if !has_join {
+                let expected = if crate::sql::decision::needs_break(clause.kind, &elements) { Mode::Break } else { Mode::Inline };
+                let actual = if expected == Mode::Break {
+                    body.starts_with('\n')
+                } else {
+                    crate::sql::splitter::has_top_level_newline(body.trim_end())
+                };
+                if (expected == Mode::Break) != actual {
+                    found.push(Violation {
+                        kind: clause.kind,
+                        element_count: elements.len(),
+                        expected,
+                        span: crate::span::Span::new(statement_start + base + clause.body_start, statement_start + base + clause.body_end),
+                        indent: line_indent(statement_text, base + clause.keyword_start),
+                        next_indent: trailing_indent(body),
+                        message: format!("{} n={} expected={}", clause.kind, elements.len(), expected.as_str()),
+                        condition: None,
+                    });
+                }
             }
         }
         let values_derived = clause.kind == "from" && !has_join && contains_values_derived(body);

@@ -441,3 +441,64 @@ fn fix_mode_accepts_unparseable_block() {
     assert!(replacement.contains(BROKEN), "{replacement}");
     assert!(replacement.ends_with(&format!("{BROKEN};")), "{replacement}");
 }
+
+#[test]
+fn condition_rule_documentation_examples_round_trip() {
+    use crate::model::Rule;
+
+    let rule = crate::sql::SqlRule::default();
+    for doc in rule.codes() {
+        let findings = crate::sql::check(doc.before);
+        assert_eq!(findings.iter().filter_map(|finding| finding.code.as_deref()).collect::<Vec<_>>(), [doc.code], "{findings:?}");
+        let fix = rule.fix(&block(doc.before)).expect("fix example");
+        assert_eq!(fix.codes, [doc.code]);
+        assert_eq!(fix.edits[0].replacement, doc.after, "{}", doc.code);
+        assert!(crate::sql::check(doc.after).is_empty(), "{}", doc.code);
+        assert_eq!(crate::sql::format(doc.after).expect("format example"), doc.after);
+    }
+}
+
+#[test]
+fn condition_rule_codes_follow_nested_original_keywords() {
+    use crate::model::Rule;
+
+    let sql = "select '中文 where';\nSELECT 'ON' AS tag FROM t WHERE EXISTS (SELECT 1 FROM u WHERE a=1 AND b=2 AND c=3 AND abs(d)=4) AND t.flag=1;";
+    let findings = crate::sql::check(sql);
+    let coded: Vec<_> = findings
+        .iter()
+        .filter_map(|finding| finding.code.as_deref().map(|code| (finding.span.start, &sql[finding.span.start..finding.span.end], code)))
+        .collect();
+    let first = sql.find("WHERE EXISTS").expect("outer condition");
+    let second = sql.find("WHERE a=1").expect("inner condition");
+    assert_eq!(coded, [(first, "WHERE", "break-complex-conditions"), (second, "WHERE", "break-many-conditions")]);
+    let fix = crate::sql::SqlRule::default().fix(&block(sql)).expect("fix nested query");
+    assert_eq!(fix.codes, ["break-complex-conditions", "break-many-conditions"]);
+    let fixed = &fix.edits[0].replacement;
+    assert!(crate::sql::check(fixed).is_empty(), "{fixed}");
+    assert_eq!(crate::sql::format(fixed).expect("second fix"), *fixed);
+}
+
+#[test]
+fn condition_rule_ignores_nested_block_rebuilt_by_parent() {
+    use crate::model::Rule;
+
+    let sql = "select a\nfrom t\nwhere exists (\n    select 1\n    from u\n    where (\n        1 = 1\n        and a = 1\n        and b = 2\n        and c = 3\n        and d = 4\n    )\n );";
+    assert!(crate::sql::check(sql).iter().all(|finding| finding.code.is_none()));
+    let fix = crate::sql::SqlRule::default().fix(&block(sql)).expect("align subquery closer");
+    assert!(fix.codes.is_empty(), "{fix:?}");
+    assert_eq!(fix.edits[0].replacement, sql.replace("\n );", "\n);"));
+}
+
+#[test]
+fn condition_rule_does_not_label_token_only_or_invalid_sql() {
+    use crate::model::Rule;
+
+    let valid = "select a\nfrom t\nwhere a=1 and b=2;";
+    let invalid = "select a from t where a = 1 and b = ;";
+    let sql = format!("{valid}\n{invalid}");
+    let findings = crate::sql::check(&sql);
+    assert!(findings.iter().all(|finding| finding.code.is_none() && finding.span.end <= valid.len()), "{findings:?}");
+    let fix = crate::sql::SqlRule::default().fix(&block(&sql)).expect("fix token spacing");
+    assert!(fix.codes.is_empty(), "{fix:?}");
+    assert_eq!(fix.edits[0].replacement, format!("select a\nfrom t\nwhere a = 1 and b = 2;\n{invalid}"));
+}

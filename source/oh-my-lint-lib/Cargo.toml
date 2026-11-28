@@ -4,6 +4,7 @@ name    = "oh-my-lint-lib"
 version = { workspace = true }
 
 [dependencies]
+oh-my-lint-macros = { workspace = true }
 regex      = { workspace = true }
 serde      = { workspace = true }
 similar    = { workspace = true }

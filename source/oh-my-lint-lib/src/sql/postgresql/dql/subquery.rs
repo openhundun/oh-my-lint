@@ -3,6 +3,7 @@
 use crate::span::Span;
 use crate::sql::parse::Dialect;
 use crate::sql::postgresql::dql::checker::Violation;
+use crate::sql::postgresql::dql::condition_changes::ConditionChanges;
 
 /// 子查询块两侧的括号；块内部用于统一重排。
 pub(super) fn query_parens(text: &str, block: Span) -> Option<(usize, usize)> {
@@ -35,19 +36,18 @@ pub(super) fn is_query_block(text: &str) -> bool {
 }
 
 /// 子查询渲染：复杂块展开，简单块压回一行。
-pub(super) fn render(text: &str, violation: &Violation, dialect: Dialect) -> Option<String> {
+pub(super) fn render(text: &str, violation: &Violation, dialect: Dialect, track_conditions: bool) -> Option<(String, ConditionChanges)> {
     let block = &text[violation.span.start..violation.span.end];
-    match violation.expected {
-        crate::sql::postgresql::dql::clause::Mode::Break => format_nested(block, violation.indent, dialect),
-        crate::sql::postgresql::dql::clause::Mode::Inline => {
-            let flat = crate::sql::postgresql::dql::util::collapse_whitespace(block);
-            if flat.trim().is_empty() {
-                return None;
-            }
-            let formatted = crate::sql::postgresql::dql::fix::format_with(&flat, dialect).ok()?;
-            Some(crate::sql::postgresql::dql::util::collapse_whitespace(&formatted))
-        }
+    let flat = crate::sql::postgresql::dql::util::collapse_whitespace(block);
+    if flat.trim().is_empty() {
+        return None;
     }
+    let (body, changes) = crate::sql::postgresql::dql::fix::format_with_changes(&flat, dialect, track_conditions).ok()?;
+    let rendered = match violation.expected {
+        super::Mode::Break => indent_block(&body, violation.indent),
+        super::Mode::Inline => crate::sql::postgresql::dql::util::collapse_whitespace(&body),
+    };
+    Some((rendered, changes))
 }
 
 /// 把子查询体压平后按 DQL 重排，并统一加一级缩进；检查与修复共用。

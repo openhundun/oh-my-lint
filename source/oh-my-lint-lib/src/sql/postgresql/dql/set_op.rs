@@ -32,6 +32,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, block: crate::
                 indent: block_indent,
                 next_indent: None,
                 message: format!("{} should start a new line", operator.kind),
+                condition: None,
             });
             continue;
         }
@@ -48,6 +49,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, block: crate::
             indent: block_indent,
             next_indent: None,
             message: format!("{} should start a new line", operator.kind),
+            condition: None,
         });
     }
     let mut bounds: Vec<(usize, usize)> = Vec::new();
@@ -83,6 +85,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, block: crate::
                     indent: block_indent,
                     next_indent: None,
                     message: "branch should start a new line".to_owned(),
+                    condition: None,
                 });
             }
         }
@@ -95,6 +98,7 @@ pub(super) fn check(statement_start: usize, statement_text: &str, block: crate::
                 indent: block_indent,
                 next_indent: None,
                 message: "set operation branch should not be parenthesized".to_owned(),
+                condition: None,
             });
             continue;
         }

@@ -24,13 +24,11 @@ impl Mode {
     }
 }
 
-/// 子句输出：内联文本、逐元素行，或带结构括号的条件块。
+/// 列表子句输出：内联文本或逐元素行。
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ClauseOutput {
     Inline(String),
     Exline(Vec<String>),
-    /// 条件块：行内不含缩进；调用方补 `(` / `)` 与 +4 缩进。
-    Block(Vec<String>),
 }
 
 /// 子句是否必须一元素一行；未识别的子句沿用通用阈值。
@@ -51,13 +49,11 @@ pub(crate) fn needs_break(kind: &str, elements: &[Element]) -> bool {
     mode(kind, elements) == Mode::Break
 }
 
-/// 渲染子句元素；`where`/`having` 断行时首行是锚点。
+/// 渲染普通列表；条件列表由 `ConditionLayout` 渲染。
 pub(crate) fn render(kind: &str, elements: &[Element], expected: Mode) -> Option<ClauseOutput> {
     match kind {
         "select" => Some(select::render(elements, expected)),
         "from" => Some(from::render(elements, expected)),
-        "where" => Some(r#where::render(elements, expected)),
-        "having" => Some(having::render(elements, expected)),
         "group by" => Some(group_by::render(elements, expected)),
         "order by" => Some(order_by::render(elements, expected)),
         _ => None,
